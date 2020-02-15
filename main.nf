@@ -117,6 +117,17 @@ if (params.readPaths) {
         .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
+if (params.peptide_fasta) {
+Channel.fromPath(params.peptide_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.peptide_fasta}" }
+     .set{ ch_peptide_fasta }
+}
+
+peptide_ksize = params.extract_coding_peptide_ksize
+peptide_molecule = params.extract_coding_peptide_molecule
+jaccard_threshold = params.extract_coding_jaccard_threshold
+
+
 // Header log info
 log.info nfcoreHeader()
 def summary = [:]
@@ -198,10 +209,10 @@ process get_software_versions {
 /*
  * STEP 1 - FastQC
  */
-process fastqc {
+process samtools_view_to_fasta {
     tag "$name"
     label 'process_medium'
-    publishDir "${params.outdir}/fastqc", mode: 'copy',
+    publishDir "${params.outdir}/samtools_view_to_fasta", mode: 'copy',
         saveAs: { filename ->
                       filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
                 }
@@ -210,13 +221,114 @@ process fastqc {
     set val(name), file(reads) from ch_read_files_fastqc
 
     output:
-    file "*_fastqc.{zip,html}" into ch_fastqc_results
+    file "*fasta" into ch_fasta_from_sam
 
     script:
     """
     fastqc --quiet --threads $task.cpus $reads
     """
 }
+
+/*
+ * STEP 2 - fastp for read trimming + merging
+ */
+process fastp {
+    label 'low_memory'
+    tag "$name"
+    publishDir "${params.outdir}/fastp", mode: 'copy',
+        saveAs: {filename ->
+            if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
+            else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
+            else null
+        }
+
+    input:
+    set val(name), file(reads) from ch_reads
+    file wherearemyfiles from ch_where_fastp.collect()
+
+    output:
+    set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
+    file "*fastp.json" into fastp_results
+    file "*fastp.html" into fastp_html
+    file "where_are_my_files.txt"
+
+    script:
+    if (params.singleEnd) {
+        """
+        fastp \\
+            --in1 ${reads} \\
+            --trimns \\
+            --basename ${name} \\
+            --trimqualities
+        """
+    } else {
+        """
+        fastp \\
+            --in1 ${reads[0]} \\
+            --in2 ${reads[1]} \\
+            --out1 ${name}_R1_trimmed.fastq.gz \\
+            --out2 ${name}_R2_trimmed.fastq.gz \\
+            --correction \\
+            --json ${name}_fastp.json \\
+            --html ${name}_fastp.html
+        """
+    }
+}
+
+
+process khtools_peptide_bloom_filter {
+  tag "${peptides}__${bloom_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+
+  input:
+  set file(peptides) from ch_peptide_fasta
+
+  // TODO only do this on protein encodings, e.g "protein", "dayhoff", "hp"
+  each molecule from peptide_molecules
+
+  output:
+  set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
+
+  script:
+  bloom_id = "molecule-${molecule}"
+  """
+  khtools bloom-filter \\
+    --molecule ${molecule} \\
+    --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
+    ${peptides}
+  """
+}
+
+
+process khtools_extract_coding {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/khtools/extract_coding/", mode: 'copy'
+
+  input:
+  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
+  set sample_id, file(reads) from reads_ch
+
+  output:
+  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
+  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+
+  script:
+  """
+  khtools partition \\
+    --molecule ${molecule} \\
+    --csv ${sample_id}_coding_scores.csv \\
+    --peptides-are-bloom-filter \\
+    ${bloom_filter} \\
+    ${reads}
+  """
+}
+
 
 /*
  * STEP 2 - MultiQC
