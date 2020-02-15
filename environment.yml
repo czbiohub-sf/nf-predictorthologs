@@ -12,3 +12,9 @@ dependencies:
   - bioconda::multiqc=1.7
   - conda-forge::r-markdown=1.1
   - conda-forge::r-base=3.6.1
+  - bioconda::samtools
+  - bioconda::diamond
+  - bioconda::fastp
+  - pip
+  - pip:
+    - git+https://github.com/czbiohub/kh-tools.git@olgabot/partition-coding-reads#egg=khtools
