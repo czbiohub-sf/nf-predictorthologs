@@ -117,10 +117,10 @@ if (params.readPaths) {
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
 
-if (params.peptide_fasta) {
-Channel.fromPath(params.peptide_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.peptide_fasta}" }
-     .set{ ch_peptide_fasta }
+if (params.extract_coding_peptide_fasta) {
+Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
+     .set{ ch_extract_coding_peptide_fasta }
 }
 
 if (params.diamond_reference_proteome) {
@@ -132,7 +132,7 @@ Channel.fromPath(params.diamond_reference_proteome, checkIfExists: true)
 peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
-
+diamond_refseq_release = params.diamond_refseq_release
 
 // Header log info
 log.info nfcoreHeader()
@@ -308,7 +308,7 @@ process khtools_peptide_bloom_filter {
   publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
 
   input:
-  set file(peptides) from ch_peptide_fasta
+  set file(peptides) from ch_extract_coding_peptide_fasta
 
   // TODO only do this on protein encodings, e.g "protein", "dayhoff", "hp"
   each molecule from peptide_molecule
@@ -354,6 +354,53 @@ process khtools_extract_coding {
   """
 }
 
+
+process download_refseq {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+  input:
+  val refseq_release from diamond_refseq_release
+
+  output:
+  set file("${refseq_release}__${task.start}.fa.gz") into ch_diamond_protein_fasta
+
+  script:
+  """
+  rsync \
+        --prune-empty-dirs \
+        --archive \
+        --verbose \
+        -recursive \
+        --include '*protein.faa.gz' \
+        --exclude '/*' \
+        rsync://ftp.ncbi.nlm.nih.gov/refseq/release/${refseq_release}/ .
+  zcat *.protein.faa.gz | gzip -c - > ${refseq_release}__${task.start}.fa.gz
+  """
+}
+
+process diamond_prepare_taxa {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+  input:
+  file(taxonmap_zip) from diamond_taxonmap_zip
+
+  output:
+  file("nodes.dmp") into ch_diamond_taxonnodes
+  file("names.dmp") into ch_diamond_taxonnames
+
+  script:
+  """
+  unzip ${taxonmap_zip}
+  """
+}
+
+
 //
 
 process diamond_makedb {
@@ -363,7 +410,9 @@ process diamond_makedb {
   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
 
   input:
-  file(reference_proteome) from ch_diamond_reference_proteome
+  file(reference_proteome) from ch_diamond_protein_fasta
+  file(taxonnodes) from ch_diamond_taxonnodes
+  file(taxonnames) from ch_diamond_taxonnames
 
   output:
   set file("*_db") into ch_diamond_db
@@ -373,8 +422,8 @@ process diamond_makedb {
   diamond makedb \\
       -d ${reference_proteome.baseName}_db \\
       --taxonmap $NCBI/prot.accession2taxid.gz \\
-      --taxonnodes $NCBI/nodes.dmp \\
-      --taxnames $NCBI/names.dmp \\
+      --taxonnodes ${taxonnodes} \\
+      --taxnames ${taxonnames} \\
       ${reference_proteome}
   """
 }
