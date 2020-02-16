@@ -403,7 +403,7 @@ process diamond_prepare_taxa {
   publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
   input:
-  file(taxonmap_zip) from ch_diamond_taxonmap_zip
+  file(taxondmp_zip) from ch_diamond_taxdmp_zip
 
   output:
   file("nodes.dmp") into ch_diamond_taxonnodes
@@ -411,7 +411,7 @@ process diamond_prepare_taxa {
 
   script:
   """
-  unzip ${taxonmap_zip}
+  unzip ${taxondmp_zip}
   """
 }
 
@@ -428,6 +428,7 @@ process diamond_makedb {
   file(reference_proteome) from ch_diamond_protein_fasta
   file(taxonnodes) from ch_diamond_taxonnodes
   file(taxonnames) from ch_diamond_taxonnames
+  file(taxonmap_gz) from ch_diamond_taxonmap_gz
 
   output:
   set file("*_db") into ch_diamond_db
@@ -436,10 +437,10 @@ process diamond_makedb {
   """
   diamond makedb \\
       -d ${reference_proteome.baseName}_db \\
-      --taxonmap $NCBI/prot.accession2taxid.gz \\
+      --taxonmap ${taxonmap_gz} \\
       --taxonnodes ${taxonnodes} \\
-      --taxnames ${taxonnames} \\
-      ${reference_proteome}
+      --taxonnames ${taxonnames} \\
+      --in ${reference_proteome}
   """
 }
 
@@ -450,15 +451,11 @@ process diamond_blastp {
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
   input:
-  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
   set sample_id, file(coding_peptides) from ch_coding_peptides
   set diamond_db from ch_diamond_db
 
   output:
-  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+  file("${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
   """
@@ -483,7 +480,7 @@ process multiqc {
     input:
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
-    file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
+    // file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file workflow_summary from create_workflow_summary(summary)
 
