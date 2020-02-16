@@ -128,10 +128,10 @@ Channel.fromPath(params.diamond_protein_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond protein fasta file not found: ${params.diamond_protein_fasta}" }
      .set{ ch_diamond_protein_fasta }
 }
-if (params.diamond_taxonmap_zip) {
-Channel.fromPath(params.diamond_taxonmap_zip, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_zip}" }
-     .set{ ch_diamond_taxonmap_zip }
+if (params.diamond_taxonmap_gz) {
+Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_gz}" }
+     .set{ ch_diamond_taxonmap_gz }
 }
 if (params.diamond_taxdmp_zip) {
 Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
