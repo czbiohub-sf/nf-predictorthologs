@@ -287,16 +287,15 @@ process fastp {
     set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
     file "*fastp.json" into fastp_results
     file "*fastp.html" into fastp_html
-    file "where_are_my_files.txt"
 
     script:
     if (params.singleEnd) {
         """
         fastp \\
             --in1 ${reads} \\
-            --trimns \\
-            --basename ${name} \\
-            --trimqualities
+            --out1 ${name}_R1_trimmed.fastq.gz \\
+            --json ${name}_fastp.json \\
+            --html ${name}_fastp.html
         """
     } else {
         """
@@ -305,7 +304,6 @@ process fastp {
             --in2 ${reads[1]} \\
             --out1 ${name}_R1_trimmed.fastq.gz \\
             --out2 ${name}_R2_trimmed.fastq.gz \\
-            --correction \\
             --json ${name}_fastp.json \\
             --html ${name}_fastp.html
         """
