@@ -11,3 +11,5 @@ ENV PATH /opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH
 
 # Dump the details of the installed packages to a file for posterity
 RUN conda env export --name nf-core-predictorthologs-1.0dev > nf-core-predictorthologs-1.0dev.yml
+
+RUN apt-get update && apt-get install -y unzip
