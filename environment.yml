@@ -16,5 +16,6 @@ dependencies:
   - bioconda::diamond=0.9.30
   - bioconda::fastp=0.20.0
   - pip
+  - unzip
   - pip:
     - git+https://github.com/czbiohub/kh-tools.git@olgabot/more-encodings#egg=khtools
