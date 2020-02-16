@@ -123,11 +123,23 @@ Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
      .set{ ch_extract_coding_peptide_fasta }
 }
 
-if (params.diamond_reference_proteome) {
-Channel.fromPath(params.diamond_reference_proteome, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond reference proteome file not found: ${params.diamond_reference_proteome}" }
-     .set{ ch_diamond_reference_proteome }
+if (params.diamond_protein_fasta) {
+Channel.fromPath(params.diamond_protein_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond protein fasta file not found: ${params.diamond_protein_fasta}" }
+     .set{ ch_diamond_protein_fasta }
 }
+if (params.diamond_taxonmap_zip) {
+Channel.fromPath(params.diamond_taxonmap_zip, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_zip}" }
+     .set{ ch_diamond_taxonmap_zip }
+}
+if (params.diamond_taxdmp_zip) {
+Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.diamond_taxdmp_zip}" }
+     .set{ ch_diamond_taxdmp_zip }
+}
+
+
 
 peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
@@ -355,31 +367,36 @@ process khtools_extract_coding {
 }
 
 
-process download_refseq {
-  tag "${sample_id}"
-  label "low_memory"
+if (!params.diamond_protein_fasta){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process download_refseq {
+    tag "${sample_id}"
+    label "low_memory"
 
-  publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+    publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
-  input:
-  val refseq_release from diamond_refseq_release
+    input:
+    val refseq_release from diamond_refseq_release
 
-  output:
-  set file("${refseq_release}__${task.start}.fa.gz") into ch_diamond_protein_fasta
+    output:
+    set file("${refseq_release}__${task.start}.fa.gz") into ch_diamond_protein_fasta
 
-  script:
-  """
-  rsync \
-        --prune-empty-dirs \
-        --archive \
-        --verbose \
-        -recursive \
-        --include '*protein.faa.gz' \
-        --exclude '/*' \
-        rsync://ftp.ncbi.nlm.nih.gov/refseq/release/${refseq_release}/ .
-  zcat *.protein.faa.gz | gzip -c - > ${refseq_release}__${task.start}.fa.gz
-  """
+    script:
+    """
+    rsync \
+          --prune-empty-dirs \
+          --archive \
+          --verbose \
+          -recursive \
+          --include '*protein.faa.gz' \
+          --exclude '/*' \
+          rsync://ftp.ncbi.nlm.nih.gov/refseq/release/${refseq_release}/ .
+    zcat *.protein.faa.gz | gzip -c - > ${refseq_release}__${task.start}.fa.gz
+    """
+  }
 }
+
 
 process diamond_prepare_taxa {
   tag "${sample_id}"
@@ -388,7 +405,7 @@ process diamond_prepare_taxa {
   publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
   input:
-  file(taxonmap_zip) from diamond_taxonmap_zip
+  file(taxonmap_zip) from ch_diamond_taxonmap_zip
 
   output:
   file("nodes.dmp") into ch_diamond_taxonnodes
