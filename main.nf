@@ -250,29 +250,6 @@ process fastqc {
 
 
 /*
- * STEP 1 - FastQC
- */
-process samtools_view_to_fasta {
-    tag "$name"
-    label 'process_medium'
-    publishDir "${params.outdir}/samtools_view_to_fasta", mode: 'copy',
-        saveAs: { filename ->
-                      filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
-                }
-
-    input:
-    set val(name), file(reads) from ch_read_files_fastqc
-
-    output:
-    file "*fasta" into ch_fasta_from_sam
-
-    script:
-    """
-    fastqc --quiet --threads $task.cpus $reads
-    """
-}
-
-/*
  * STEP 2 - fastp for read trimming + merging
  */
 process fastp {
