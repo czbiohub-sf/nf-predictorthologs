@@ -16,6 +16,5 @@ dependencies:
   - bioconda::diamond
   - bioconda::fastp
   - pip
-  - unzip
   - pip:
     - git+https://github.com/czbiohub/kh-tools.git@olgabot/partition-coding-reads#egg=khtools
