@@ -461,7 +461,7 @@ process diamond_makedb {
 }
 
 
-// From Paolo - how to do extract_coding on ALL combinations of bloom filters
+// From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
  ch_coding_peptides_nonempty
   .groupTuple(by: [0, 3])
   .combine( ch_diamond_db )
@@ -486,8 +486,10 @@ process diamond_blastp {
   file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
+  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms skingdoms sphylums"
   """
   diamond blastp \\
+      ${ouptut_format} \\
       --threads ${task.cpus} \\
       --max-target-seqs 3 \\
       --db ${diamond_db} \\
