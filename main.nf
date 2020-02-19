@@ -314,33 +314,40 @@ process khtools_peptide_bloom_filter {
   """
 }
 
-
-process khtools_extract_coding {
+process extract_coding {
   tag "${sample_id}"
   label "low_memory"
-
-  publishDir "${params.outdir}/khtools/extract_coding/", mode: 'copy'
+  publishDir "${params.outdir}/extract_coding/", mode: 'copy'
 
   input:
-  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
-  set sample_id, file(reads) from ch_read_files_extract_coding
+  set bloom_id, molecule, file(bloom_filter) from ch_khtools_bloom_filter.collect()
+  set sample_id, file(reads) from reads_ch
 
   output:
   // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+  set val(sample_id), file("${sample_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_id), file("${sample_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_id), file("${sample_id}__coding_scores.csv") into ch_coding_scores_csv
+  set val(sample_id), file("${sample_id}__coding_summary.json") into ch_coding_scores_json
 
   script:
   """
-  khtools partition \\
+  khtools extract-coding \\
     --molecule ${molecule} \\
-    --csv ${sample_id}_coding_scores.csv \\
+    --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
+    --csv ${sample_id}__coding_scores.csv \\
+    --json-summary ${sample_id}__coding_summary.json \\
+    --jaccard-threshold ${jaccard_threshold} \\
     --peptides-are-bloom-filter \\
     ${bloom_filter} \\
-    ${reads}
+    ${reads} > ${sample_id}__coding_reads_peptides.fasta
   """
 }
+// Remove empty files
+// it[0] = sample id
+// it[1] = sequence fasta file
+ch_coding_nucleotides_nonempty = ch_coding_nucleotides.filter{ it[1].size() > 0 }
+ch_coding_peptides_nonempty = ch_coding_peptides.filter{ it[1].size() > 0 }
 
 
 if (!params.diamond_protein_fasta){
