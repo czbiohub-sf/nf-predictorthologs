@@ -27,7 +27,7 @@ def helpMessage() {
 
     Options:
       --genome [str]                  Name of iGenomes reference
-      --singleEnd [bool]             Specifies that the input is single-end reads
+      --single_end [bool]             Specifies that the input is single-end reads
 
     References                        If not specified in the configuration file or you wish to overwrite any of the references
       --fasta [file]                  Path to fasta reference
@@ -97,7 +97,7 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
  * Create a channel for input read files
  */
 if (params.readPaths) {
-    if (params.singleEnd) {
+    if (params.single_end) {
         Channel
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
@@ -114,8 +114,8 @@ if (params.readPaths) {
     }
 } else {
     Channel
-        .fromFilePairs(params.reads, size: params.singleEnd ? 1 : 2)
-        .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --singleEnd on the command line." }
+        .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
+        .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
         .dump(tag: "read_paths")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
@@ -157,7 +157,7 @@ summary['Run Name']         = custom_runName ?: workflow.runName
 // TODO nf-core: Report custom parameters here
 summary['Reads']            = params.reads
 summary['Fasta Ref']        = params.fasta
-summary['Data Type']        = params.singleEnd ? 'Single-End' : 'Paired-End'
+summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
 summary['Output dir']       = params.outdir
@@ -283,7 +283,7 @@ process fastp {
     file "*fastp.html" into fastp_html
 
     script:
-    if (params.singleEnd) {
+    if (params.single_end) {
         """
         fastp \\
             --in1 ${reads} \\
