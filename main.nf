@@ -102,20 +102,37 @@ if (params.readPaths) {
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .into { ch_read_files_fastqc; ch_read_files_trimming }
+            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     } else {
         Channel
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .into { ch_read_files_fastqc; ch_read_files_trimming }
+            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     }
 } else {
     Channel
         .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
-        .into { ch_read_files_fastqc; ch_read_files_trimming }
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
+
+if (params.peptide_fasta) {
+Channel.fromPath(params.peptide_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.peptide_fasta}" }
+     .set{ ch_peptide_fasta }
+}
+
+if (params.diamond_reference_proteome) {
+Channel.fromPath(params.diamond_reference_proteome, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond reference proteome file not found: ${params.diamond_reference_proteome}" }
+     .set{ ch_diamond_reference_proteome }
+}
+
+peptide_ksize = params.extract_coding_peptide_ksize
+peptide_molecule = params.extract_coding_peptide_molecule
+jaccard_threshold = params.extract_coding_jaccard_threshold
+
 
 // Header log info
 log.info nfcoreHeader()
@@ -195,6 +212,7 @@ process get_software_versions {
     """
 }
 
+
 /*
  * STEP 1 - FastQC
  */
@@ -217,6 +235,180 @@ process fastqc {
     fastqc --quiet --threads $task.cpus $reads
     """
 }
+
+
+/*
+ * STEP 1 - FastQC
+ */
+process samtools_view_to_fasta {
+    tag "$name"
+    label 'process_medium'
+    publishDir "${params.outdir}/samtools_view_to_fasta", mode: 'copy',
+        saveAs: { filename ->
+                      filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
+                }
+
+    input:
+    set val(name), file(reads) from ch_read_files_fastqc
+
+    output:
+    file "*fasta" into ch_fasta_from_sam
+
+    script:
+    """
+    fastqc --quiet --threads $task.cpus $reads
+    """
+}
+
+/*
+ * STEP 2 - fastp for read trimming + merging
+ */
+process fastp {
+    label 'low_memory'
+    tag "$name"
+    publishDir "${params.outdir}/fastp", mode: 'copy'
+
+    input:
+    set val(name), file(reads) from ch_read_files_trimming
+
+    output:
+    set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
+    file "*fastp.json" into fastp_results
+    file "*fastp.html" into fastp_html
+    file "where_are_my_files.txt"
+
+    script:
+    if (params.singleEnd) {
+        """
+        fastp \\
+            --in1 ${reads} \\
+            --trimns \\
+            --basename ${name} \\
+            --trimqualities
+        """
+    } else {
+        """
+        fastp \\
+            --in1 ${reads[0]} \\
+            --in2 ${reads[1]} \\
+            --out1 ${name}_R1_trimmed.fastq.gz \\
+            --out2 ${name}_R2_trimmed.fastq.gz \\
+            --correction \\
+            --json ${name}_fastp.json \\
+            --html ${name}_fastp.html
+        """
+    }
+}
+
+
+process khtools_peptide_bloom_filter {
+  tag "${peptides}__${bloom_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+
+  input:
+  set file(peptides) from ch_peptide_fasta
+
+  // TODO only do this on protein encodings, e.g "protein", "dayhoff", "hp"
+  each molecule from peptide_molecule
+
+  output:
+  set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
+
+  script:
+  bloom_id = "molecule-${molecule}"
+  """
+  khtools bloom-filter \\
+    --molecule ${molecule} \\
+    --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
+    ${peptides}
+  """
+}
+
+
+process khtools_extract_coding {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/khtools/extract_coding/", mode: 'copy'
+
+  input:
+  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
+  set sample_id, file(reads) from ch_read_files_extract_coding
+
+  output:
+  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
+  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+
+  script:
+  """
+  khtools partition \\
+    --molecule ${molecule} \\
+    --csv ${sample_id}_coding_scores.csv \\
+    --peptides-are-bloom-filter \\
+    ${bloom_filter} \\
+    ${reads}
+  """
+}
+
+//
+
+process diamond_makedb {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+
+  input:
+  file(reference_proteome) from ch_diamond_reference_proteome
+
+  output:
+  set file("*_db") into ch_diamond_db
+
+  script:
+  """
+  diamond makedb \\
+      -d ${reference_proteome.baseName}_db \\
+      --taxonmap $NCBI/prot.accession2taxid.gz \\
+      --taxonnodes $NCBI/nodes.dmp \\
+      --taxnames $NCBI/names.dmp \\
+      ${reference_proteome}
+  """
+}
+
+process diamond_blastp {
+  tag "${sample_id}"
+  label "low_memory"
+
+  publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+
+  input:
+  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
+  set sample_id, file(coding_peptides) from ch_coding_peptides
+  set diamond_db from ch_diamond_db
+
+  output:
+  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
+  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+
+  script:
+  """
+  diamond blastp \\
+      --threads ${task.cpus} \\
+      --max-target-seqs 3 \\
+      --db ${diamond_db} \\
+      --evalue 0.00000000001  \\
+      --query ${coding_peptides} \\
+      > ${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv
+  """
+}
+
+
 
 /*
  * STEP 2 - MultiQC
