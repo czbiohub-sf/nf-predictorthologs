@@ -215,11 +215,25 @@ process get_software_versions {
 
     script:
     // TODO nf-core: Get all tools to print their version number here
+    // (base) root@aa580bfc0d2f:/# fastp --version
+    // fastp 0.20.0
+    // (base) root@aa580bfc0d2f:/# diamond version
+    // diamond v0.9.30.131 (C) Max Planck Society for the Advancement of Science
+    // Documentation, support and updates available at http://www.diamondsearch.org
+    //
+    // diamond version 0.9.30
+    // (base) root@aa580bfc0d2f:/# samtools --version
+    // samtools 1.10
+    // Using htslib 1.10.2
+    // Copyright (C) 2019 Genome Research Ltd.
     """
     echo $workflow.manifest.version > v_pipeline.txt
     echo $workflow.nextflow.version > v_nextflow.txt
     fastqc --version > v_fastqc.txt
     multiqc --version > v_multiqc.txt
+    fastp --version > v_fastp.txt
+    diamond version > v_diamond.txt
+    samtools --version > v_samtools.txt
     scrape_software_versions.py &> software_versions_mqc.yaml
     """
 }
