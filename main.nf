@@ -102,18 +102,21 @@ if (params.readPaths) {
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+            .dump(tag: "reads_single_end")
             .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     } else {
         Channel
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+            .dump(tag: "reads_paired_end")
             .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     }
 } else {
     Channel
         .fromFilePairs(params.reads, size: params.singleEnd ? 1 : 2)
         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --singleEnd on the command line." }
+        .dump(tag: "read_paths")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
 
@@ -346,31 +349,39 @@ process extract_coding {
 
   output:
   // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_id), file("${sample_id}__coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_id), file("${sample_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_id), file("${sample_id}__coding_scores.csv") into ch_coding_scores_csv
-  set val(sample_id), file("${sample_id}__coding_summary.json") into ch_coding_scores_json
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
 
   script:
+  sample_bloom_id = "${sample_id}__${bloom_id}"
   """
   khtools extract-coding \\
     --molecule ${alphabet[0]} \\
-    --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
-    --csv ${sample_id}__coding_scores.csv \\
-    --json-summary ${sample_id}__coding_summary.json \\
+    --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
+    --csv ${sample_bloom_id}__coding_scores.csv \\
+    --json-summary ${sample_bloom_id}__coding_summary.json \\
     --peptides-are-bloom-filter \\
     ${bloom_filter} \\
-    ${reads} > ${sample_id}__coding_reads_peptides.fasta
+    ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
   """
 }
 // Remove empty files
 // it[0] = sample id
 // it[1] = sequence fasta file
-ch_coding_nucleotides_nonempty = ch_coding_nucleotides.filter{ it[1].size() > 0 }
-ch_coding_peptides_nonempty = ch_coding_peptides.filter{ it[1].size() > 0 }
+ch_coding_nucleotides
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_coding_nucleotides_nonempty")
+  .set{ ch_coding_nucleotides_nonempty }
+
+ch_coding_peptides
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_coding_peptides_nonempty")
+  .into{ ch_coding_peptides_nonempty }
 
 
-if (!params.diamond_protein_fasta){
+if (!params.diamond_protein_fasta & params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
@@ -436,7 +447,7 @@ process diamond_makedb {
   file(taxonmap_gz) from ch_diamond_taxonmap_gz
 
   output:
-  file("*_db.dmnd") into ch_diamond_db
+  file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
 
   script:
   """
@@ -449,6 +460,14 @@ process diamond_makedb {
   """
 }
 
+
+// From Paolo - how to do extract_coding on ALL combinations of bloom filters
+ ch_coding_peptides_nonempty
+  .groupTuple(by: [0, 3])
+  .combine( ch_diamond_db )
+  .set{ ch_coding_peptides_nonempty_with_diamond_db }
+
+
 process diamond_blastp {
   tag "${sample_id}"
   label "low_memory"
@@ -456,11 +475,15 @@ process diamond_blastp {
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
   input:
-  set sample_id, file(coding_peptides) from ch_coding_peptides_nonempty
-  file(diamond_db) from ch_diamond_db
+  tuple \
+    val(sample_bloom_id), file(coding_peptides), \
+     file(diamond_db) \
+      from ch_coding_peptides_nonempty_with_diamond_db
+  // set val(sample_id), file(coding_peptides) from ch_coding_peptides_nonempty
+  // file(diamond_db) from ch_diamond_db
 
   output:
-  file("${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
   """
@@ -470,7 +493,7 @@ process diamond_blastp {
       --db ${diamond_db} \\
       --evalue 0.00000000001  \\
       --query ${coding_peptides} \\
-      > ${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv
+      > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
   """
 }
 
