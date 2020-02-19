@@ -295,9 +295,7 @@ process khtools_peptide_bloom_filter {
   publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
 
   input:
-  set file(peptides) from ch_extract_coding_peptide_fasta
-
-  // TODO only do this on protein encodings, e.g "protein", "dayhoff", "hp"
+  file(peptides) from ch_extract_coding_peptide_fasta
   each molecule from peptide_molecule
 
   output:
@@ -314,14 +312,23 @@ process khtools_peptide_bloom_filter {
   """
 }
 
+// From Paolo - how to do extract_coding on ALL combinations of bloom filters
+ ch_khtools_bloom_filters
+  .groupTuple(by: [0, 3])
+  .combine(ch_reads_trimmed)
+  .set{ ch_khtools_bloom_filters_grouptuple }
+
+
 process extract_coding {
   tag "${sample_id}"
   label "low_memory"
   publishDir "${params.outdir}/extract_coding/", mode: 'copy'
 
   input:
-  set bloom_id, molecule, file(bloom_filter) from ch_khtools_bloom_filter.collect()
-  set sample_id, file(reads) from reads_ch
+  tuple \
+    val(bloom_id), val(alphabet), file(bloom_filter), \
+    val(sample_id), file(reads) \
+      from ch_khtools_bloom_filters_grouptuple
 
   output:
   // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
@@ -333,11 +340,10 @@ process extract_coding {
   script:
   """
   khtools extract-coding \\
-    --molecule ${molecule} \\
+    --molecule ${alphabet[0]} \\
     --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
     --csv ${sample_id}__coding_scores.csv \\
     --json-summary ${sample_id}__coding_summary.json \\
-    --jaccard-threshold ${jaccard_threshold} \\
     --peptides-are-bloom-filter \\
     ${bloom_filter} \\
     ${reads} > ${sample_id}__coding_reads_peptides.fasta
