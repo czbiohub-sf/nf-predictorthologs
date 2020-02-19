@@ -17,4 +17,4 @@ dependencies:
   - bioconda::fastp
   - pip
   - pip:
-    - git+https://github.com/czbiohub/kh-tools.git@olgabot/partition-coding-reads#egg=khtools
+    - git+https://github.com/czbiohub/kh-tools.git@olgabot/more-encodings#egg=khtools
