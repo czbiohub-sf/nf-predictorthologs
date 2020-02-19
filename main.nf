@@ -422,7 +422,7 @@ process diamond_makedb {
   file(taxonmap_gz) from ch_diamond_taxonmap_gz
 
   output:
-  set file("*_db") into ch_diamond_db
+  file("*_db.dmnd") into ch_diamond_db
 
   script:
   """
@@ -443,7 +443,7 @@ process diamond_blastp {
 
   input:
   set sample_id, file(coding_peptides) from ch_coding_peptides_nonempty
-  set diamond_db from ch_diamond_db
+  file(diamond_db) from ch_diamond_db
 
   output:
   file("${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
