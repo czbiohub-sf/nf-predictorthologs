@@ -13,4 +13,4 @@ jobs:
       # PRs are only ok if coming from an nf-core `dev` branch or a fork `patch` branch
       - name: Check PRs
         run: |
-          { [[ $(git remote get-url origin) == *czbiohub/predictorthologs ]] && [[ ${GITHUB_HEAD_REF} = "dev" ]]; } || [[ ${GITHUB_HEAD_REF} == "patch" ]]
+          [[ $(git remote get-url origin) == *czbiohub/nf-predictorthologs ]] && [[ ${GITHUB_BASE_REF} = "master" ]] && { [[ ${GITHUB_HEAD_REF} = "dev" ]] || [[ ${GITHUB_BASE_REF} = "patch" ]]; }
