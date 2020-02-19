@@ -382,7 +382,7 @@ if (!params.diamond_protein_fasta){
 
 
 process diamond_prepare_taxa {
-  tag "${sample_id}"
+  tag "${taxondmp_zip.baseName}"
   label "low_memory"
 
   publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
@@ -404,7 +404,7 @@ process diamond_prepare_taxa {
 //
 
 process diamond_makedb {
-  tag "${sample_id}"
+  tag "${reference_proteome.baseName}"
   label "low_memory"
 
   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
@@ -436,7 +436,7 @@ process diamond_blastp {
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
   input:
-  set sample_id, file(coding_peptides) from ch_coding_peptides
+  set sample_id, file(coding_peptides) from ch_coding_peptides_nonempty
   set diamond_db from ch_diamond_db
 
   output:
