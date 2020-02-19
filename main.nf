@@ -307,6 +307,7 @@ process khtools_peptide_bloom_filter {
   bloom_id = "molecule-${molecule}"
   """
   khtools bloom-filter \\
+    --tablesize 1e7 \\
     --molecule ${molecule} \\
     --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
     ${peptides}
