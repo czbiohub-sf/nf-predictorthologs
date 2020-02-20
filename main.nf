@@ -279,8 +279,8 @@ process fastp {
 
     output:
     set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
-    file "*fastp.json" into fastp_results
-    file "*fastp.html" into fastp_html
+    file "*fastp.json" into ch_fastp_results
+    file "*fastp.html" into ch_fastp_html
 
     script:
     if (params.single_end) {
@@ -510,8 +510,9 @@ process multiqc {
     input:
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
-    // file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
+    file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
+    file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
     file workflow_summary from create_workflow_summary(summary)
 
     output:
@@ -524,7 +525,7 @@ process multiqc {
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config .
+    multiqc -f $rtitle $rfilename --config $multiqc_config -m fastqc -m fastp .
     """
 }
 
