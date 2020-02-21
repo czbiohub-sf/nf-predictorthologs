@@ -394,7 +394,7 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
     val refseq_release from diamond_refseq_release
 
     output:
-    set file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
+    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
 
     script:
     """
