@@ -13,4 +13,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 ### `Dependencies`
 
+- Add rsync and unzip tools
+
 ### `Deprecated`
