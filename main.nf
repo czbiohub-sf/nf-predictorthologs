@@ -147,6 +147,11 @@ Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.diamond_taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
+if (params.diamond_database){
+  Channel.fromPath(params.diamond_database, checkIfExists: true)
+       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
+       .set{ ch_diamond_db }
+}
 
 
 //////////////////////////////////////////////////////////////////
@@ -478,23 +483,25 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
 /*
  * STEP 5 - unzip taxonomy information files for input to DIAMOND
  */
-process diamond_prepare_taxa {
-  tag "${taxondmp_zip.baseName}"
-  label "process_low"
+if (!params.diamond_database){
+  process diamond_prepare_taxa {
+    tag "${taxondmp_zip.baseName}"
+    label "process_low"
 
-  publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+    publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
-  input:
-  file(taxondmp_zip) from ch_diamond_taxdmp_zip
+    input:
+    file(taxondmp_zip) from ch_diamond_taxdmp_zip
 
-  output:
-  file("nodes.dmp") into ch_diamond_taxonnodes
-  file("names.dmp") into ch_diamond_taxonnames
+    output:
+    file("nodes.dmp") into ch_diamond_taxonnodes
+    file("names.dmp") into ch_diamond_taxonnames
 
-  script:
-  """
-  unzip ${taxondmp_zip}
-  """
+    script:
+    """
+    unzip ${taxondmp_zip}
+    """
+  }
 }
 
 
@@ -508,30 +515,32 @@ process diamond_prepare_taxa {
 /*
  * STEP 6 - make peptide search database for DIAMOND
  */
- process diamond_makedb {
-  tag "${reference_proteome.baseName}"
-  label "process_low"
+if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
+  process diamond_makedb {
+   tag "${reference_proteome.baseName}"
+   label "process_low"
 
-  publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
 
-  input:
-  file(reference_proteome) from ch_diamond_protein_fasta
-  file(taxonnodes) from ch_diamond_taxonnodes
-  file(taxonnames) from ch_diamond_taxonnames
-  file(taxonmap_gz) from ch_diamond_taxonmap_gz
+   input:
+   file(reference_proteome) from ch_diamond_protein_fasta
+   file(taxonnodes) from ch_diamond_taxonnodes
+   file(taxonnames) from ch_diamond_taxonnames
+   file(taxonmap_gz) from ch_diamond_taxonmap_gz
 
-  output:
-  file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
+   output:
+   file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
 
-  script:
-  """
-  diamond makedb \\
-      -d ${reference_proteome.baseName}_db \\
-      --taxonmap ${taxonmap_gz} \\
-      --taxonnodes ${taxonnodes} \\
-      --taxonnames ${taxonnames} \\
-      --in ${reference_proteome}
-  """
+   script:
+   """
+   diamond makedb \\
+       -d ${reference_proteome.baseName}_db \\
+       --taxonmap ${taxonmap_gz} \\
+       --taxonnodes ${taxonnodes} \\
+       --taxonnames ${taxonnames} \\
+       --in ${reference_proteome}
+   """
+ }
 }
 
 
