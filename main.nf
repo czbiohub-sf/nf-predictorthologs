@@ -381,7 +381,7 @@ ch_coding_peptides
   .into{ ch_coding_peptides_nonempty }
 
 
-if (!params.diamond_protein_fasta & params.diamond_refseq_release){
+if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
