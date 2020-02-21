@@ -79,6 +79,9 @@ if (!(workflow.runName ==~ /[a-z]+_[a-z]+/)) {
     custom_runName = workflow.runName
 }
 
+////////////////////////////////////////////////////
+/* --                   AWS                    -- */
+////////////////////////////////////////////////////
 if (workflow.profile.contains('awsbatch')) {
     // AWSBatch sanity checking
     if (!params.awsqueue || !params.awsregion) exit 1, "Specify correct --awsqueue and --awsregion parameters on AWSBatch!"
@@ -93,9 +96,9 @@ if (workflow.profile.contains('awsbatch')) {
 ch_multiqc_config = file(params.multiqc_config, checkIfExists: true)
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-/*
- * Create a channel for input read files
- */
+////////////////////////////////////////////////////
+/* --          Parse input reads               -- */
+////////////////////////////////////////////////////
 if (params.readPaths) {
     if (params.single_end) {
         Channel
@@ -120,6 +123,9 @@ if (params.readPaths) {
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
 
+////////////////////////////////////////////////////
+/* --        Parse reference proteomes         -- */
+////////////////////////////////////////////////////
 if (params.extract_coding_peptide_fasta) {
 Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
@@ -143,13 +149,21 @@ Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
 }
 
 
-
+//////////////////////////////////////////////////////////////////
+/* -     Parse extract_coding and diamond parameters         -- */
+//////////////////////////////////////////////////////////////////
 peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
 diamond_refseq_release = params.diamond_refseq_release
 
-// Header log info
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                       HEADER LOG INFO                               -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 log.info nfcoreHeader()
 def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
@@ -242,6 +256,14 @@ process get_software_versions {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                        FASTQ QC                                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
 /*
  * STEP 1 - FastQC
  */
@@ -266,8 +288,15 @@ process fastqc {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                        ADAPTER TRIMMING                             -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 2 - fastp for read trimming + merging
+ * STEP 2 - fastp for read trimming
  */
 process fastp {
     label 'low_memory'
@@ -304,7 +333,16 @@ process fastp {
     }
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 2 - khtools bloom-filter
+ */
 process khtools_peptide_bloom_filter {
   tag "${peptides}__${bloom_id}"
   label "low_memory"
@@ -335,7 +373,16 @@ process khtools_peptide_bloom_filter {
   .combine(ch_reads_trimmed)
   .set{ ch_khtools_bloom_filters_grouptuple }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                   PREDICT PROTEIN-CODING READS                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 3 - khtools extrct-coding
+ */
 process extract_coding {
   tag "${sample_id}"
   label "low_memory"
@@ -381,6 +428,16 @@ ch_coding_peptides
   .into{ ch_coding_peptides_nonempty }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              DOWNLOAD REFSEQ REFERENCE PROTEOME                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - rsync to download refeseq
+ */
 if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
@@ -411,7 +468,16 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   }
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                      PREPARE TAXA FOR DIAMOND                       -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 5 - unzip taxonomy information files for input to DIAMOND
+ */
 process diamond_prepare_taxa {
   tag "${taxondmp_zip.baseName}"
   label "low_memory"
@@ -432,9 +498,17 @@ process diamond_prepare_taxa {
 }
 
 
-//
-
-process diamond_makedb {
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 6 - make peptide search database for DIAMOND
+ */
+ process diamond_makedb {
   tag "${reference_proteome.baseName}"
   label "low_memory"
 
@@ -467,7 +541,16 @@ process diamond_makedb {
   .combine( ch_diamond_db )
   .set{ ch_coding_peptides_nonempty_with_diamond_db }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 7 - Search DIAMOND database for closest match to
+ */
 process diamond_blastp {
   tag "${sample_id}"
   label "low_memory"
