@@ -385,7 +385,7 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
-    tag "${sample_id}"
+    tag "${refseq_release}"
     label "low_memory"
 
     publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
