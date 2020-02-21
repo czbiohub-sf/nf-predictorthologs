@@ -13,4 +13,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 ### `Dependencies`
 
+* Changed MultiQC to be [czbiohub/MultiQC fork with olgabot/khtools branch](https://github.com/czbiohub/MultiQC/tree/olgabot/khtools)
+* Changed [khtools](https://github.com/czbiohub/kh-tools) to be master branch
+
 ### `Deprecated`
