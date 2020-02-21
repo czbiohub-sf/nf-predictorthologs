@@ -394,19 +394,19 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
     val refseq_release from diamond_refseq_release
 
     output:
-    set file("${refseq_release}__${task.start}.fa.gz") into ch_diamond_protein_fasta
+    set file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
 
     script:
     """
-    rsync \
-          --prune-empty-dirs \
-          --archive \
-          --verbose \
-          -recursive \
-          --include '*protein.faa.gz' \
-          --exclude '/*' \
+    rsync \\
+          --prune-empty-dirs \\
+          --archive \\
+          --verbose \\
+          --recursive \\
+          --include '*protein.faa.gz' \\
+          --exclude '/*' \\
           rsync://ftp.ncbi.nlm.nih.gov/refseq/release/${refseq_release}/ .
-    zcat *.protein.faa.gz | gzip -c - > ${refseq_release}__${task.start}.fa.gz
+    zcat *.protein.faa.gz | gzip -c - > ${refseq_release}.fa.gz
     """
   }
 }
