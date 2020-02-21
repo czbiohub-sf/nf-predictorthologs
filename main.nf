@@ -299,7 +299,7 @@ process fastqc {
  * STEP 2 - fastp for read trimming
  */
 process fastp {
-    label 'low_memory'
+    label 'process_low'
     tag "$name"
     publishDir "${params.outdir}/fastp", mode: 'copy'
 
@@ -345,7 +345,7 @@ process fastp {
  */
 process khtools_peptide_bloom_filter {
   tag "${peptides}__${bloom_id}"
-  label "low_memory"
+  label "process_low"
 
   publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
 
@@ -385,7 +385,7 @@ process khtools_peptide_bloom_filter {
  */
 process extract_coding {
   tag "${sample_id}"
-  label "low_memory"
+  label "process_long"
   publishDir "${params.outdir}/extract_coding/", mode: 'copy'
 
   input:
@@ -443,7 +443,7 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   // download refseq
   process download_refseq {
     tag "${refseq_release}"
-    label "low_memory"
+    label "process_low"
 
     publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
@@ -480,7 +480,7 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release){
  */
 process diamond_prepare_taxa {
   tag "${taxondmp_zip.baseName}"
-  label "low_memory"
+  label "process_low"
 
   publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
@@ -510,7 +510,7 @@ process diamond_prepare_taxa {
  */
  process diamond_makedb {
   tag "${reference_proteome.baseName}"
-  label "low_memory"
+  label "process_low"
 
   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
 
@@ -553,7 +553,7 @@ process diamond_prepare_taxa {
  */
 process diamond_blastp {
   tag "${sample_id}"
-  label "low_memory"
+  label "process_high"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
