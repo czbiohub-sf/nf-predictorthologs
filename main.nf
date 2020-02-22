@@ -96,9 +96,22 @@ if (workflow.profile.contains('awsbatch')) {
 ch_multiqc_config = file(params.multiqc_config, checkIfExists: true)
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
+
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
+
+if (params.bam && params.bed) {
+    // params needed for intersection
+    bam_ch = Channel.from(params.bam)
+        .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
+    bed_ch = Channel.from(params.bed)
+	.ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
+} 
+/*
+ * Create a channel for input read files
+ */
+
 if (params.readPaths) {
     if (params.single_end) {
         Channel
@@ -269,6 +282,31 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+/*
+ * STEP 0 - Bedtools intersection
+ */
+
+if (params.bam && params.bed) {
+    process bedtools_intersect {
+	tag "$name"
+	label "process_medium"
+	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+
+	input:
+	set bam_id, file(bam) from bam_ch
+	set bed_id, file(bed) from bed_ch
+
+	output:
+	set val(sample_id), file("*.fastq") into ch_read_files_fastqc
+
+	script:
+	"""
+        python bam_bed_intersect.py -bam $bam -bed $bed
+        """
+    }
+}
+
+result.subscribe { println it }
 /*
  * STEP 1 - FastQC
  */
