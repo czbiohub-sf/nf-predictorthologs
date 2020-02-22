@@ -306,7 +306,6 @@ if (params.bam && params.bed) {
     }
 }
 
-result.subscribe { println it }
 /*
  * STEP 1 - FastQC
  */
