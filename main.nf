@@ -288,7 +288,7 @@ process get_software_versions {
 
 if (params.bam && params.bed) {
     process bedtools_intersect {
-	tag "$name"
+	tag "$bam_id"
 	label "process_medium"
 	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
