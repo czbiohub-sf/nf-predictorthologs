@@ -578,7 +578,7 @@ process diamond_blastp {
   file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
-  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms skingdoms sphylums"
+  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
   """
   diamond blastp \\
       ${ouptut_format} \\
