@@ -101,16 +101,22 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
 
+
 if (params.bam && params.bed) {
     // params needed for intersection
-    bam_ch = Channel.from(params.bam)
-        .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
-    bed_ch = Channel.from(params.bed)
-	.ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
-} 
-/*
- * Create a channel for input read files
- */
+    Channel.from(params.bam)
+            .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
+        .set {ch_bam}
+    Channel.fromPath(params.bed)
+        .splitText()
+        .map { row -> [ row[4], row ] } // get interval name and row
+        .view()
+        .into {ch_bed}
+    
+}
+
+
+ // * Create a channel for input read files
 
 if (params.readPaths) {
     if (params.single_end) {
@@ -288,20 +294,20 @@ process get_software_versions {
 
 if (params.bam && params.bed) {
     process bedtools_intersect {
-	tag "$bam_id"
+	tag "$bam"
 	label "process_medium"
 	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
 	input:
-	set bam_id, file(bam) from bam_ch
-	set bed_id, file(bed) from bed_ch
+	file(bam) from ch_bam
+	set val(bed_line), val(interval) from ch_bed
 
 	output:
-	set val(sample_id), file("*.fastq") into ch_read_files_fastqc
+	set file("*.fastq") into ch_fastq_intersect
 
 	script:
 	"""
-        python bam_bed_intersect.py -bam $bam -bed $bed
+        echo ${bed_line} | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
         """
     }
 }
@@ -413,7 +419,7 @@ process khtools_peptide_bloom_filter {
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
     .combine(ch_reads_trimmed)
-    .view()
+    // .view()
   .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -468,7 +474,8 @@ ch_coding_nucleotides
 ch_coding_peptides
   .filter{ it[1].size() > 0 }
   .dump(tag: "ch_coding_peptides_nonempty")
-  .into{ ch_coding_peptides_nonempty }
+    // .into{ ch_coding_peptides_nonempty }
+    .set {ch_coding_peptides_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
