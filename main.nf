@@ -107,12 +107,11 @@ if (params.bam && params.bed) {
     Channel.from(params.bam)
             .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
         .set {ch_bam}
-    Channel.fromPath(params.bed)
-        .splitText()
-        .map { row -> [ row[4], row ] } // get interval name and row
-        .view()
-        .into {ch_bed}
-    
+    bed_file = file(params.bed)
+    Channel.from(bed_file.readLines())
+        .map { row -> row.split() } // get interval name and row
+        .map { row -> [row[3], row]}
+        .set {ch_bed}
 }
 
 
@@ -303,7 +302,7 @@ if (params.bam && params.bed) {
 	set val(bed_line), val(interval) from ch_bed
 
 	output:
-	set file("*.fastq") into ch_fastq_intersect
+	set file("${interval}.fastq") into ch_fastq_intersect
 
 	script:
 	"""
