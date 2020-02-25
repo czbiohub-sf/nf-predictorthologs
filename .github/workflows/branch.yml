@@ -13,4 +13,4 @@ jobs:
       - name: Check PRs
         if: github.repository == 'czbiohub/nf-predictorthologs'
         run: |
-          { [[ $(git remote get-url origin) == *czbiohub/nf-predictorthologs ]] && [[ $GITHUB_HEAD_REF = "dev" ]]; } || [[ $GITHUB_HEAD_REF == "patch" ]]
+          { [[ $(git remote get-url origin) == "*czbiohub/nf-predictorthologs" ]] && [[ $GITHUB_HEAD_REF = "dev" ]]; } || [[ $GITHUB_HEAD_REF == "patch" ]]
