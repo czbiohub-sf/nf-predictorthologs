@@ -109,8 +109,9 @@ if (params.bam && params.bed) {
         .set {ch_bam}
     bed_file = file(params.bed)
     Channel.from(bed_file.readLines())
-        .map { row -> [ row.split()[3], row ] } // get interval name and row
-        // .map { row -> [row[3], row]}
+        .map {row -> row.split()}
+        .map { row -> [ row[3], row.join('\t') ] } // get interval name and row
+        .view()
         .set {ch_bed}
 }
 
