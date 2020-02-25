@@ -104,13 +104,13 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
 if (params.bam && params.bed) {
     // params needed for intersection
-    Channel.from(params.bam)
+    Channel.fromPath(params.bam)
             .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
         .set {ch_bam}
     bed_file = file(params.bed)
     Channel.from(bed_file.readLines())
-        .map { row -> row.split() } // get interval name and row
-        .map { row -> [row[3], row]}
+        .map { row -> [ row.split()[3], row ] } // get interval name and row
+        // .map { row -> [row[3], row]}
         .set {ch_bed}
 }
 
@@ -299,14 +299,14 @@ if (params.bam && params.bed) {
 
 	input:
 	file(bam) from ch_bam
-	set val(bed_line), val(interval) from ch_bed
+	set val(interval), val(bed_line) from ch_bed
 
 	output:
 	set file("${interval}.fastq") into ch_fastq_intersect
 
 	script:
 	"""
-        echo ${bed_line} | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
+        echo "${bed_line}" | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
         """
     }
 }
