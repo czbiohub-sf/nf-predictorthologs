@@ -375,7 +375,8 @@ process khtools_peptide_bloom_filter {
 // From Paolo - how to do extract_coding on ALL combinations of bloom filters
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
-  .combine(ch_reads_trimmed)
+    .combine(ch_reads_trimmed)
+    .view()
   .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
