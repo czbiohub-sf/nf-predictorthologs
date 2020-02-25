@@ -102,7 +102,7 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 ////////////////////////////////////////////////////
 
 
-if (params.bam && params.bed) {
+if (params.bam && params.bed && !(params.reads || params.readPaths )) {
     // params needed for intersection
     Channel.fromPath(params.bam)
             .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
@@ -111,7 +111,6 @@ if (params.bam && params.bed) {
     Channel.from(bed_file.readLines())
         .map {row -> row.split()}
         .map { row -> [ row[3], row.join('\t') ] } // get interval name and row
-        .view()
         .set {ch_bed}
 }
 
@@ -139,7 +138,7 @@ if (params.readPaths) {
         .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
         .dump(tag: "read_paths")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+        .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
 ////////////////////////////////////////////////////
