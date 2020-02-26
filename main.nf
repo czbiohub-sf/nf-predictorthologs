@@ -105,42 +105,44 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 if (params.bam && params.bed && !(params.reads || params.readPaths )) {
     // params needed for intersection
     Channel.fromPath(params.bam)
-            .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
+        .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
+        .view()
         .set {ch_bam}
-    bed_file = file(params.bed)
-    Channel.from(bed_file.readLines())
+    Channel.fromPath(params.bed)
+        .ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
+        .splitText()
         .map {row -> row.split()}
         .map { row -> [ row[3], row.join('\t') ] } // get interval name and row
-        .set {ch_bed}
-}
-
-
- // * Create a channel for input read files
-
-if (params.readPaths) {
-    if (params.single_end) {
-        Channel
-            .from(params.readPaths)
-            .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
-            .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .dump(tag: "reads_single_end")
-            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-    } else {
-        Channel
-            .from(params.readPaths)
-            .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
-            .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .dump(tag: "reads_paired_end")
-            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-    }
+        .combine(ch_bam)
+        .set {ch_bed_bam}
+    
 } else {
-    Channel
-        .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
-        .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
-        .dump(tag: "read_paths")
-        .into { ch_read_files_fastqc; ch_read_files_trimming }
-}
 
+    // * Create a channel for input read files
+    if (params.readPaths) {
+	if (params.single_end) {
+	    Channel
+		.from(params.readPaths)
+		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
+		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+		.dump(tag: "reads_single_end")
+		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+	} else {
+	    Channel
+		.from(params.readPaths)
+		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
+		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+		.dump(tag: "reads_paired_end")
+		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+	}
+    } else {
+	Channel
+	    .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
+	    .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
+	    .dump(tag: "read_paths")
+	    .into { ch_read_files_fastqc; ch_read_files_trimming }
+    }
+}
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
@@ -298,11 +300,10 @@ if (params.bam && params.bed) {
 	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
 	input:
-	file(bam) from ch_bam
-	set val(interval), val(bed_line) from ch_bed
+	set val(interval), val(bed_line), file(bam) from ch_bed_bam
 
 	output:
-	set file("${interval}.fastq") into ch_fastq_intersect
+	set val(interval), file("*.fastq") into ch_read_files_fastqc, ch_read_files_trimming
 
 	script:
 	"""
