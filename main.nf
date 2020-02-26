@@ -101,9 +101,9 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
 
-
 if (params.bam && params.bed && !(params.reads || params.readPaths )) {
     // params needed for intersection
+    print("supplied bam, not looking at any supplied --reads")
     Channel.fromPath(params.bam)
         .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
         .view()
