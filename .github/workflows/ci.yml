@@ -21,7 +21,7 @@ jobs:
           sudo mv nextflow /usr/local/bin/
       - name: Pull docker image
         run: |
-          docker pull nfcore/predictorthologs:dev && docker tag nfcore/predictorthologs:dev nfcore/predictorthologs:dev
+          docker pull czbiohub/predictorthologs:dev && docker tag czbiohub/predictorthologs:dev nfcore/predictorthologs:dev
       - name: Run pipeline with test data
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
