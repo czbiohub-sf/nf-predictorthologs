@@ -626,7 +626,7 @@ process multiqc {
     custom_config_file = params.multiqc_config ? "--config $mqc_custom_config" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config -m fastqc -m fastp .
+    multiqc -f $rtitle $rfilename $multiqc_config -m fastqc -m fastp .
     """
 }
 
