@@ -9,6 +9,8 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 ### `Added`
 
+- Updated infrastructure files to nf-core/tools version 1.9
+
 ### `Fixed`
 
 ### `Dependencies`
