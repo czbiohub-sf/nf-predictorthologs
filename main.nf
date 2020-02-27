@@ -303,11 +303,11 @@ if (params.bam && params.bed) {
 	set val(interval), val(bed_line), file(bam) from ch_bed_bam
 
 	output:
-	set val(interval), file("*.fastq") into ch_read_files_fastqc, ch_read_files_trimming
+	set val(interval), file("*.fastq") into ch_read_files_fastqc, ch_read_files_trimming 
 
 	script:
 	"""
-        echo "${bed_line}" | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
+        echo "${bed_line}" | bedtools intersect -a $bam -b - -loj | samtools fastq -o ${interval}.fastq 
         """
     }
 }
@@ -346,6 +346,13 @@ process fastqc {
 /*
  * STEP 2 - fastp for read trimming
  */
+
+// def check_for_empty(fastqs) {
+    
+    
+// }
+
+
 process fastp {
     label 'process_low'
     tag "$name"
@@ -380,6 +387,12 @@ process fastp {
         """
     }
 }
+
+// filter out empty fastq files
+// ch_reads_trimmed
+//     .filter { name, fastqs -> check_for_empty(fastqs)}
+//     .flatMap { names, fastqs -> names }
+//     .into { ch_read_files_fastqc; ch_read_files_trimming }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
