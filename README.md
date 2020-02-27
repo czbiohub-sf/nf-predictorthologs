@@ -2,7 +2,6 @@
 
 **Predict orthologous gene mapping from bam + bed or fasta/fastq data**.
 
-
 [![GitHub Actions CI Status](https://github.com/czbiohub/predictorthologs/workflows/nf-core%20CI/badge.svg)](https://github.com/czbiohub/predictorthologs/actions)
 [![GitHub Actions Linting Status](https://github.com/czbiohub/predictorthologs/workflows/nf-core%20linting/badge.svg)](https://github.com/czbiohub/predictorthologs/actions)
 [![Nextflow](https://img.shields.io/badge/nextflow-%E2%89%A519.10.0-brightgreen.svg)](https://www.nextflow.io/)
