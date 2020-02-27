@@ -612,12 +612,8 @@ process multiqc {
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
-<<<<<<< HEAD
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
-    file workflow_summary from create_workflow_summary(summary)
-=======
     file workflow_summary from ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yaml")
->>>>>>> TEMPLATE
 
     output:
     file "*multiqc_report.html" into ch_multiqc_report
@@ -630,11 +626,7 @@ process multiqc {
     custom_config_file = params.multiqc_config ? "--config $mqc_custom_config" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-<<<<<<< HEAD
     multiqc -f $rtitle $rfilename --config $multiqc_config -m fastqc -m fastp .
-=======
-    multiqc -f $rtitle $rfilename $custom_config_file .
->>>>>>> TEMPLATE
     """
 }
 
