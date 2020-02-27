@@ -23,7 +23,7 @@ def helpMessage() {
     Mandatory arguments:
       --reads [file]                Path to input data (must be surrounded with quotes)
       -profile [str]                Configuration profile to use. Can use multiple (comma separated)
-                                    Available: conda, docker, singularity, test, awsbatch and more
+                                    Available: conda, docker, singularity, test, awsbatch, <institute> and more
 
     Options:
       --genome [str]                  Name of iGenomes reference
@@ -79,6 +79,9 @@ if (!(workflow.runName ==~ /[a-z]+_[a-z]+/)) {
     custom_runName = workflow.runName
 }
 
+////////////////////////////////////////////////////
+/* --                   AWS                    -- */
+////////////////////////////////////////////////////
 if (workflow.profile.contains('awsbatch')) {
     // AWSBatch sanity checking
     if (!params.awsqueue || !params.awsregion) exit 1, "Specify correct --awsqueue and --awsregion parameters on AWSBatch!"
@@ -90,51 +93,83 @@ if (workflow.profile.contains('awsbatch')) {
 }
 
 // Stage config files
-ch_multiqc_config = file(params.multiqc_config, checkIfExists: true)
+ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: true)
+ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-/*
- * Create a channel for input read files
- */
+////////////////////////////////////////////////////
+/* --          Parse input reads               -- */
+////////////////////////////////////////////////////
 if (params.readPaths) {
     if (params.single_end) {
         Channel
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+            .dump(tag: "reads_single_end")
             .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     } else {
         Channel
             .from(params.readPaths)
             .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
             .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+            .dump(tag: "reads_paired_end")
             .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     }
 } else {
     Channel
         .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
+        .dump(tag: "read_paths")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
 }
 
-if (params.peptide_fasta) {
-Channel.fromPath(params.peptide_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.peptide_fasta}" }
-     .set{ ch_peptide_fasta }
+////////////////////////////////////////////////////
+/* --        Parse reference proteomes         -- */
+////////////////////////////////////////////////////
+if (params.extract_coding_peptide_fasta) {
+Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
+     .set{ ch_extract_coding_peptide_fasta }
 }
 
-if (params.diamond_reference_proteome) {
-Channel.fromPath(params.diamond_reference_proteome, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond reference proteome file not found: ${params.diamond_reference_proteome}" }
-     .set{ ch_diamond_reference_proteome }
+if (params.diamond_protein_fasta) {
+Channel.fromPath(params.diamond_protein_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond protein fasta file not found: ${params.diamond_protein_fasta}" }
+     .set{ ch_diamond_protein_fasta }
+}
+if (params.diamond_taxonmap_gz) {
+Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_gz}" }
+     .set{ ch_diamond_taxonmap_gz }
+}
+if (params.diamond_taxdmp_zip) {
+Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.diamond_taxdmp_zip}" }
+     .set{ ch_diamond_taxdmp_zip }
+}
+if (params.diamond_database){
+  Channel.fromPath(params.diamond_database, checkIfExists: true)
+       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
+       .set{ ch_diamond_db }
 }
 
+
+//////////////////////////////////////////////////////////////////
+/* -     Parse extract_coding and diamond parameters         -- */
+//////////////////////////////////////////////////////////////////
 peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
+diamond_refseq_release = params.diamond_refseq_release
 
-
-// Header log info
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                       HEADER LOG INFO                               -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 log.info nfcoreHeader()
 def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
@@ -170,9 +205,10 @@ log.info "-\033[2m--------------------------------------------------\033[0m-"
 // Check the hostnames against configured profiles
 checkHostname()
 
-def create_workflow_summary(summary) {
-    def yaml_file = workDir.resolve('workflow_summary_mqc.yaml')
-    yaml_file.text  = """
+Channel.from(summary.collect{ [it.key, it.value] })
+    .map { k,v -> "<dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }
+    .reduce { a, b -> return [a, b].join("\n            ") }
+    .map { x -> """
     id: 'nf-core-predictorthologs-summary'
     description: " - this information is collected when the pipeline is started."
     section_name: 'nf-core/predictorthologs Workflow Summary'
@@ -180,12 +216,10 @@ def create_workflow_summary(summary) {
     plot_type: 'html'
     data: |
         <dl class=\"dl-horizontal\">
-${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }.join("\n")}
+            $x
         </dl>
-    """.stripIndent()
-
-   return yaml_file
-}
+    """.stripIndent() }
+    .set { ch_workflow_summary }
 
 /*
  * Parse software version numbers
@@ -203,15 +237,37 @@ process get_software_versions {
 
     script:
     // TODO nf-core: Get all tools to print their version number here
+    // (base) root@aa580bfc0d2f:/# fastp --version
+    // fastp 0.20.0
+    // (base) root@aa580bfc0d2f:/# diamond version
+    // diamond v0.9.30.131 (C) Max Planck Society for the Advancement of Science
+    // Documentation, support and updates available at http://www.diamondsearch.org
+    //
+    // diamond version 0.9.30
+    // (base) root@aa580bfc0d2f:/# samtools --version
+    // samtools 1.10
+    // Using htslib 1.10.2
+    // Copyright (C) 2019 Genome Research Ltd.
     """
     echo $workflow.manifest.version > v_pipeline.txt
     echo $workflow.nextflow.version > v_nextflow.txt
     fastqc --version > v_fastqc.txt
     multiqc --version > v_multiqc.txt
+    fastp --version > v_fastp.txt
+    diamond version > v_diamond.txt
+    samtools --version > v_samtools.txt
     scrape_software_versions.py &> software_versions_mqc.yaml
     """
 }
 
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                        FASTQ QC                                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 /*
  * STEP 1 - FastQC
@@ -237,34 +293,18 @@ process fastqc {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                        ADAPTER TRIMMING                             -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 1 - FastQC
- */
-process samtools_view_to_fasta {
-    tag "$name"
-    label 'process_medium'
-    publishDir "${params.outdir}/samtools_view_to_fasta", mode: 'copy',
-        saveAs: { filename ->
-                      filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
-                }
-
-    input:
-    set val(name), file(reads) from ch_read_files_fastqc
-
-    output:
-    file "*fasta" into ch_fasta_from_sam
-
-    script:
-    """
-    fastqc --quiet --threads $task.cpus $reads
-    """
-}
-
-/*
- * STEP 2 - fastp for read trimming + merging
+ * STEP 2 - fastp for read trimming
  */
 process fastp {
-    label 'low_memory'
+    label 'process_low'
     tag "$name"
     publishDir "${params.outdir}/fastp", mode: 'copy'
 
@@ -273,18 +313,17 @@ process fastp {
 
     output:
     set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
-    file "*fastp.json" into fastp_results
-    file "*fastp.html" into fastp_html
-    file "where_are_my_files.txt"
+    file "*fastp.json" into ch_fastp_results
+    file "*fastp.html" into ch_fastp_html
 
     script:
-    if (params.singleEnd) {
+    if (params.single_end) {
         """
         fastp \\
             --in1 ${reads} \\
-            --trimns \\
-            --basename ${name} \\
-            --trimqualities
+            --out1 ${name}_R1_trimmed.fastq.gz \\
+            --json ${name}_fastp.json \\
+            --html ${name}_fastp.html
         """
     } else {
         """
@@ -293,24 +332,30 @@ process fastp {
             --in2 ${reads[1]} \\
             --out1 ${name}_R1_trimmed.fastq.gz \\
             --out2 ${name}_R2_trimmed.fastq.gz \\
-            --correction \\
             --json ${name}_fastp.json \\
             --html ${name}_fastp.html
         """
     }
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 2 - khtools bloom-filter
+ */
 process khtools_peptide_bloom_filter {
   tag "${peptides}__${bloom_id}"
-  label "low_memory"
+  label "process_low"
 
   publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
 
   input:
-  set file(peptides) from ch_peptide_fasta
-
-  // TODO only do this on protein encodings, e.g "protein", "dayhoff", "hp"
+  file(peptides) from ch_extract_coding_peptide_fasta
   each molecule from peptide_molecule
 
   output:
@@ -320,108 +365,255 @@ process khtools_peptide_bloom_filter {
   bloom_id = "molecule-${molecule}"
   """
   khtools bloom-filter \\
+    --tablesize 1e7 \\
     --molecule ${molecule} \\
     --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
     ${peptides}
   """
 }
 
+// From Paolo - how to do extract_coding on ALL combinations of bloom filters
+ ch_khtools_bloom_filters
+  .groupTuple(by: [0, 3])
+  .combine(ch_reads_trimmed)
+  .set{ ch_khtools_bloom_filters_grouptuple }
 
-process khtools_extract_coding {
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                   PREDICT PROTEIN-CODING READS                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 3 - khtools extrct-coding
+ */
+process extract_coding {
   tag "${sample_id}"
-  label "low_memory"
-
-  publishDir "${params.outdir}/khtools/extract_coding/", mode: 'copy'
+  label "process_long"
+  publishDir "${params.outdir}/extract_coding/", mode: 'copy'
 
   input:
-  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
-  set sample_id, file(reads) from ch_read_files_extract_coding
+  tuple \
+    val(bloom_id), val(alphabet), file(bloom_filter), \
+    val(sample_id), file(reads) \
+      from ch_khtools_bloom_filters_grouptuple
 
   output:
   // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
+  set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
 
   script:
+  sample_bloom_id = "${sample_id}__${bloom_id}"
   """
-  khtools partition \\
-    --molecule ${molecule} \\
-    --csv ${sample_id}_coding_scores.csv \\
+  khtools extract-coding \\
+    --molecule ${alphabet[0]} \\
+    --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
+    --csv ${sample_bloom_id}__coding_scores.csv \\
+    --json-summary ${sample_bloom_id}__coding_summary.json \\
     --peptides-are-bloom-filter \\
     ${bloom_filter} \\
-    ${reads}
+    ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
   """
 }
+// Remove empty files
+// it[0] = sample id
+// it[1] = sequence fasta file
+ch_coding_nucleotides
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_coding_nucleotides_nonempty")
+  .set{ ch_coding_nucleotides_nonempty }
 
-//
+ch_coding_peptides
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_coding_peptides_nonempty")
+  .into{ ch_coding_peptides_nonempty }
 
-process diamond_makedb {
-  tag "${sample_id}"
-  label "low_memory"
 
-  publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              DOWNLOAD REFSEQ REFERENCE PROTEOME                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - rsync to download refeseq
+ */
+if (!params.diamond_protein_fasta && params.diamond_refseq_release){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process download_refseq {
+    tag "${refseq_release}"
+    label "process_low"
 
-  input:
-  file(reference_proteome) from ch_diamond_reference_proteome
+    publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
-  output:
-  set file("*_db") into ch_diamond_db
+    input:
+    val refseq_release from diamond_refseq_release
 
-  script:
-  """
-  diamond makedb \\
-      -d ${reference_proteome.baseName}_db \\
-      --taxonmap $NCBI/prot.accession2taxid.gz \\
-      --taxonnodes $NCBI/nodes.dmp \\
-      --taxnames $NCBI/names.dmp \\
-      ${reference_proteome}
-  """
+    output:
+    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
+
+    script:
+    """
+    rsync \\
+          --prune-empty-dirs \\
+          --archive \\
+          --verbose \\
+          --recursive \\
+          --include '*protein.faa.gz' \\
+          --exclude '/*' \\
+          rsync://ftp.ncbi.nlm.nih.gov/refseq/release/${refseq_release}/ .
+    zcat *.protein.faa.gz | gzip -c - > ${refseq_release}.fa.gz
+    """
+  }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                      PREPARE TAXA FOR DIAMOND                       -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 5 - unzip taxonomy information files for input to DIAMOND
+ */
+if (!params.diamond_database){
+  process diamond_prepare_taxa {
+    tag "${taxondmp_zip.baseName}"
+    label "process_low"
+
+    publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+    input:
+    file(taxondmp_zip) from ch_diamond_taxdmp_zip
+
+    output:
+    file("nodes.dmp") into ch_diamond_taxonnodes
+    file("names.dmp") into ch_diamond_taxonnames
+
+    script:
+    """
+    unzip ${taxondmp_zip}
+    """
+  }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 6 - make peptide search database for DIAMOND
+ */
+if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
+  process diamond_makedb {
+   tag "${reference_proteome.baseName}"
+   label "process_low"
+
+   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+
+   input:
+   file(reference_proteome) from ch_diamond_protein_fasta
+   file(taxonnodes) from ch_diamond_taxonnodes
+   file(taxonnames) from ch_diamond_taxonnames
+   file(taxonmap_gz) from ch_diamond_taxonmap_gz
+
+   output:
+   file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
+
+   script:
+   """
+   diamond makedb \\
+       -d ${reference_proteome.baseName}_db \\
+       --taxonmap ${taxonmap_gz} \\
+       --taxonnodes ${taxonnodes} \\
+       --taxonnames ${taxonnames} \\
+       --in ${reference_proteome}
+   """
+ }
+}
+
+
+// From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
+ ch_coding_peptides_nonempty
+  .groupTuple(by: [0, 3])
+  .combine( ch_diamond_db )
+  .set{ ch_coding_peptides_nonempty_with_diamond_db }
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 7 - Search DIAMOND database for closest match to
+ */
 process diamond_blastp {
   tag "${sample_id}"
-  label "low_memory"
+  label "process_high"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
   input:
-  set bloom_id, molecule, bloom_filter from ch_khtools_bloom_filters.collect()
-  set sample_id, file(coding_peptides) from ch_coding_peptides
-  set diamond_db from ch_diamond_db
+  tuple \
+    val(sample_bloom_id), file(coding_peptides), \
+     file(diamond_db) \
+      from ch_coding_peptides_nonempty_with_diamond_db
+  // set val(sample_id), file(coding_peptides) from ch_coding_peptides_nonempty
+  // file(diamond_db) from ch_diamond_db
 
   output:
-  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_id), file("${sample_id}_coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_id), file("${sample_id}_coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_id), file("${sample_id}_coding_scores.csv") into ch_coding_scores
+  file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
+  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
   """
   diamond blastp \\
+      ${ouptut_format} \\
       --threads ${task.cpus} \\
       --max-target-seqs 3 \\
       --db ${diamond_db} \\
       --evalue 0.00000000001  \\
       --query ${coding_peptides} \\
-      > ${coding_peptides.baseName}__diamond__${diamond_db.baseName}.tsv
+      > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
   """
 }
 
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                            MULTIQC                                  -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 2 - MultiQC
+ * STEP 8 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
     input:
-    file multiqc_config from ch_multiqc_config
+    file (multiqc_config) from ch_multiqc_config
+    file (mqc_custom_config) from ch_multiqc_custom_config.collect().ifEmpty([])
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
-    file workflow_summary from create_workflow_summary(summary)
+    file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
+    file workflow_summary from ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yaml")
 
     output:
     file "*multiqc_report.html" into ch_multiqc_report
@@ -431,9 +623,10 @@ process multiqc {
     script:
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
+    custom_config_file = params.multiqc_config ? "--config $mqc_custom_config" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config .
+    multiqc -f $rtitle $rfilename $multiqc_config -m fastqc -m fastp .
     """
 }
 
@@ -451,7 +644,7 @@ process output_documentation {
 
     script:
     """
-    markdown_to_html.r $output_docs results_description.html
+    markdown_to_html.py $output_docs -o results_description.html
     """
 }
 
