@@ -303,13 +303,16 @@ if (params.bam && params.bed) {
 	set val(interval), val(bed_line), file(bam) from ch_bed_bam
 
 	output:
-	set val(interval), file("*.fastq") into ch_read_files_fastqc, ch_read_files_trimming 
+	set val(interval), file("*.fastq") into ch_bam_intersected
 
 	script:
 	"""
-        echo "${bed_line}" | bedtools intersect -a $bam -b - -loj | samtools fastq -o ${interval}.fastq 
+        echo "${bed_line}" | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
         """
     }
+    ch_bam_intersected
+	.filter{ it[1].size() > 0 }
+	.into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
 /*
