@@ -299,7 +299,7 @@ process get_software_versions {
  */
 
 if (params.bam && params.bed && params.bai) {
-    process bedtools_intersect {
+    process samtools_view_fastq {
 	tag "$interval_name"
 	label "process_medium"
 	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
