@@ -101,20 +101,25 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
 
-if (params.bam && params.bed && !(params.reads || params.readPaths )) {
+if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
     print("supplied bam, not looking at any supplied --reads")
+    Channel.fromPath(params.bai)
+        .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
+        .view()
+        .set { ch_bai }
     Channel.fromPath(params.bam)
         .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
         .view()
-        .set {ch_bam}
+        .combine(ch_bai)
+        .set { ch_bam_bai }
     Channel.fromPath(params.bed)
         .ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
         .splitText()
         .map {row -> row.split()}
-        .map { row -> [ row[3], row.join('\t') ] } // get interval name and row
-        .combine(ch_bam)
-        .set {ch_bed_bam}
+        .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
+        .combine(ch_bam_bai)
+        .set {ch_bed_bam_bai}
     
 } else {
 
@@ -290,27 +295,27 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 
 /*
- * STEP 0 - Bedtools intersection
+ * STEP 0 - samtoools view
  */
 
-if (params.bam && params.bed) {
+if (params.bam && params.bed && params.bai) {
     process bedtools_intersect {
-	tag "$bam"
+	tag "$interval_name"
 	label "process_medium"
 	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
 	input:
-	set val(interval), val(bed_line), file(bam) from ch_bed_bam
+        set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
 
 	output:
-	set val(interval), file("*.fastq") into ch_bam_intersected
+	set val(interval_name), file("*.fastq") into ch_intersected
 
 	script:
 	"""
-        echo "${bed_line}" | bedtools intersect -a $bam -b - | samtools fastq -o ${interval}.fastq 
+        samtools view -h $bam ${chrom}:${chromStart}-${chromEnd} | samtools fastq -o ${interval_name}.fastq 
         """
     }
-    ch_bam_intersected
+    ch_intersected
 	.filter{ it[1].size() > 0 }
 	.into { ch_read_files_fastqc; ch_read_files_trimming }
 }
