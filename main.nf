@@ -308,11 +308,14 @@ if (params.bam && params.bed && params.bai) {
         set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
 
 	output:
-	set val(interval_name), file("*.fastq") into ch_intersected
+	set val(interval_name), file(fastq) into ch_intersected
 
 	script:
+	fastq = "${interval_name}.fastq.gz"
 	"""
-        samtools view -h $bam ${chrom}:${chromStart}-${chromEnd} | samtools fastq -o ${interval_name}.fastq 
+        samtools view -hu $bam '${chrom}:${chromStart}-${chromEnd}' \\
+		| samtools fastq -N - \\
+		| gzip -c > ${fastq}
         """
     }
     ch_intersected
