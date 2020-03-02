@@ -566,7 +566,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  * STEP 7 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
-  tag "${sample_id}"
+  tag "${sample_bloom_id}"
   label "process_high"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
