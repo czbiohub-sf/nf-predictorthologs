@@ -447,6 +447,11 @@ if (!params.diamond_protein_fasta && params.diamond_refseq_release && !params.di
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
+    // This often fails due to random network errors, so always retry this process
+    errorStrategy 'retry'
+    // If after 5 tries it doesn't work, there's probably something more fundamentally wrong
+    maxRetries 5
+
     tag "${refseq_release}"
     label "process_low"
 
