@@ -443,10 +443,15 @@ ch_coding_peptides
 /*
  * STEP 4 - rsync to download refeseq
  */
-if (!params.diamond_protein_fasta && params.diamond_refseq_release){
+if (!params.diamond_protein_fasta && params.diamond_refseq_release && !params.diamond_database){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
+    // This often fails due to random network errors, so always retry this process
+    errorStrategy 'retry'
+    // If after 5 tries it doesn't work, there's probably something more fundamentally wrong
+    maxRetries 5
+
     tag "${refseq_release}"
     label "process_low"
 
@@ -561,7 +566,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  * STEP 7 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
-  tag "${sample_id}"
+  tag "${sample_bloom_id}"
   label "process_high"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
@@ -626,7 +631,7 @@ process multiqc {
     custom_config_file = params.multiqc_config ? "--config $mqc_custom_config" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-    multiqc -f $rtitle $rfilename $multiqc_config -m fastqc -m fastp .
+    multiqc -f $rtitle $rfilename $custom_config_file -m fastqc -m fastp .
     """
 }
 
