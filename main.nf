@@ -124,27 +124,27 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   // * Create a channel for input read files
   if (params.readPaths) {
   	if (params.single_end) {
-  	    Channel
-  		.from(params.readPaths)
-  		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
-  		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-  		.dump(tag: "reads_single_end")
-  		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+      Channel
+        .from(params.readPaths)
+        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
+        .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+        .dump(tag: "reads_single_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
   	} else {
-  	    Channel
-  		.from(params.readPaths)
-  		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
-  		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-  		.dump(tag: "reads_paired_end")
-  		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+      Channel
+        .from(params.readPaths)
+        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
+        .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+        .dump(tag: "reads_paired_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
   	}
-      } else {
-  	Channel
-  	    .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
-  	    .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
-  	    .dump(tag: "read_paths")
-  	    .into { ch_read_files_fastqc; ch_read_files_trimming }
-      }
+  } else {
+    Channel
+      .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
+      .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
+      .dump(tag: "read_paths")
+      .into { ch_read_files_fastqc; ch_read_files_trimming }
+  }
 }
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
