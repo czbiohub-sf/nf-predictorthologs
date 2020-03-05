@@ -319,6 +319,7 @@ if (params.bam && params.bed && params.bai) {
     """
     }
   ch_intersected
+    // gzipped files are 20 bytes when empty
   	.filter{ it[1].size() > 20 }
     .view()
   	.into { ch_read_files_fastqc; ch_read_files_trimming }
@@ -403,10 +404,10 @@ process fastp {
 }
 
 // filter out empty fastq files
-// ch_reads_trimmed
-//     .filter { name, fastqs -> check_for_empty(fastqs)}
-//     .flatMap { names, fastqs -> names }
-//     .into { ch_read_files_fastqc; ch_read_files_trimming }
+ch_reads_trimmed
+    // gzipped files are 20 bytes when empty
+    .filter{ it[1].size() > 20 }
+    .set { ch_reads_trimmed_nonempty }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -445,7 +446,7 @@ process khtools_peptide_bloom_filter {
 // From Paolo - how to do extract_coding on ALL combinations of bloom filters
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
-    .combine(ch_reads_trimmed)
+    .combine(ch_reads_trimmed_nonempty)
     // .view()
   .set{ ch_khtools_bloom_filters_grouptuple }
 
