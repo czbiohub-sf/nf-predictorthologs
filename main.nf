@@ -300,27 +300,28 @@ process get_software_versions {
 
 if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
-	tag "$interval_name"
-	label "process_medium"
-	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+  	tag "$interval_name"
+  	label "process_medium"
+  	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
-	input:
-  set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
+  	input:
+    set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
 
-	output:
-	set val(interval_name), file(fastq) into ch_intersected
+  	output:
+  	set val(interval_name), file(fastq) into ch_intersected
 
-	script:
-	fastq = "${interval_name}.fastq.gz"
-	"""
-  samtools view -hu $bam '${chrom}:${chromStart}-${chromEnd}' \\
-		| samtools fastq -N - \\
-		| gzip -c > ${fastq}
-  """
+  	script:
+  	fastq = "${interval_name}.fastq.gz"
+  	"""
+    samtools view -hu $bam '${chrom}:${chromStart}-${chromEnd}' \\
+  		| samtools fastq -N - \\
+  		| gzip -c > ${fastq}
+    """
     }
-    ch_intersected
-	.filter{ it[1].size() > 0 }
-	.into { ch_read_files_fastqc; ch_read_files_trimming }
+  ch_intersected
+  	.filter{ it[1].size() > 20 }
+    .view()
+  	.into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
 
