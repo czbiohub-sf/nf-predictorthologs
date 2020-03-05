@@ -513,7 +513,7 @@ ch_coding_peptides
 /*
  * STEP 4 - rsync to download refeseq
  */
- if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
+ if (!(params.diamond_database || params.diamond_protein_fasta) || params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
