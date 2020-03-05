@@ -108,11 +108,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     print("supplied bam, not looking at any supplied --reads")
     Channel.fromPath(params.bai)
         .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
-        .view()
         .set { ch_bai }
     Channel.fromPath(params.bam)
         .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
-        .view()
         .combine(ch_bai)
         .set { ch_bam_bai }
     Channel.fromPath(params.bed)
@@ -321,7 +319,6 @@ if (params.bam && params.bed && params.bai) {
   ch_intersected
     // gzipped files are 20 bytes when empty
   	.filter{ it[1].size() > 20 }
-    .view()
   	.into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
@@ -447,7 +444,6 @@ process khtools_peptide_bloom_filter {
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
     .combine(ch_reads_trimmed_nonempty)
-    // .view()
   .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
