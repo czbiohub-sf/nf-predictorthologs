@@ -97,31 +97,58 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
+
+
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
-if (params.readPaths) {
-    if (params.single_end) {
-        Channel
-            .from(params.readPaths)
-            .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
-            .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .dump(tag: "reads_single_end")
-            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-    } else {
-        Channel
-            .from(params.readPaths)
-            .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
-            .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-            .dump(tag: "reads_paired_end")
-            .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-    }
+
+if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
+    // params needed for intersection
+    print("supplied bam, not looking at any supplied --reads")
+    Channel.fromPath(params.bai)
+        .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
+        .view()
+        .set { ch_bai }
+    Channel.fromPath(params.bam)
+        .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
+        .view()
+        .combine(ch_bai)
+        .set { ch_bam_bai }
+    Channel.fromPath(params.bed)
+        .ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
+        .splitText()
+        .map {row -> row.split()}
+        .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
+        .combine(ch_bam_bai)
+        .set {ch_bed_bam_bai}
+    
 } else {
-    Channel
-        .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
-        .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
-        .dump(tag: "read_paths")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+
+    // * Create a channel for input read files
+    if (params.readPaths) {
+	if (params.single_end) {
+	    Channel
+		.from(params.readPaths)
+		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
+		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+		.dump(tag: "reads_single_end")
+		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+	} else {
+	    Channel
+		.from(params.readPaths)
+		.map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
+		.ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
+		.dump(tag: "reads_paired_end")
+		.into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+	}
+    } else {
+	Channel
+	    .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
+	    .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --single_end on the command line." }
+	    .dump(tag: "read_paths")
+	    .into { ch_read_files_fastqc; ch_read_files_trimming }
+    }
 }
 
 ////////////////////////////////////////////////////
@@ -270,6 +297,42 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 
 /*
+ * STEP 0 - samtoools view
+ */
+
+if (params.bam && params.bed && params.bai) {
+    process samtools_view_fastq {
+	tag "$interval_name"
+	label "process_medium"
+	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+
+	input:
+        set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
+
+	output:
+	set val(interval_name), file(fastq) into ch_intersected
+
+	script:
+	fastq = "${interval_name}.fastq.gz"
+	"""
+        samtools view -hu $bam '${chrom}:${chromStart}-${chromEnd}' \\
+		| samtools fastq -N - \\
+		| gzip -c > ${fastq}
+        """
+    }
+    ch_intersected
+	.filter{ it[1].size() > 0 }
+	.into { ch_read_files_fastqc; ch_read_files_trimming }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                        ADAPTER TRIMMING                             -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
  * STEP 1 - FastQC
  */
 process fastqc {
@@ -303,6 +366,13 @@ process fastqc {
 /*
  * STEP 2 - fastp for read trimming
  */
+
+// def check_for_empty(fastqs) {
+    
+    
+// }
+
+
 process fastp {
     label 'process_low'
     tag "$name"
@@ -337,6 +407,12 @@ process fastp {
         """
     }
 }
+
+// filter out empty fastq files
+// ch_reads_trimmed
+//     .filter { name, fastqs -> check_for_empty(fastqs)}
+//     .flatMap { names, fastqs -> names }
+//     .into { ch_read_files_fastqc; ch_read_files_trimming }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -375,7 +451,8 @@ process khtools_peptide_bloom_filter {
 // From Paolo - how to do extract_coding on ALL combinations of bloom filters
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
-  .combine(ch_reads_trimmed)
+    .combine(ch_reads_trimmed)
+    // .view()
   .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -430,7 +507,7 @@ ch_coding_nucleotides
 ch_coding_peptides
   .filter{ it[1].size() > 0 }
   .dump(tag: "ch_coding_peptides_nonempty")
-  .into{ ch_coding_peptides_nonempty }
+  .set {ch_coding_peptides_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -443,6 +520,7 @@ ch_coding_peptides
 /*
  * STEP 4 - rsync to download refeseq
  */
+
 if (!params.diamond_protein_fasta && params.diamond_refseq_release && !params.diamond_database){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
