@@ -23,7 +23,7 @@ def helpMessage() {
     Mandatory arguments:
       --reads [file]                Path to input data (must be surrounded with quotes)
       -profile [str]                Configuration profile to use. Can use multiple (comma separated)
-                                    Available: conda, docker, singularity, test, awsbatch, <institute> and more
+                                    Available: conda, docker, singularity, test, awsbatch and more
 
     Options:
       --genome [str]                  Name of iGenomes reference
@@ -93,8 +93,7 @@ if (workflow.profile.contains('awsbatch')) {
 }
 
 // Stage config files
-ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: true)
-ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
+ch_multiqc_config = file(params.multiqc_config, checkIfExists: true)
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
 
@@ -228,10 +227,9 @@ log.info "-\033[2m--------------------------------------------------\033[0m-"
 // Check the hostnames against configured profiles
 checkHostname()
 
-Channel.from(summary.collect{ [it.key, it.value] })
-    .map { k,v -> "<dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }
-    .reduce { a, b -> return [a, b].join("\n            ") }
-    .map { x -> """
+def create_workflow_summary(summary) {
+    def yaml_file = workDir.resolve('workflow_summary_mqc.yaml')
+    yaml_file.text  = """
     id: 'nf-core-predictorthologs-summary'
     description: " - this information is collected when the pipeline is started."
     section_name: 'nf-core/predictorthologs Workflow Summary'
@@ -239,10 +237,12 @@ Channel.from(summary.collect{ [it.key, it.value] })
     plot_type: 'html'
     data: |
         <dl class=\"dl-horizontal\">
-            $x
+${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }.join("\n")}
         </dl>
-    """.stripIndent() }
-    .set { ch_workflow_summary }
+    """.stripIndent()
+
+   return yaml_file
+}
 
 /*
  * Parse software version numbers
@@ -510,15 +510,10 @@ ch_coding_peptides
 /*
  * STEP 4 - rsync to download refeseq
  */
-if (!params.diamond_protein_fasta && params.diamond_refseq_release && !params.diamond_database){
+if (!params.diamond_protein_fasta && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
-    // This often fails due to random network errors, so always retry this process
-    errorStrategy 'retry'
-    // If after 5 tries it doesn't work, there's probably something more fundamentally wrong
-    maxRetries 5
-
     tag "${refseq_release}"
     label "process_low"
 
@@ -620,6 +615,8 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  ch_coding_peptides_nonempty
   .groupTuple(by: [0, 3])
   .combine( ch_diamond_db )
+  .view()
+  .dump()
   .set{ ch_coding_peptides_nonempty_with_diamond_db }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -633,7 +630,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  * STEP 7 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
-  tag "${sample_bloom_id}"
+  tag "${sample_id}"
   label "process_high"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
@@ -679,13 +676,12 @@ process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
     input:
-    file (multiqc_config) from ch_multiqc_config
-    file (mqc_custom_config) from ch_multiqc_custom_config.collect().ifEmpty([])
+    file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
-    file workflow_summary from ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yaml")
+    file workflow_summary from create_workflow_summary(summary)
 
     output:
     file "*multiqc_report.html" into ch_multiqc_report
@@ -695,10 +691,9 @@ process multiqc {
     script:
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
-    custom_config_file = params.multiqc_config ? "--config $mqc_custom_config" : ''
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
-    multiqc -f $rtitle $rfilename $custom_config_file -m fastqc -m fastp .
+    multiqc -f $rtitle $rfilename --config $multiqc_config -m fastqc -m fastp .
     """
 }
 
@@ -716,7 +711,7 @@ process output_documentation {
 
     script:
     """
-    markdown_to_html.py $output_docs -o results_description.html
+    markdown_to_html.r $output_docs results_description.html
     """
 }
 
