@@ -614,7 +614,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
 
 // From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
  ch_coding_peptides_nonempty
-  .groupTuple(by: [0, 3])
+  .groupTuple(by: 0)
   .combine( ch_diamond_db )
   .view()
   .dump()
