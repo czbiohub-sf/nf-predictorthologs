@@ -496,7 +496,7 @@ ch_coding_nucleotides
   .set{ ch_coding_nucleotides_nonempty }
 
 ch_coding_peptides
-  .dump('ch_coding_peptides')
+  .dump(tag: 'ch_coding_peptides')
   .filter{ it[1].size() > 0 }
   .dump(tag: "ch_coding_peptides_nonempty")
   .set {ch_coding_peptides_nonempty}
