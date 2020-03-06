@@ -619,7 +619,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
   .groupTuple(by: 0)
   .combine( ch_diamond_db )
   .view()
-  .dump()
+  .dump(tag: 'ch_coding_peptides_nonempty_with_diamond_db')
   .set{ ch_coding_peptides_nonempty_with_diamond_db }
 
 ///////////////////////////////////////////////////////////////////////////////
