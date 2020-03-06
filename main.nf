@@ -636,12 +636,14 @@ process diamond_blastp {
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
   input:
+  // Basenames from dumped channel:
+  // [DUMP: ch_coding_peptides_nonempty_with_diamond_db]
+  //   [ENSPPYT00000000455__molecule-dayhoff,
+  //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
+  //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
   tuple \
-    val(sample_bloom_id), file(coding_peptides), \
-     file(diamond_db) \
+    val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
       from ch_coding_peptides_nonempty_with_diamond_db
-  // set val(sample_id), file(coding_peptides) from ch_coding_peptides_nonempty
-  // file(diamond_db) from ch_diamond_db
 
   output:
   file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
