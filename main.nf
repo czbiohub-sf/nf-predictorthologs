@@ -496,6 +496,7 @@ ch_coding_nucleotides
   .set{ ch_coding_nucleotides_nonempty }
 
 ch_coding_peptides
+  .dump('ch_coding_peptides')
   .filter{ it[1].size() > 0 }
   .dump(tag: "ch_coding_peptides_nonempty")
   .set {ch_coding_peptides_nonempty}
@@ -614,6 +615,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
 
 // From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
  ch_coding_peptides_nonempty
+  .view()
   .groupTuple(by: 0)
   .combine( ch_diamond_db )
   .view()
