@@ -587,7 +587,7 @@ if (!input_is_protein){
 /*
  * STEP 4 - convert hashes to k-mers
  */
- if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
+ if (input_is_protein && params.hashes){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
