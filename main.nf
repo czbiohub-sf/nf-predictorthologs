@@ -120,21 +120,31 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
-} else if params.protein_fastas {
+} else if (params.protein_fastas || params.csv_protein_fasta) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
+  if (params.protein_fastas){
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .set { ch_protein_fastas }
+  } else if (params.csv_protein_fasta) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    if (params.csv_protein_fasta){
+      csv_singles_ch = Channel
+       .fromPath(params.csv_singles)
+       .splitCsv(header:true)
+       .map{ row -> tuple(row[0], tuple(file(row[1])))}
+       .ifEmpty { exit 1, "params.csv_singles (${params.csv_singles}) was empty - no input files supplied" }
+       .set { ch_protein_fastas }
+    }
+  }
   if (params.hashes){
     Channel.fromPath(params.hashes)
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .set { ch_hashes }
-    Channel.fromPath(params.protein_fastas)
-        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
-        .set { ch_protein_fastas }
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
-    Channel.fromPath(params.protein_fastas)
-        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
-        .set { ch_coding_peptides_nonempty }
+    ch_coding_peptides_nonempty = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
