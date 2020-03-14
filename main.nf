@@ -599,10 +599,8 @@ if (!input_is_protein){
     input:
     val hash from ch_hashes
     val peptide_fasta from ch_protein_fastas
-    val refseq_release from diamond_refseq_release
 
     output:
-    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
     file(kmers)
     file(sequences) into ch_coding_peptides_nonempty
 
