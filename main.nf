@@ -161,7 +161,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .map{ row -> row.replaceAll("\\s+", "")}
-        .set { ch_hashes }
+        .combine{ ch_protein_fastas }
+        .set { ch_hashes_fastas }
+
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
     ch_coding_peptides_nonempty = ch_protein_fastas
@@ -602,8 +604,7 @@ if (!input_is_protein){
     publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
 
     input:
-    val hash from ch_hashes
-    set val(sample_id), file(peptide_fasta) from ch_protein_fastas
+    tuple val(hash), val(sample_id), file(peptide_fasta) from ch_hashes_fastas
 
     output:
     file(kmers)
