@@ -591,14 +591,14 @@ if (!input_is_protein){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${refseq_release}"
+    tag "${sample_id}__${hash}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
 
     input:
     val hash from ch_hashes
-    val peptide_fasta from ch_protein_fastas
+    val(sample_id), file(peptide_fasta) from ch_protein_fastas
 
     output:
     file(kmers)
