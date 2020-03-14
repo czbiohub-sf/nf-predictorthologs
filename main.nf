@@ -487,11 +487,6 @@ process khtools_peptide_bloom_filter {
   """
 }
 
-// From Paolo - how to do extract_coding on ALL combinations of bloom filters
- ch_khtools_bloom_filters
-  .groupTuple(by: [0, 3])
-    .combine(ch_reads_trimmed_nonempty)
-  .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -504,6 +499,13 @@ process khtools_peptide_bloom_filter {
  * STEP 3 - khtools extrct-coding
  */
 if (!input_is_protein){
+
+  // From Paolo - how to do extract_coding on ALL combinations of bloom filters
+   ch_khtools_bloom_filters
+    .groupTuple(by: [0, 3])
+      .combine(ch_reads_trimmed_nonempty)
+    .set{ ch_khtools_bloom_filters_grouptuple }
+
   process extract_coding {
     tag "${sample_id}"
     label "process_long"
