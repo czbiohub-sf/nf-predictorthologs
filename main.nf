@@ -598,7 +598,7 @@ if (!input_is_protein){
 
     input:
     val hash from ch_hashes
-    val(sample_id), file(peptide_fasta) from ch_protein_fastas
+    set val(sample_id), file(peptide_fasta) from ch_protein_fastas
 
     output:
     file(kmers)
