@@ -132,7 +132,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .fromPath(params.csv_protein_fasta)
       .splitCsv(header:true)
       .map{ row -> tuple(row[0], tuple(file(row[1])))}
-      .ifEmpty { exit 1, "params.csv_singles (${params.csv_singles}) was empty - no input files supplied" }
+      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_singles}) was empty - no input files supplied" }
       .set { ch_protein_fastas }
   }
   if (params.hashes){
@@ -357,24 +357,26 @@ if (params.bam && params.bed && params.bai) {
 /*
  * STEP 1 - FastQC
  */
-process fastqc {
-    tag "$name"
-    label 'process_medium'
-    publishDir "${params.outdir}/fastqc", mode: 'copy',
-        saveAs: { filename ->
-                      filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
-                }
+if (!params.protein_fastas && !params.csv_protein_fasta) {
+  process fastqc {
+      tag "$name"
+      label 'process_medium'
+      publishDir "${params.outdir}/fastqc", mode: 'copy',
+          saveAs: { filename ->
+                        filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
+                  }
 
-    input:
-    set val(name), file(reads) from ch_read_files_fastqc
+      input:
+      set val(name), file(reads) from ch_read_files_fastqc
 
-    output:
-    file "*_fastqc.{zip,html}" into ch_fastqc_results
+      output:
+      file "*_fastqc.{zip,html}" into ch_fastqc_results
 
-    script:
-    """
-    fastqc --quiet --threads $task.cpus $reads
-    """
+      script:
+      """
+      fastqc --quiet --threads $task.cpus $reads
+      """
+  }
 }
 
 
@@ -389,7 +391,7 @@ process fastqc {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !params.protein_fastas){
+if (!params.skip_trimming && !params.protein_fastas && !params.csv_protein_fasta){
   process fastp {
       label 'process_low'
       tag "$name"
