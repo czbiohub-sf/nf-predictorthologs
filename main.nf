@@ -97,7 +97,7 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-
+input_is_protein = params.protein_fastas || params.csv_protein_fasta
 
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
@@ -120,7 +120,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
-} else if (params.protein_fastas || params.csv_protein_fasta) {
+} else if (input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   if (params.protein_fastas){
     Channel.fromPath(params.protein_fastas)
@@ -357,7 +357,7 @@ if (params.bam && params.bed && params.bai) {
 /*
  * STEP 1 - FastQC
  */
-if (!params.protein_fastas && !params.csv_protein_fasta) {
+if (!input_is_protein) {
   process fastqc {
       tag "$name"
       label 'process_medium'
@@ -391,7 +391,7 @@ if (!params.protein_fastas && !params.csv_protein_fasta) {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !params.protein_fastas && !params.csv_protein_fasta){
+if (!params.skip_trimming && !input_is_protein){
   process fastp {
       label 'process_low'
       tag "$name"
@@ -446,7 +446,7 @@ if (!params.skip_trimming && !params.protein_fastas && !params.csv_protein_fasta
       // gzipped files are 20 bytes when empty
       .filter{ it[1].size() > 20 }
       .set { ch_reads_trimmed_nonempty }
-} else {
+} else if (!input_is_protein) {
   ch_reads_trimmed_nonempty = ch_read_files_trimming
 }
 
