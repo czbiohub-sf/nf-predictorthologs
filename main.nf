@@ -476,6 +476,8 @@ if (!params.skip_trimming && !input_is_protein){
       .set { ch_reads_trimmed_nonempty }
 } else if (!input_is_protein) {
   ch_reads_trimmed_nonempty = ch_read_files_trimming
+} else {
+  ch_fastp_results = Channel.empty()
 }
 
 
