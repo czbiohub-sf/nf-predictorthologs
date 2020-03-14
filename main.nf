@@ -403,6 +403,8 @@ if (!input_is_protein) {
       fastqc --quiet --threads $task.cpus $reads
       """
   }
+} else {
+  ch_fastqc_results = Channel.empty()
 }
 
 
