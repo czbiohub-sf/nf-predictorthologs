@@ -21,16 +21,35 @@ def helpMessage() {
     nextflow run nf-core/predictorthologs --reads '*_R{1,2}.fastq.gz' -profile docker
 
     Mandatory arguments:
-      --reads [file]                Path to input data (must be surrounded with quotes)
       -profile [str]                Configuration profile to use. Can use multiple (comma separated)
                                     Available: conda, docker, singularity, test, awsbatch, <institute> and more
+    Input Options:
+      Sequencing reads (FASTQ format):
+        --reads [file]                Path to input data (must be surrounded with quotes)
+      Protein input:
+        --protein_fastas
+        --csv_protein_fasta
+        --hashes
+      Bam + bed file for intersection:
+        --bam
+        --bai
+        --bed
 
     Options:
-      --genome [str]                  Name of iGenomes reference
       --single_end [bool]             Specifies that the input is single-end reads
 
-    References                        If not specified in the configuration file or you wish to overwrite any of the references
-      --fasta [file]                  Path to fasta reference
+    BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
+      --diamond_refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
+                                      e.g. "complete", "archea", "plasmid", "protozoa", "viral".
+                                      Default is "vertebrate_mammalian"
+      --diamond_protein_fasta         Use all of manually curated, verified UniProt/SwissProt as the reference
+                                      proteome for searching for orthologs
+      --diamond_database              Pre-created database with DIAMOND
+      --diamond_taxonmap_gz           Mapping of protein IDs to taxa
+                                      Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.gz"
+      --diamond_taxdmp_zip            Taxonomy dump file from NCBI
+                                      Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip"
+
 
     Other options:
       --outdir [file]                 The output directory where the results will be saved
