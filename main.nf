@@ -132,7 +132,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .fromPath(params.csv_protein_fasta)
       .splitCsv(header:true)
       .map{ row -> tuple(row[0], tuple(file(row[1])))}
-      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_singles}) was empty - no input files supplied" }
+      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
       .set { ch_protein_fastas }
   }
   if (params.hashes){
