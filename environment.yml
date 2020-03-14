@@ -22,4 +22,5 @@ dependencies:
   - bioconda::bedtools=2.29.2
   - pip
   - pip:
-    - git+https://github.com/czbiohub/kh-tools.git@olgabot/more-encodings#egg=khtools
+    - git+https://github.com/czbiohub/kh-tools.git@master#egg=khtools
+    - git+https://github.com/czbiohub/sourmash.git@olgabot/hash2kmer-protein
