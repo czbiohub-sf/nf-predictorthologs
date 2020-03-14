@@ -503,50 +503,52 @@ process khtools_peptide_bloom_filter {
 /*
  * STEP 3 - khtools extrct-coding
  */
-process extract_coding {
-  tag "${sample_id}"
-  label "process_long"
-  publishDir "${params.outdir}/extract_coding/", mode: 'copy'
+if (!input_is_protein){
+  process extract_coding {
+    tag "${sample_id}"
+    label "process_long"
+    publishDir "${params.outdir}/extract_coding/", mode: 'copy'
 
-  input:
-  tuple \
-    val(bloom_id), val(alphabet), file(bloom_filter), \
-    val(sample_id), file(reads) \
-      from ch_khtools_bloom_filters_grouptuple
+    input:
+    tuple \
+      val(bloom_id), val(alphabet), file(bloom_filter), \
+      val(sample_id), file(reads) \
+        from ch_khtools_bloom_filters_grouptuple
 
-  output:
-  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
+    output:
+    // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
 
-  script:
-  sample_bloom_id = "${sample_id}__${bloom_id}"
-  """
-  khtools extract-coding \\
-    --molecule ${alphabet[0]} \\
-    --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
-    --csv ${sample_bloom_id}__coding_scores.csv \\
-    --json-summary ${sample_bloom_id}__coding_summary.json \\
-    --peptides-are-bloom-filter \\
-    ${bloom_filter} \\
-    ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
-  """
+    script:
+    sample_bloom_id = "${sample_id}__${bloom_id}"
+    """
+    khtools extract-coding \\
+      --molecule ${alphabet[0]} \\
+      --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
+      --csv ${sample_bloom_id}__coding_scores.csv \\
+      --json-summary ${sample_bloom_id}__coding_summary.json \\
+      --peptides-are-bloom-filter \\
+      ${bloom_filter} \\
+      ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
+    """
+  }
+  // Remove empty files
+  // it[0] = sample id
+  // it[1] = sequence fasta file
+  ch_coding_nucleotides
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_coding_nucleotides_nonempty")
+    .set{ ch_coding_nucleotides_nonempty }
+
+  ch_coding_peptides
+    .dump(tag: 'ch_coding_peptides')
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_coding_peptides_nonempty")
+    .set {ch_coding_peptides_nonempty}
 }
-// Remove empty files
-// it[0] = sample id
-// it[1] = sequence fasta file
-ch_coding_nucleotides
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_coding_nucleotides_nonempty")
-  .set{ ch_coding_nucleotides_nonempty }
-
-ch_coding_peptides
-  .dump(tag: 'ch_coding_peptides')
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_coding_peptides_nonempty")
-  .set {ch_coding_peptides_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
