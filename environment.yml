@@ -20,6 +20,8 @@ dependencies:
   - bioconda::diamond=0.9.30
   - bioconda::fastp=0.20.0
   - bioconda::bedtools=2.29.2
-  - pip
+  - pip=20.0.2
+  - conda-forge::rust=1.41.0
   - pip:
-    - git+https://github.com/czbiohub/kh-tools.git@olgabot/more-encodings#egg=khtools
+    - git+https://github.com/czbiohub/kh-tools.git@master#egg=khtools
+    - git+https://github.com/czbiohub/sourmash.git@olgabot/hash2kmer-protein
