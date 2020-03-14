@@ -161,7 +161,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .map{ row -> row.replaceAll("\\s+", "")}
-        .combine{ ch_protein_fastas }
+        .combine( ch_protein_fastas )
         .set { ch_hashes_fastas }
 
   } else {
