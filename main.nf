@@ -584,7 +584,7 @@ ch_coding_peptides
     sequences = "${peptide_fasta.baseName}__hash-${hash}__sequences.fasta"
     """
     echo ${hash} >> hash.txt
-    /home/olga/miniconda3/envs/tabula-microcebus-v2/bin/python hash2kmer.py \\
+    hash2kmer.py \\
         --ksize ${hash2kmer_ksize} \\
         --no-dna \\
         --input-is-protein \\
