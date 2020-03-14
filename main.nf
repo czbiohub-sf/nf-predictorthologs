@@ -609,8 +609,9 @@ if (!input_is_protein){
     file(sequences) into ch_coding_peptides_nonempty
 
     script:
-    kmers = "${peptide_fasta.baseName}__hash-${hash}__kmer.txt"
-    sequences = "${peptide_fasta.baseName}__hash-${hash}__sequences.fasta"
+    hash_no_newline = hash.replaceAll("\\s", "")
+    kmers = "${peptide_fasta.baseName}__hash-${hash_no_newline}__kmer.txt"
+    sequences = "${peptide_fasta.baseName}__hash-${hash_no_newline}__sequences.fasta"
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
