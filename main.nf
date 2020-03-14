@@ -160,6 +160,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     Channel.fromPath(params.hashes)
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
+        .map{ row -> row.replaceAll("\\s+", "")}
         .set { ch_hashes }
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
@@ -609,9 +610,8 @@ if (!input_is_protein){
     file(sequences) into ch_coding_peptides_nonempty
 
     script:
-    hash_no_newline = hash.replaceAll("\\s", "")
-    kmers = "${peptide_fasta.baseName}__hash-${hash_no_newline}__kmer.txt"
-    sequences = "${peptide_fasta.baseName}__hash-${hash_no_newline}__sequences.fasta"
+    kmers = "${peptide_fasta.baseName}__hash-${hash}__kmer.txt"
+    sequences = "${peptide_fasta.baseName}__hash-${hash}__sequences.fasta"
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
