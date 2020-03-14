@@ -391,46 +391,67 @@ process fastqc {
  * STEP 2 - fastp for read trimming
  */
 
-process fastp {
-    label 'process_low'
-    tag "$name"
-    publishDir "${params.outdir}/fastp", mode: 'copy'
+if (!params.skip_trimming && !params.protein_fastas){
+  process fastp {
+      label 'process_low'
+      tag "$name"
+      publishDir "${params.outdir}/fastp", mode: 'copy',
+        saveAs: {filename ->
+                    if (filename.indexOf(".fastq.gz") == -1) "logs/$filename"
+                    else if (reads[1] == null) "single_end/$filename"
+                    else if (reads[1] != null) "paired_end/$filename"
+                    else null
+                }
 
-    input:
-    set val(name), file(reads) from ch_read_files_trimming
+      input:
+      set val(name), file(reads) from ch_read_files_trimming
 
-    output:
-    set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
-    file "*fastp.json" into ch_fastp_results
-    file "*fastp.html" into ch_fastp_html
+      output:
+      set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
+      file "*fastp.json" into ch_fastp_results
+      file "*fastp.html" into ch_fastp_html
 
-    script:
-    if (params.single_end) {
+      script:
+      println "${name}: ${reads.size()}"
+      // One set of reads --> single end
+      if (reads[1] == null) {
+          """
+          fastp \\
+              --in1 ${reads} \\
+              --out1 ${name}_R1_trimmed.fastq.gz \\
+              --json ${name}_fastp.json \\
+              --html ${name}_fastp.html
+          """
+      } else if (reads[1] != null ){
+        // More than one set of reads --> paired end
+          """
+          fastp \\
+              --in1 ${reads[0]} \\
+              --in2 ${reads[1]} \\
+              --out1 ${name}_R1_trimmed.fastq.gz \\
+              --out2 ${name}_R2_trimmed.fastq.gz \\
+              --json ${name}_fastp.json \\
+              --html ${name}_fastp.html
+          """
+      } else {
         """
-        fastp \\
-            --in1 ${reads} \\
-            --out1 ${name}_R1_trimmed.fastq.gz \\
-            --json ${name}_fastp.json \\
-            --html ${name}_fastp.html
+        echo name ${name}
+        echo reads: ${reads}
+        echo "Number of reads is not equal to 1 or 2 --> don't know how to trim non-paired-end and non-single-end reads"
         """
-    } else {
-        """
-        fastp \\
-            --in1 ${reads[0]} \\
-            --in2 ${reads[1]} \\
-            --out1 ${name}_R1_trimmed.fastq.gz \\
-            --out2 ${name}_R2_trimmed.fastq.gz \\
-            --json ${name}_fastp.json \\
-            --html ${name}_fastp.html
-        """
-    }
+      }
+  }
+  // filter out empty fastq files
+  ch_reads_trimmed
+      // gzipped files are 20 bytes when empty
+      .filter{ it[1].size() > 20 }
+      .set { ch_reads_trimmed_nonempty }
+} else {
+  ch_reads_trimmed_nonempty = ch_read_files_trimming
 }
 
-// filter out empty fastq files
-ch_reads_trimmed
-    // gzipped files are 20 bytes when empty
-    .filter{ it[1].size() > 20 }
-    .set { ch_reads_trimmed_nonempty }
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
