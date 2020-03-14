@@ -230,6 +230,11 @@ peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
 diamond_refseq_release = params.diamond_refseq_release
 
+//////////////////////////////////////////////////////////////////
+/* -                 Parse hash2kmer parameters              -- */
+//////////////////////////////////////////////////////////////////
+hash2kmer_ksize = params.hash2kmer_ksize
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -594,7 +599,6 @@ if (!input_is_protein){
     val hash from ch_hashes
     val peptide_fasta from ch_protein_fastas
     val refseq_release from diamond_refseq_release
-    val hash2kmer_ksize from ch_hash2kmer_ksize
 
     output:
     file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
