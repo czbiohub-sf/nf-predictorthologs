@@ -632,7 +632,7 @@ if (!input_is_protein){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - rsync to download refeseq
+ * STEP 5 - rsync to download refeseq
  */
  if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
@@ -672,7 +672,7 @@ if (!input_is_protein){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 5 - unzip taxonomy information files for input to DIAMOND
+ * STEP 6 - unzip taxonomy information files for input to DIAMOND
  */
 if (!params.diamond_database){
   process diamond_prepare_taxa {
@@ -704,7 +704,7 @@ if (!params.diamond_database){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 6 - make peptide search database for DIAMOND
+ * STEP 7 - make peptide search database for DIAMOND
  */
 if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
   process diamond_makedb {
@@ -749,7 +749,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 7 - Search DIAMOND database for closest match to
+ * STEP 8 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
   tag "${sample_bloom_id}"
@@ -794,7 +794,7 @@ process diamond_blastp {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 8 - MultiQC
+ * STEP 9 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
@@ -824,7 +824,7 @@ process multiqc {
 }
 
 /*
- * STEP 3 - Output Description HTML
+ * STEP 10 - Output Description HTML
  */
 process output_documentation {
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
