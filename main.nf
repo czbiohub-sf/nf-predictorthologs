@@ -452,53 +452,40 @@ if (!params.skip_trimming && !input_is_protein){
 
 
 
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 2 - khtools bloom-filter
- */
-process khtools_peptide_bloom_filter {
-  tag "${peptides}__${bloom_id}"
-  label "process_low"
-
-  publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
-
-  input:
-  file(peptides) from ch_extract_coding_peptide_fasta
-  each molecule from peptide_molecule
-
-  output:
-  set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
-
-  script:
-  bloom_id = "molecule-${molecule}"
-  """
-  khtools bloom-filter \\
-    --tablesize 1e7 \\
-    --molecule ${molecule} \\
-    --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
-    ${peptides}
-  """
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --                   PREDICT PROTEIN-CODING READS                      -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 3 - khtools extrct-coding
- */
 if (!input_is_protein){
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 2 - khtools bloom-filter
+   */
+  process khtools_peptide_bloom_filter {
+    tag "${peptides}__${bloom_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+
+    input:
+    file(peptides) from ch_extract_coding_peptide_fasta
+    each molecule from peptide_molecule
+
+    output:
+    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
+
+    script:
+    bloom_id = "molecule-${molecule}"
+    """
+    khtools bloom-filter \\
+      --tablesize 1e7 \\
+      --molecule ${molecule} \\
+      --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
+      ${peptides}
+    """
+  }
 
   // From Paolo - how to do extract_coding on ALL combinations of bloom filters
    ch_khtools_bloom_filters
@@ -506,6 +493,17 @@ if (!input_is_protein){
       .combine(ch_reads_trimmed_nonempty)
     .set{ ch_khtools_bloom_filters_grouptuple }
 
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                   PREDICT PROTEIN-CODING READS                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 3 - khtools extract-coding
+   */
   process extract_coding {
     tag "${sample_id}"
     label "process_long"
