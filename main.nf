@@ -281,21 +281,23 @@ log.info "-\033[2m--------------------------------------------------\033[0m-"
 // Check the hostnames against configured profiles
 checkHostname()
 
-Channel.from(summary.collect{ [it.key, it.value] })
-    .map { k,v -> "<dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }
-    .reduce { a, b -> return [a, b].join("\n            ") }
-    .map { x -> """
+def create_workflow_summary(summary) {
+    def yaml_file = workDir.resolve('workflow_summary_mqc.yaml')
+    yaml_file.text  = """
     id: 'nf-core-predictorthologs-summary'
     description: " - this information is collected when the pipeline is started."
-    section_name: 'nf-core/predictorthologs Workflow Summary'
-    section_href: 'https://github.com/nf-core/predictorthologs'
+    section_name: 'czbiohub/nf-predictorthologs Workflow Summary'
+    section_href: 'https://github.com/czbiohub/predictorthologs'
     plot_type: 'html'
     data: |
         <dl class=\"dl-horizontal\">
-            $x
+${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }.join("\n")}
         </dl>
-    """.stripIndent() }
-    .set { ch_workflow_summary }
+    """.stripIndent()
+
+   return yaml_file
+}
+
 
 /*
  * Parse software version numbers
@@ -803,6 +805,9 @@ process diamond_blastp {
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
+    when:
+    !input_is_protein
+
     input:
     file (multiqc_config) from ch_multiqc_config
     file (mqc_custom_config) from ch_multiqc_custom_config.collect().ifEmpty([])
@@ -810,7 +815,7 @@ process multiqc {
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
-    file workflow_summary from ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yaml")
+    file workflow_summary from create_workflow_summary(summary)
 
     output:
     file "*multiqc_report.html" into ch_multiqc_report
