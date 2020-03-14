@@ -120,6 +120,22 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
+} else if params.protein_fastas {
+  log.info 'Using protein fastas as input -- ignoring reads and bams'
+  if (params.hashes){
+    Channel.fromPath(params.hashes)
+        .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+        .splitText()
+        .set { ch_hashes }
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .set { ch_protein_fastas }
+  } else {
+    // No hashes - just do a diamond blastp search for each peptide fasta
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .set { ch_coding_peptides_nonempty }
+  }
 } else {
   // * Create a channel for input read files
   if (params.readPaths) {
@@ -501,6 +517,54 @@ ch_coding_peptides
   .dump(tag: "ch_coding_peptides_nonempty")
   .set {ch_coding_peptides_nonempty}
 
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers
+ */
+ if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${refseq_release}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
+
+    input:
+    val hash from ch_hashes
+    val peptide_fasta from ch_protein_fastas
+    val refseq_release from diamond_refseq_release
+    val hash2kmer_ksize from ch_hash2kmer_ksize
+
+    output:
+    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
+    file(kmers)
+    file(sequences) into ch_coding_peptides_nonempty
+
+    script:
+    kmers = "${peptide_fasta.baseName}__hash-${hash}__kmer.txt"
+    sequences = "${peptide_fasta.baseName}__hash-${hash}__sequences.fasta"
+    """
+    echo ${hash} >> hash.txt
+    /home/olga/miniconda3/envs/tabula-microcebus-v2/bin/python hash2kmer.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --protein \\
+        hash.txt \\
+        ${peptide_fasta}
+    """
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
