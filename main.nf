@@ -598,7 +598,7 @@ if (!input_is_protein){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${sample_id}__${hash}"
+    tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
@@ -608,11 +608,12 @@ if (!input_is_protein){
 
     output:
     file(kmers)
-    file(sequences) into ch_coding_peptides_nonempty
+    set val(sample_id), file(sequences) into ch_coding_peptides_nonempty
 
     script:
-    kmers = "${peptide_fasta.baseName}__hash-${hash}__kmer.txt"
-    sequences = "${peptide_fasta.baseName}__hash-${hash}__sequences.fasta"
+    sample_id = "${peptide_fasta.baseName}__hash-${hash}"
+    kmers = "${sample_id}__kmer.txt"
+    sequences = "${sample_id}__sequences.fasta"
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
