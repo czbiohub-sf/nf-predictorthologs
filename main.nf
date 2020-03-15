@@ -150,9 +150,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     Channel
       .fromPath(params.csv_protein_fasta)
       .splitCsv(header:true)
-      .view()
       .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
-      .view()
       .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
       .set { ch_protein_fastas }
   }
