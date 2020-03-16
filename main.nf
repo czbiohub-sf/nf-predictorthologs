@@ -575,12 +575,6 @@ if (!input_is_protein){
     .filter{ it[1].size() > 0 }
     .dump(tag: "ch_coding_nucleotides_nonempty")
     .set{ ch_coding_nucleotides_nonempty }
-
-  ch_coding_peptides
-    .dump(tag: 'ch_coding_peptides')
-    .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_peptides_nonempty")
-    .set {ch_coding_peptides_nonempty}
 }
 
 
@@ -608,7 +602,7 @@ if (!input_is_protein){
 
     output:
     file(kmers)
-    set val(sample_id), file(sequences) into ch_coding_peptides_nonempty
+    set val(sample_id), file(sequences) into ch_coding_peptides
 
     script:
     sample_id = "${peptide_fasta.baseName}__hash-${hash}"
@@ -628,6 +622,12 @@ if (!input_is_protein){
     """
   }
 }
+
+ch_coding_peptides
+  .dump(tag: 'ch_coding_peptides')
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_coding_peptides_nonempty")
+  .set {ch_coding_peptides_nonempty}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
