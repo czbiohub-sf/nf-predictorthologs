@@ -248,9 +248,21 @@ log.info nfcoreHeader()
 def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Run Name']         = custom_runName ?: workflow.runName
-// TODO nf-core: Report custom parameters here
-summary['Reads']            = params.reads
-summary['Fasta Ref']        = params.fasta
+// Input is sequencing reads --> need to convert to protein
+if (params.bam) summary['bam']                                              = params.bam
+if (params.bed) summary['bed']                                              = params.bed
+if (params.reads) summary['Reads']                                          = params.reads
+if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
+// Input is protein -- have protein sequences and hashes
+if (params.hashes) summary['Hashes']                                        = params.hashes
+if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
+if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
+// How the DIAMOND search database is created
+if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
+if (params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (params.diamond_protein_fasta) summary['DIAMOND pre-build database']     = params.diamond_database
+summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
+summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
