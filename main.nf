@@ -197,9 +197,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
 if (params.extract_coding_peptide_fasta) {
-Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
-     .set{ ch_extract_coding_peptide_fasta }
+  Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
+       .set{ ch_extract_coding_peptide_fasta }
 }
 
 if (params.diamond_protein_fasta) {
@@ -258,7 +258,7 @@ if (params.protein_fastas) summary['Input protein fastas']                  = pa
 if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
 // How the DIAMOND search database is created
 if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
-if (!params.diamond_database && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
 summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
