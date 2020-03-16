@@ -770,7 +770,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  */
 process diamond_blastp {
   tag "${sample_bloom_id}"
-  label "processs_medium"
+  label "process_medium"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
