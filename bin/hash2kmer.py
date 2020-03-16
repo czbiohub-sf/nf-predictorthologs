@@ -96,6 +96,11 @@ def main():
         error('must specify --ksize')
         return -1
 
+    if args.output_kmers:
+        kmerout_fp = open(args.output_kmers, 'wt')
+        kmerout_w = csv.writer(kmerout_fp)
+        kmerout_w.writerow(['kmer', 'hashval'])
+        
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
         if args.ksize % 3 != 0:
@@ -134,11 +139,6 @@ def main():
         notify('read {} bp, wrote {} bp in matching sequences', n, m)
 
     if kmerout_fp and found_kmers:
-        if args.output_kmers:
-            kmerout_fp = open(args.output_kmers, 'wt')
-            kmerout_w = csv.writer(kmerout_fp)
-            kmerout_w.writerow(['kmer', 'hashval'])
-
         for kmer, hashval in found_kmers.items():
             kmerout_w.writerow([kmer, str(hashval)])
         notify('read {} bp, found {} kmers matching hashvals', n,
