@@ -795,7 +795,7 @@ process diamond_blastp {
       --threads ${task.cpus} \\
       --max-target-seqs 3 \\
       --db ${diamond_db} \\
-      --evalue 0.00000000001  \\
+      --evalue 0.00001  \\
       --query ${coding_peptides} \\
       > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
   """
