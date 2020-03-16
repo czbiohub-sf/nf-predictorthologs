@@ -223,7 +223,6 @@ if (params.diamond_database){
        .set{ ch_diamond_db }
 }
 
-
 //////////////////////////////////////////////////////////////////
 /* -     Parse extract_coding and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
@@ -259,8 +258,8 @@ if (params.protein_fastas) summary['Input protein fastas']                  = pa
 if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
 // How the DIAMOND search database is created
 if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
-if (params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
-if (params.diamond_protein_fasta) summary['DIAMOND pre-build database']     = params.diamond_database
+if (!params.diamond_database && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
 summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
