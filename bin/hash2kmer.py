@@ -86,10 +86,6 @@ def main():
         seqout_fp = open(args.output_sequences, 'wt')
 
     kmerout_fp = None
-    if args.output_kmers:
-        kmerout_fp = open(args.output_kmers, 'wt')
-        kmerout_w = csv.writer(kmerout_fp)
-        kmerout_w.writerow(['kmer', 'hashval'])
 
     if not (seqout_fp or kmerout_fp):
         error("No output options given!")
@@ -137,7 +133,12 @@ def main():
     if seqout_fp:
         notify('read {} bp, wrote {} bp in matching sequences', n, m)
 
-    if kmerout_fp:
+    if kmerout_fp and found_kmers:
+        if args.output_kmers:
+            kmerout_fp = open(args.output_kmers, 'wt')
+            kmerout_w = csv.writer(kmerout_fp)
+            kmerout_w.writerow(['kmer', 'hashval'])
+
         for kmer, hashval in found_kmers.items():
             kmerout_w.writerow([kmer, str(hashval)])
         notify('read {} bp, found {} kmers matching hashvals', n,
