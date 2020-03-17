@@ -606,7 +606,7 @@ if (!input_is_protein){
     tag "${sample_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
     tuple val(hash), val(sample_id), file(peptide_fasta) from ch_hashes_fastas
@@ -616,7 +616,8 @@ if (!input_is_protein){
     set val(sample_id), file(sequences) into ch_coding_peptides
 
     script:
-    sample_id = "hash-${hash}__${peptide_fasta.baseName}"
+    hash_id = "hash-${hash}"
+    sample_id = "${hash_id}__${peptide_fasta.baseName}"
     kmers = "${sample_id}__kmer.txt"
     sequences = "${sample_id}__sequences.fasta"
     """
