@@ -116,7 +116,7 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-input_is_protein = params.protein_fastas || params.csv_protein_fasta
+input_is_protein = params.protein_fastas || params.csv_protein_fasta || params.protein_fasta_paths
 
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
@@ -153,6 +153,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
       .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
       .set { ch_protein_fastas }
+  } else if (params.protein_fasta_paths){
+    Channel
+      .from(params.protein_fasta_paths)
+      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+      .dump(tag: "protein_fasta_paths")
+      .into { ch_protein_fastas }
   }
   if (params.hashes){
     Channel.fromPath(params.hashes)
@@ -161,10 +168,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map{ row -> row.replaceAll("\\s+", "")}
         .combine( ch_protein_fastas )
         .set { ch_hashes_fastas }
-
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_coding_peptides_nonempty = ch_protein_fastas
+    ch_coding_peptides = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
@@ -816,8 +822,8 @@ process diamond_blastp {
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
-    when:
-    !input_is_protein
+    // when:
+    // !input_is_protein
 
     input:
     file (multiqc_config) from ch_multiqc_config
