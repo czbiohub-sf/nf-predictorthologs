@@ -616,7 +616,7 @@ if (!input_is_protein){
     set val(sample_id), file(sequences) into ch_coding_peptides
 
     script:
-    sample_id = "${peptide_fasta.baseName}__hash-${hash}"
+    sample_id = "hash-${hash}__${peptide_fasta.baseName}"
     kmers = "${sample_id}__kmer.txt"
     sequences = "${sample_id}__sequences.fasta"
     """
