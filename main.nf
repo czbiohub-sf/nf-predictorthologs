@@ -403,7 +403,9 @@ process fastp {
 // filter out empty fastq files
 ch_reads_trimmed
     // gzipped files are 20 bytes when empty
+    .dump( tag: 'ch_reads_trimmed' )
     .filter{ it[1].size() > 20 }
+    .dump( tag: 'ch_reads_trimmed_nonempty' )
     .set { ch_reads_trimmed_nonempty }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -443,7 +445,7 @@ process khtools_peptide_bloom_filter {
 // From Paolo - how to do extract_coding on ALL combinations of bloom filters
  ch_khtools_bloom_filters
   .groupTuple(by: [0, 3])
-    .combine(ch_reads_trimmed_nonempty)
+  .combine(ch_reads_trimmed_nonempty)
   .set{ ch_khtools_bloom_filters_grouptuple }
 
 ///////////////////////////////////////////////////////////////////////////////
