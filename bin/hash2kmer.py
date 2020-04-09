@@ -82,7 +82,7 @@ def main():
                    help='save matching sequences to this file.')
     p.add_argument('--output-kmers', type=str, default=None,
                    help='save matching kmers to this file.')
-    p.add_argument('-k', '--ksize', default=None, type=int)
+    p.add_argument('-k', '--ksize', type=int, required=True)
     p.add_argument(
         '--input-is-protein', action='store_true',
         help='Consume protein sequences - no translation needed.'
@@ -106,11 +106,6 @@ def main():
     if not (seqout_fp or kmerout_fp):
         error("No output options given!")
         return(-1)
-
-    # check arguments.
-    if not args.ksize:
-        error('must specify --ksize')
-        return -1
 
     if args.output_kmers:
         kmerout_fp = open(args.output_kmers, 'wt')
