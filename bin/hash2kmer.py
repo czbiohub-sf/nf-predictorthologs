@@ -77,6 +77,11 @@ def main():
         '--input-is-protein', action='store_true',
         help='Consume protein sequences - no translation needed.'
     )
+    p.add_argument(
+        '--first', action='store_true',
+        help='Return only the first instance of the found k-mer(s) and ' \
+             'sequence. Useful if you are searching for only one k-mer'
+    )
     add_construct_moltype_args(p)
     args = p.parse_args()
 
@@ -100,7 +105,7 @@ def main():
         kmerout_fp = open(args.output_kmers, 'wt')
         kmerout_w = csv.writer(kmerout_fp)
         kmerout_w.writerow(['kmer', 'hashval'])
-        
+
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
         if args.ksize % 3 != 0:
@@ -147,7 +152,7 @@ def main():
 
 def get_matching_hashes_in_file(filename, ksize, moltype, input_is_protein,
                                 hashes, found_kmers, m, n,
-                                n_seq, seqout_fp, watermark):
+                                n_seq, seqout_fp, watermark, first=False):
     for record in screed.open(filename):
         n += len(record.sequence)
         n_seq += 1
@@ -166,6 +171,8 @@ def get_matching_hashes_in_file(filename, ksize, moltype, input_is_protein,
                 seqout_fp.write('>{}\n{}\n'.format(record.name,
                                                    record.sequence))
                 m += len(record.sequence)
+                if first:
+                    break
     return m, n
 
 if __name__ == '__main__':
