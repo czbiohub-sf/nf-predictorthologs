@@ -140,7 +140,7 @@ def main():
     for filename in args.seqfiles:
         m, n = get_matching_hashes_in_file(
             filename, args.ksize, moltype, args.input_is_protein, hashes,
-            found_kmers, m, n, n_seq, seqout_fp, watermark)
+            found_kmers, m, n, n_seq, seqout_fp, watermark, args.first)
 
     if seqout_fp:
         notify('read {} bp, wrote {} bp in matching sequences', n, m)
