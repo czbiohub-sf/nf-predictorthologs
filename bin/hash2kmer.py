@@ -82,7 +82,8 @@ def main():
     p.add_argument(
         '--first', action='store_true',
         help='Return only the first instance of the found k-mer(s) and ' \
-             'sequence. Useful if you are searching for only one k-mer'
+             'sequence from each provided sequence file. Useful if you are ' \
+             'searching for only one k-mer'
     )
     add_construct_moltype_args(p)
     args = p.parse_args()
