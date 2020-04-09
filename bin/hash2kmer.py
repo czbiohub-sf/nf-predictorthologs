@@ -15,7 +15,7 @@ import csv
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
-from khtools.sequence_encodings import encode_peptide
+from khtools.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
 NOTIFY_EVERY_BP=1e7
 
@@ -56,6 +56,12 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype,
     ksize = revise_ksize(ksize, moltype, input_is_protein)
 
     for start in range(0, len(sequence) - ksize + 1):
+
+        # Skip protein sequences with invalid input
+        if input_is_protein:
+            if not all(x in AMINO_ACID_SINGLE_LETTERS for x in sequence):
+                continue
+
         kmer = get_kmer_moltype(sequence, start, ksize, moltype,
                                 input_is_protein)
 
