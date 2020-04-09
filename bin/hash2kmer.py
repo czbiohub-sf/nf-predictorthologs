@@ -150,6 +150,8 @@ def main():
         m, n = get_matching_hashes_in_file(
             filename, args.ksize, moltype, args.input_is_protein, hashes,
             found_kmers, m, n, n_seq, seqout_fp, watermark, args.first)
+        if args.first and m > 0:
+            break
 
     if seqout_fp:
         notify('read {} bp, wrote {} bp in matching sequences', n, m)
