@@ -253,6 +253,7 @@ diamond_refseq_release = params.diamond_refseq_release
 /* -                 Parse hash2kmer parameters              -- */
 //////////////////////////////////////////////////////////////////
 hash2kmer_ksize = params.hash2kmer_ksize
+hash2kmer_molecule = params.hash2kmer_molecule
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -272,6 +273,8 @@ if (params.reads) summary['Reads']                                          = pa
 if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.hashes) summary['Hashes']                                        = params.hashes
+if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
+if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
 // How the DIAMOND search database is created
@@ -645,7 +648,7 @@ if (!input_is_protein){
         --input-is-protein \\
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
-        --protein \\
+        --${hash2kmer_molecule} \\
         --first \\
         hash.txt \\
         ${peptide_fastas}
