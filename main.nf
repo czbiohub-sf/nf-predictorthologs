@@ -631,7 +631,7 @@ if (!input_is_protein){
 
     output:
     file(kmers)
-    set val(sample_id), file(sequences) into ch_coding_peptides
+    set val(hash_id), file(sequences) into ch_coding_peptides
 
     script:
     hash_id = "hash-${hash}"
