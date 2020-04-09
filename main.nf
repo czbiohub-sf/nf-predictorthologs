@@ -162,12 +162,24 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .into { ch_protein_fastas }
   }
   if (params.hashes){
+    ch_protein_fastas
+      .map{ it -> it[1] }  // get only the file, not the sample id
+      .collect()           // make a single flat list
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_protein_fastas_flat_list }
+
     Channel.fromPath(params.hashes)
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .map{ row -> row.replaceAll("\\s+", "")}
-        .combine( ch_protein_fastas )
+        .combine( ch_protein_fastas_flat_list )
         .set { ch_hashes_fastas }
+        // Desired output:
+        // [1, ["a", "b", "c"]]
+        // [2, ["a", "b", "c"]]
+        // [3, ["a", "b", "c"]]
+        // 1, 2, 3 = hashes
+        // "a", "b", "c" = protein fasta files
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
     ch_coding_peptides = ch_protein_fastas
@@ -609,13 +621,13 @@ if (!input_is_protein){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${sample_id}"
+    tag "${hash}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), val(sample_id), file(peptide_fasta) from ch_hashes_fastas
+    tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
 
     output:
     file(kmers)
@@ -623,9 +635,8 @@ if (!input_is_protein){
 
     script:
     hash_id = "hash-${hash}"
-    sample_id = "${hash_id}__${peptide_fasta.baseName}"
-    kmers = "${sample_id}__kmer.txt"
-    sequences = "${sample_id}__sequences.fasta"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
@@ -635,8 +646,9 @@ if (!input_is_protein){
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
         --protein \\
+        --first \\
         hash.txt \\
-        ${peptide_fasta}
+        ${peptide_fastas}
     """
   }
 }
