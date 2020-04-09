@@ -15,7 +15,7 @@ import csv
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
-
+from khtools.sequence_encodings import encode_peptide
 
 NOTIFY_EVERY_BP=1e7
 
@@ -27,6 +27,8 @@ def get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein):
         kmer_rc = screed.rc(kmer)
         if kmer > kmer_rc:                # choose fwd or rc
             kmer = kmer_rc
+    elif input_is_protein:
+        kmer = encode_peptide(kmer, moltype)
     elif not input_is_protein:
         raise NotImplementedError("Currently cannot translate DNA to protein "
                                   "sequence")
@@ -171,8 +173,8 @@ def get_matching_hashes_in_file(filename, ksize, moltype, input_is_protein,
                 seqout_fp.write('>{}\n{}\n'.format(record.name,
                                                    record.sequence))
                 m += len(record.sequence)
-                if first:
-                    break
+            if first:
+                break
     return m, n
 
 if __name__ == '__main__':
