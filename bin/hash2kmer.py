@@ -174,7 +174,7 @@ def get_matching_hashes_in_file(filename, ksize, moltype, input_is_protein,
                                                    record.sequence))
                 m += len(record.sequence)
             if first:
-                break
+                return m, n
     return m, n
 
 if __name__ == '__main__':
