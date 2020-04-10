@@ -686,6 +686,8 @@ if (!input_is_protein){
         --no-dna \\
         --metadata-csv ${metadata} \\
         --use-sig-basename \\
+        --penalty ${diff_hash_penalty} \\
+        --solver ${diff_hash_solver} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength}
     """
   }
