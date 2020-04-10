@@ -6,6 +6,7 @@ import glob
 import logging
 from collections import defaultdict
 from itertools import groupby
+import os
 
 import numpy as np
 import pandas as pd
@@ -134,8 +135,10 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0):
+         random_state=0, use_sig_basename=False):
     metadata = pd.read_csv(metadata_csv)
+    if use_sig_basename:
+        metadata[sig_col] = os.path.basename(metadata[sig_col])
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
@@ -200,23 +203,29 @@ if __name__ == "__main__":
     parser.add_argument("--solver", type=str, default='saga',
                         help="""From scikit-learn Logistic Regression documentation:
 Algorithm to use in the optimization problem.
-- For small datasets, 'liblinear' is a good choice, whereas 'sag' and 'saga' are faster for large ones.
-- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle multinomial loss; 'liblinear' is limited to one-versus-rest schemes.
+- For small datasets, 'liblinear' is a good choice, whereas 'sag' and 'saga' are faster
+  for large ones.
+- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle 
+  multinomial loss; 'liblinear' is limited to one-versus-rest schemes.
 - 'newton-cg', 'lbfgs', 'sag' and 'saga' handle L2 or no penalty
 - 'liblinear' and 'saga' also handle L1 penalty
 - 'saga' also supports 'elasticnet' penalty
 - 'liblinear' does not support setting penalty='none'
 Note that 'sag' and 'saga' fast convergence is only guaranteed on features with
-approximately the same scale. You can preprocess the data with a scaler from sklearn.preprocessing.""")
+approximately the same scale. You can preprocess the data with a scaler from 
+sklearn.preprocessing.""")
     parser.add_argument('-C', "--inverse-regularization-strength", type=float,
                         default=0.1,
-                        help="From scikit-learn Logistic Regression documentation: Inverse of "
-                             "regularization strength; must be a positive float. Like "
-                             "in support vector machines, smaller values specify"
-                             " stronger regularization. (aka smaller values --> fewer "
-                             "'informative' features which is easier to follow up on)")
+                        help="From scikit-learn Logistic Regression documentation: "
+                             "Inverse of regularization strength; must be a positive "
+                             "float. Like in support vector machines, smaller values "
+                             "specify stronger regularization."
+                             "\n(aka smaller values --> "
+                             "fewer 'informative' features which is easier to follow "
+                             "up on)")
     parser.add_argument("--penalty", type=str, default=PENALTY,
-                        help="From scikit-learn Logistic Regression documentation: Inverse of "
+                        help="From scikit-learn Logistic Regression documentation: "
+                             "Inverse of "
                              "regularization strength; must be a positive float. Like "
                              "in support vector machines, smaller values specify"
                              " stronger regularization. (aka smaller values --> fewer "
@@ -229,6 +238,11 @@ approximately the same scale. You can preprocess the data with a scaler from skl
                              'reproducible results')
     parser.add_argument('-v', "--verbose", action='store_true',
                         help="If true, have lots of output")
+    parser.add_argument("--use-sig-basename", action='store_true',
+                        help="If true, trim the folder name from the signature path in "
+                             "the metadata csv. Useful primarily for Nextflow "
+                             "pipelines, as the files needed for each process are soft"
+                             " linked into the working folder")
 
     add_construct_moltype_args(parser)
     args = parser.parse_args()
@@ -246,4 +260,4 @@ approximately the same scale. You can preprocess the data with a scaler from skl
          args.sig_col,
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
-         args.random_state)
+         args.random_state, args.use_sig_basename)
