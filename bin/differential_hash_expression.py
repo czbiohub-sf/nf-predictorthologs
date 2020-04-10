@@ -13,6 +13,8 @@ from pathvalidate import sanitize_filename
 import screed
 import seaborn as sns
 from sklearn.linear_model import LogisticRegression
+from sourmash.cli.utils import add_construct_moltype_args
+from sourmash.sourmash_args import calculate_moltype
 from tqdm import tqdm
 
 # Local file
@@ -132,16 +134,16 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=random_state):
+         random_state=0):
     metadata = pd.read_csv(metadata_csv)
 
     # Load all sketches into one object for reference later
-    sketches = sourmash_utils.load_sketches(metadata_csv[sig_col], ksize, molecule)
+    sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
-        logger.info(f"\n--- {group} ---")
+        logger.info(f"\n--- {group1} ---")
         coefficients = get_hashes_enriched_in_group(group1, metadata, group_col,
                                                     sketch_series, verbose=verbose, C=C,
                                                     n_jobs=n_jobs, solver=solver,
@@ -238,7 +240,10 @@ approximately the same scale. You can preprocess the data with a scaler from skl
             error('bad ksizes: {}', ", ".join(args.ksize))
             sys.exit(-1)
 
-    main(args.metadata_csv, args.ksize, args.molecule, args.group_col, args.group1,
+    moltype = calculate_moltype(args)
+
+    main(args.metadata_csv, args.ksize, moltype, args.group_col, args.group1,
          args.sig_col,
-         args.threshold, args.verbose, args.C, args.solver, args.penalty, args.n_jobs,
+         args.threshold, args.verbose, args.inverse_regularization_strength,
+         args.solver, args.penalty, args.n_jobs,
          args.random_state)
