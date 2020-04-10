@@ -26,6 +26,8 @@ dependencies:
   - conda-forge::pandas=1.0.3
   - conda-forge::tqdm=4.45.0
   - thombashi::pathvalidate=2.2.0
+  - jupyter=1.0.0
+  - conda-forge::s3fs=0.4.2
   - pip:
     - git+https://github.com/czbiohub/kh-tools.git@master#egg=khtools
     - git+https://github.com/czbiohub/sourmash.git@olgabot/hash2kmer-protein
