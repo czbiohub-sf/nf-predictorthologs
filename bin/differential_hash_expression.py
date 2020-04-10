@@ -142,6 +142,13 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
+    if not sketches:
+        # If sketches is empty --> something wrong happened
+        sketch_filenames = '\n'.join(metadata[sig_col].head())
+        raise ValueError(f"Could not load sourmash signatures/sketches from"
+                         f" {metadata_csv}! These are some of the files we couldn't "
+                         f"load:\n---\n{sketch_filenames}\n---\nMaybe the molecule or "
+                         f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
 
     # If group1 is provided, only do one hash enrichment
