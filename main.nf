@@ -193,7 +193,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         // "a", "b", "c" = protein fasta files
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_coding_peptides = ch_protein_fastas
+    ch_protein_seq_for_diamond = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
@@ -622,7 +622,7 @@ if (!input_is_protein){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_protein_seq_for_diamond
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -713,7 +713,7 @@ if (!input_is_protein){
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_coding_peptides
+    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
 
     script:
     hash_id = "hash-${hash}"
@@ -735,11 +735,11 @@ if (!input_is_protein){
   }
 }
 
-ch_coding_peptides
-  .dump(tag: 'ch_coding_peptides')
+ch_protein_seq_for_diamond
+  .dump(tag: 'ch_protein_seq_for_diamond')
   .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_coding_peptides_nonempty")
-  .set {ch_coding_peptides_nonempty}
+  .dump(tag: "ch_protein_seq_for_diamond_nonempty")
+  .set {ch_protein_seq_for_diamond_nonempty}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -853,10 +853,10 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
 
 
 // From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
- ch_coding_peptides_nonempty
+ ch_protein_seq_for_diamond_nonempty
   .combine( ch_diamond_db )
-  .dump(tag: 'ch_coding_peptides_nonempty_with_diamond_db')
-  .set{ ch_coding_peptides_nonempty_with_diamond_db }
+  .dump(tag: 'ch_protein_seq_for_diamond_nonempty_with_diamond_db')
+  .set{ ch_protein_seq_for_diamond_nonempty_with_diamond_db }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -876,13 +876,13 @@ process diamond_blastp {
 
   input:
   // Basenames from dumped channel:
-  // [DUMP: ch_coding_peptides_nonempty_with_diamond_db]
+  // [DUMP: ch_protein_seq_for_diamond_nonempty_with_diamond_db]
   //   [ENSPPYT00000000455__molecule-dayhoff,
   //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
   //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
   tuple \
     val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
-      from ch_coding_peptides_nonempty_with_diamond_db
+      from ch_protein_seq_for_diamond_nonempty_with_diamond_db
 
   output:
   file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
