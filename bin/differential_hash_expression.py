@@ -138,7 +138,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
          random_state=0, use_sig_basename=False):
     metadata = pd.read_csv(metadata_csv)
     if use_sig_basename:
-        metadata[sig_col] = os.path.basename(metadata[sig_col])
+        metadata[sig_col] = metadata[sig_col].map(os.path.basename)
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
