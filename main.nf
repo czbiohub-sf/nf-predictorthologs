@@ -643,6 +643,44 @@ if (!input_is_protein){
     .set{ ch_coding_nucleotides_nonempty }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --             PERFORM DIFFERENTIAL HASH EXPRESSION                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers
+ */
+ if (input_is_protein && params.csv && params.diff_hash_expression){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process diff_hash {
+    tag "${hash}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    file(all_signatures) from ch_all_signatures
+    tuple val(group), file(group1_sigs) from ch_per_group_signatures
+
+    output:
+    file("*__hash_coefficients.txt")
+    file("*__informative_hashes.csv") into ch_informative_hashes
+
+    script:
+    """
+    differential_hash_expression.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --input-is-protein \\
+        --group1 ${group} \\
+        --${hash2kmer_molecule} \\
+        --metadata-csv ${ch_csv}
+    """
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
