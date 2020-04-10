@@ -21,16 +21,35 @@ def helpMessage() {
     nextflow run nf-core/predictorthologs --reads '*_R{1,2}.fastq.gz' -profile docker
 
     Mandatory arguments:
-      --reads [file]                Path to input data (must be surrounded with quotes)
       -profile [str]                Configuration profile to use. Can use multiple (comma separated)
                                     Available: conda, docker, singularity, test, awsbatch, <institute> and more
+    Input Options:
+      Sequencing reads (FASTQ format):
+        --reads [file]                Path to input data (must be surrounded with quotes)
+      Protein input:
+        --protein_fastas
+        --csv_protein_fasta
+        --hashes
+      Bam + bed file for intersection:
+        --bam
+        --bai
+        --bed
 
     Options:
-      --genome [str]                  Name of iGenomes reference
       --single_end [bool]             Specifies that the input is single-end reads
 
-    References                        If not specified in the configuration file or you wish to overwrite any of the references
-      --fasta [file]                  Path to fasta reference
+    BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
+      --diamond_refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
+                                      e.g. "complete", "archea", "plasmid", "protozoa", "viral".
+                                      Default is "vertebrate_mammalian"
+      --diamond_protein_fasta         Use all of manually curated, verified UniProt/SwissProt as the reference
+                                      proteome for searching for orthologs
+      --diamond_database              Pre-created database with DIAMOND
+      --diamond_taxonmap_gz           Mapping of protein IDs to taxa
+                                      Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.gz"
+      --diamond_taxdmp_zip            Taxonomy dump file from NCBI
+                                      Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip"
+
 
     Other options:
       --outdir [file]                 The output directory where the results will be saved
@@ -97,7 +116,7 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-
+input_is_protein = params.protein_fastas || params.csv_protein_fasta || params.protein_fasta_paths
 
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
@@ -120,6 +139,51 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
+} else if (input_is_protein) {
+  log.info 'Using protein fastas as input -- ignoring reads and bams'
+  if (params.protein_fastas){
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .set { ch_protein_fastas }
+  } else if (params.csv_protein_fasta) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath(params.csv_protein_fasta)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
+      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
+      .set { ch_protein_fastas }
+  } else if (params.protein_fasta_paths){
+    Channel
+      .from(params.protein_fasta_paths)
+      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+      .dump(tag: "protein_fasta_paths")
+      .into { ch_protein_fastas }
+  }
+  if (params.hashes){
+    ch_protein_fastas
+      .map{ it -> it[1] }  // get only the file, not the sample id
+      .collect()           // make a single flat list
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_protein_fastas_flat_list }
+
+    Channel.fromPath(params.hashes)
+        .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+        .splitText()
+        .map{ row -> row.replaceAll("\\s+", "")}
+        .combine( ch_protein_fastas_flat_list )
+        .set { ch_hashes_fastas }
+        // Desired output:
+        // [1, ["a", "b", "c"]]
+        // [2, ["a", "b", "c"]]
+        // [3, ["a", "b", "c"]]
+        // 1, 2, 3 = hashes
+        // "a", "b", "c" = protein fasta files
+  } else {
+    // No hashes - just do a diamond blastp search for each peptide fasta
+    ch_coding_peptides = ch_protein_fastas
+  }
 } else {
   // * Create a channel for input read files
   if (params.readPaths) {
@@ -151,9 +215,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
 if (params.extract_coding_peptide_fasta) {
-Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
-     .set{ ch_extract_coding_peptide_fasta }
+  Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
+       .set{ ch_extract_coding_peptide_fasta }
 }
 
 if (params.diamond_protein_fasta) {
@@ -177,7 +241,6 @@ if (params.diamond_database){
        .set{ ch_diamond_db }
 }
 
-
 //////////////////////////////////////////////////////////////////
 /* -     Parse extract_coding and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
@@ -185,6 +248,12 @@ peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
 diamond_refseq_release = params.diamond_refseq_release
+
+//////////////////////////////////////////////////////////////////
+/* -                 Parse hash2kmer parameters              -- */
+//////////////////////////////////////////////////////////////////
+hash2kmer_ksize = params.hash2kmer_ksize
+hash2kmer_molecule = params.hash2kmer_molecule
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,9 +266,23 @@ log.info nfcoreHeader()
 def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Run Name']         = custom_runName ?: workflow.runName
-// TODO nf-core: Report custom parameters here
-summary['Reads']            = params.reads
-summary['Fasta Ref']        = params.fasta
+// Input is sequencing reads --> need to convert to protein
+if (params.bam) summary['bam']                                              = params.bam
+if (params.bed) summary['bed']                                              = params.bed
+if (params.reads) summary['Reads']                                          = params.reads
+if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
+// Input is protein -- have protein sequences and hashes
+if (params.hashes) summary['Hashes']                                        = params.hashes
+if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
+if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
+if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
+if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
+// How the DIAMOND search database is created
+if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
+if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
+summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
+summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
@@ -228,21 +311,23 @@ log.info "-\033[2m--------------------------------------------------\033[0m-"
 // Check the hostnames against configured profiles
 checkHostname()
 
-Channel.from(summary.collect{ [it.key, it.value] })
-    .map { k,v -> "<dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }
-    .reduce { a, b -> return [a, b].join("\n            ") }
-    .map { x -> """
+def create_workflow_summary(summary) {
+    def yaml_file = workDir.resolve('workflow_summary_mqc.yaml')
+    yaml_file.text  = """
     id: 'nf-core-predictorthologs-summary'
     description: " - this information is collected when the pipeline is started."
-    section_name: 'nf-core/predictorthologs Workflow Summary'
-    section_href: 'https://github.com/nf-core/predictorthologs'
+    section_name: 'czbiohub/nf-predictorthologs Workflow Summary'
+    section_href: 'https://github.com/czbiohub/predictorthologs'
     plot_type: 'html'
     data: |
         <dl class=\"dl-horizontal\">
-            $x
+${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</samp></dd>" }.join("\n")}
         </dl>
-    """.stripIndent() }
-    .set { ch_workflow_summary }
+    """.stripIndent()
+
+   return yaml_file
+}
+
 
 /*
  * Parse software version numbers
@@ -299,7 +384,7 @@ process get_software_versions {
 if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
   	tag "$interval_name"
-  	label "process_medium"
+  	label "process_low"
   	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
   	input:
@@ -333,24 +418,28 @@ if (params.bam && params.bed && params.bai) {
 /*
  * STEP 1 - FastQC
  */
-process fastqc {
-    tag "$name"
-    label 'process_medium'
-    publishDir "${params.outdir}/fastqc", mode: 'copy',
-        saveAs: { filename ->
-                      filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
-                }
+if (!input_is_protein) {
+  process fastqc {
+      tag "$name"
+      label 'process_medium'
+      publishDir "${params.outdir}/fastqc", mode: 'copy',
+          saveAs: { filename ->
+                        filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"
+                  }
 
-    input:
-    set val(name), file(reads) from ch_read_files_fastqc
+      input:
+      set val(name), file(reads) from ch_read_files_fastqc
 
-    output:
-    file "*_fastqc.{zip,html}" into ch_fastqc_results
+      output:
+      file "*_fastqc.{zip,html}" into ch_fastqc_results
 
-    script:
-    """
-    fastqc --quiet --threads $task.cpus $reads
-    """
+      script:
+      """
+      fastqc --quiet --threads $task.cpus $reads
+      """
+  }
+} else {
+  ch_fastqc_results = Channel.empty()
 }
 
 
@@ -365,142 +454,213 @@ process fastqc {
  * STEP 2 - fastp for read trimming
  */
 
-process fastp {
-    label 'process_low'
-    tag "$name"
-    publishDir "${params.outdir}/fastp", mode: 'copy'
+if (!params.skip_trimming && !input_is_protein){
+  process fastp {
+      label 'process_low'
+      tag "$name"
+      publishDir "${params.outdir}/fastp", mode: 'copy',
+        saveAs: {filename ->
+                    if (filename.indexOf(".fastq.gz") == -1) "logs/$filename"
+                    else if (reads[1] == null) "single_end/$filename"
+                    else if (reads[1] != null) "paired_end/$filename"
+                    else null
+                }
+
+      input:
+      set val(name), file(reads) from ch_read_files_trimming
+
+      output:
+      set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
+      file "*fastp.json" into ch_fastp_results
+      file "*fastp.html" into ch_fastp_html
+
+      script:
+      println "${name}: ${reads.size()}"
+      // One set of reads --> single end
+      if (reads[1] == null) {
+          """
+          fastp \\
+              --in1 ${reads} \\
+              --out1 ${name}_R1_trimmed.fastq.gz \\
+              --json ${name}_fastp.json \\
+              --html ${name}_fastp.html
+          """
+      } else if (reads[1] != null ){
+        // More than one set of reads --> paired end
+          """
+          fastp \\
+              --in1 ${reads[0]} \\
+              --in2 ${reads[1]} \\
+              --out1 ${name}_R1_trimmed.fastq.gz \\
+              --out2 ${name}_R2_trimmed.fastq.gz \\
+              --json ${name}_fastp.json \\
+              --html ${name}_fastp.html
+          """
+      } else {
+        """
+        echo name ${name}
+        echo reads: ${reads}
+        echo "Number of reads is not equal to 1 or 2 --> don't know how to trim non-paired-end and non-single-end reads"
+        """
+      }
+  }
+  // filter out empty fastq files
+  ch_reads_trimmed
+      // gzipped files are 20 bytes when empty
+      .filter{ it[1].size() > 20 }
+      .set { ch_reads_trimmed_nonempty }
+} else if (!input_is_protein) {
+  ch_reads_trimmed_nonempty = ch_read_files_trimming
+} else {
+  ch_fastp_results = Channel.empty()
+}
+
+
+
+if (!input_is_protein){
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 2 - khtools index
+   */
+  process make_protein_index {
+    tag "${peptides}__${bloom_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
 
     input:
-    set val(name), file(reads) from ch_read_files_trimming
+    file(peptides) from ch_extract_coding_peptide_fasta
+    each molecule from peptide_molecule
 
     output:
-    set val(name), file("*trimmed.fastq.gz") into ch_reads_trimmed
-    file "*fastp.json" into ch_fastp_results
-    file "*fastp.html" into ch_fastp_html
+    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
 
     script:
-    if (params.single_end) {
-        """
-        fastp \\
-            --in1 ${reads} \\
-            --out1 ${name}_R1_trimmed.fastq.gz \\
-            --json ${name}_fastp.json \\
-            --html ${name}_fastp.html
-        """
-    } else {
-        """
-        fastp \\
-            --in1 ${reads[0]} \\
-            --in2 ${reads[1]} \\
-            --out1 ${name}_R1_trimmed.fastq.gz \\
-            --out2 ${name}_R2_trimmed.fastq.gz \\
-            --json ${name}_fastp.json \\
-            --html ${name}_fastp.html
-        """
-    }
+    bloom_id = "molecule-${molecule}"
+    """
+    khtools index \\
+      --tablesize 1e7 \\
+      --molecule ${molecule} \\
+      --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
+      ${peptides}
+    """
+  }
+
+  // From Paolo - how to do extract_coding on ALL combinations of bloom filters
+   ch_khtools_bloom_filters
+    .groupTuple(by: [0, 3])
+      .combine(ch_reads_trimmed_nonempty)
+    .set{ ch_khtools_bloom_filters_grouptuple }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                   PREDICT PROTEIN-CODING READS                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 3 - khtools translate
+   */
+  process translate {
+    tag "${sample_id}"
+    label "process_long"
+    publishDir "${params.outdir}/extract_coding/", mode: 'copy'
+
+    input:
+    tuple \
+      val(bloom_id), val(alphabet), file(bloom_filter), \
+      val(sample_id), file(reads) \
+        from ch_khtools_bloom_filters_grouptuple
+
+    output:
+    // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
+
+    script:
+    sample_bloom_id = "${sample_id}__${bloom_id}"
+    """
+    khtools translate \\
+      --molecule ${alphabet[0]} \\
+      --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
+      --csv ${sample_bloom_id}__coding_scores.csv \\
+      --json-summary ${sample_bloom_id}__coding_summary.json \\
+      --peptides-are-bloom-filter \\
+      ${bloom_filter} \\
+      ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
+    """
+  }
+  // Remove empty files
+  // it[0] = sample id
+  // it[1] = sequence fasta file
+  ch_coding_nucleotides
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_coding_nucleotides_nonempty")
+    .set{ ch_coding_nucleotides_nonempty }
 }
 
-// filter out empty fastq files
-ch_reads_trimmed
-    // gzipped files are 20 bytes when empty
-    .filter{ it[1].size() > 20 }
-    .set { ch_reads_trimmed_nonempty }
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
-/* --     PREPARE PEPTIDE DATABASE TO PREDICT PROTEIN-CODING READS        -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 2 - khtools bloom-filter
+ * STEP 4 - convert hashes to k-mers
  */
-process make_protein_index {
-  tag "${peptides}__${bloom_id}"
-  label "process_low"
+ if (input_is_protein && params.hashes){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${hash}"
+    label "process_low"
 
-  publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
-  input:
-  file(peptides) from ch_extract_coding_peptide_fasta
-  each molecule from peptide_molecule
+    input:
+    tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
 
-  output:
-  set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
+    output:
+    file(kmers)
+    set val(hash_id), file(sequences) into ch_coding_peptides
 
-  script:
-  bloom_id = "molecule-${molecule}"
-  """
-  khtools index \\
-    --tablesize 1e7 \\
-    --molecule ${molecule} \\
-    --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
-    ${peptides}
-  """
+    script:
+    hash_id = "hash-${hash}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    """
+    echo ${hash} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${hash2kmer_molecule} \\
+        --first \\
+        hash.txt \\
+        ${peptide_fastas}
+    """
+  }
 }
-
-// From Paolo - how to do extract_coding on ALL combinations of bloom filters
- ch_khtools_bloom_filters
-  .groupTuple(by: [0, 3])
-    .combine(ch_reads_trimmed_nonempty)
-  .set{ ch_khtools_bloom_filters_grouptuple }
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --                   PREDICT PROTEIN-CODING READS                      -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 3 - khtools translate
- */
-process translate {
-  tag "${sample_id}"
-  label "process_long"
-  publishDir "${params.outdir}/extract_coding/", mode: 'copy'
-
-  input:
-  tuple \
-    val(bloom_id), val(alphabet), file(bloom_filter), \
-    val(sample_id), file(reads) \
-      from ch_khtools_bloom_filters_grouptuple
-
-  output:
-  // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
-  set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
-
-  script:
-  sample_bloom_id = "${sample_id}__${bloom_id}"
-  """
-  khtools translate \\
-    --molecule ${alphabet[0]} \\
-    --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
-    --csv ${sample_bloom_id}__coding_scores.csv \\
-    --json-summary ${sample_bloom_id}__coding_summary.json \\
-    --peptides-are-bloom-filter \\
-    ${bloom_filter} \\
-    ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
-  """
-}
-// Remove empty files
-// it[0] = sample id
-// it[1] = sequence fasta file
-ch_coding_nucleotides
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_coding_nucleotides_nonempty")
-  .set{ ch_coding_nucleotides_nonempty }
 
 ch_coding_peptides
   .dump(tag: 'ch_coding_peptides')
   .filter{ it[1].size() > 0 }
   .dump(tag: "ch_coding_peptides_nonempty")
   .set {ch_coding_peptides_nonempty}
-
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -510,7 +670,7 @@ ch_coding_peptides
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - rsync to download refeseq
+ * STEP 5 - rsync to download refeseq
  */
  if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
   // No protein fasta provided for searching for orthologs, need to
@@ -550,7 +710,7 @@ ch_coding_peptides
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 5 - unzip taxonomy information files for input to DIAMOND
+ * STEP 6 - unzip taxonomy information files for input to DIAMOND
  */
 if (!params.diamond_database){
   process diamond_prepare_taxa {
@@ -582,7 +742,7 @@ if (!params.diamond_database){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 6 - make peptide search database for DIAMOND
+ * STEP 7 - make peptide search database for DIAMOND
  */
 if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
   process diamond_makedb {
@@ -627,11 +787,11 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 7 - Search DIAMOND database for closest match to
+ * STEP 8 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
   tag "${sample_bloom_id}"
-  label "process_high"
+  label "process_medium"
 
   publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
@@ -656,7 +816,7 @@ process diamond_blastp {
       --threads ${task.cpus} \\
       --max-target-seqs 3 \\
       --db ${diamond_db} \\
-      --evalue 0.00000000001  \\
+      --evalue 0.00001  \\
       --query ${coding_peptides} \\
       > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
   """
@@ -672,10 +832,13 @@ process diamond_blastp {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 8 - MultiQC
+ * STEP 9 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
+
+    // when:
+    // !input_is_protein
 
     input:
     file (multiqc_config) from ch_multiqc_config
@@ -684,7 +847,7 @@ process multiqc {
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
-    file workflow_summary from ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yaml")
+    file workflow_summary from create_workflow_summary(summary)
 
     output:
     file "*multiqc_report.html" into ch_multiqc_report
@@ -698,11 +861,12 @@ process multiqc {
     // TODO nf-core: Specify which MultiQC modules to use with -m for a faster run time
     """
     multiqc -f $rtitle $rfilename $custom_config_file -m fastqc -m fastp .
+    touch multiqc_report.html multiqc_plots _data
     """
 }
 
 /*
- * STEP 3 - Output Description HTML
+ * STEP 10 - Output Description HTML
  */
 process output_documentation {
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
