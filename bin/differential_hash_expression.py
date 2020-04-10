@@ -159,16 +159,16 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                     n_jobs=n_jobs, solver=solver,
                                                     penalty=penalty,
                                                     random_state=random_state)
-        write_hash_coefficients(coefficients, group, threshold)
+        write_hash_coefficients(coefficients, group1, threshold)
     else:
-        for group, df in metadata.groupby(group_col):
-            logger.info(f"\n--- {group} ---")
-            coefficients = get_hashes_enriched_in_group(group, metadata, group_col,
+        for group1, df in metadata.groupby(group_col):
+            logger.info(f"\n--- {group1} ---")
+            coefficients = get_hashes_enriched_in_group(group1, metadata, group_col,
                                                         sketch_series, verbose=verbose, C=C,
                                                         n_jobs=n_jobs, solver=solver,
                                                         penalty=penalty,
                                                         random_state=random_state)
-            write_hash_coefficients(coefficients, group, threshold)
+            write_hash_coefficients(coefficients, group1, threshold)
 
 
 def write_hash_coefficients(coefficients, group, threshold):
