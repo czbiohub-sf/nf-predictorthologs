@@ -227,19 +227,25 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 ////////////////////////////////////////////////////
 if (params.diff_hash_expression) {
   if (params.csv) {
+    // Create metadata csv channel
+    ch_csv = Channel.fromPath(params.csv)
+
+    // Create channel of all signatures
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> file(row.sig) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .set { ch_all_signatures }
+
+    // Create channel of signatures per group
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(row.group, file(row.sig)) }
-      .groupTuple()
+      .map{ row -> tuple(row.group) }
+      .unique()
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-      .set { ch_per_group_signatures }
+      .set { ch_diff_hash_groups }
   } else {
     exit 1, "--csv is required for differential hash expression!"
   }
@@ -664,7 +670,8 @@ if (!input_is_protein){
 
     input:
     file(all_signatures) from ch_all_signatures
-    tuple val(group), file(group1_sigs) from ch_per_group_signatures
+    val(group) from ch_diff_hash_groups
+    file(metadata) from ch_csv
 
     output:
     file("*__hash_coefficients.txt")
