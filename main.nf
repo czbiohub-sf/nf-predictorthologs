@@ -454,9 +454,9 @@ process make_protein_index {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 3 - khtools extrct-coding
+ * STEP 3 - khtools translate
  */
-process extract_coding {
+process translate {
   tag "${sample_id}"
   label "process_long"
   publishDir "${params.outdir}/extract_coding/", mode: 'copy'
@@ -477,7 +477,7 @@ process extract_coding {
   script:
   sample_bloom_id = "${sample_id}__${bloom_id}"
   """
-  khtools extract-coding \\
+  khtools translate \\
     --molecule ${alphabet[0]} \\
     --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
     --csv ${sample_bloom_id}__coding_scores.csv \\
