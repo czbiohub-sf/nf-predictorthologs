@@ -230,10 +230,13 @@ if (params.diff_hash_expression) {
       .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> tuple(row.group) }
-      .unique()
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
+      .unique()
+      .dump(tag: 'csv_unique_groups')
       .combine( ch_all_signatures_flat_list )
+      .dump(tag: 'ch_groups_with_signatures_for_diff_hash')
       .set { ch_groups_with_signatures_for_diff_hash }
+    // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
   }
@@ -414,7 +417,7 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 
 /*
- * STEP 0 - samtoools view
+ * STEP 0 - samtools view
  */
 
 if (params.bam && params.bed && params.bai) {
@@ -659,18 +662,18 @@ if (!input_is_protein){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process diff_hash {
-    tag "${hash}"
+    tag "${group}"
     label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+    publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
-    tuple val(group), file(all_signatures) from ch_groups_with_signatures_for_diff_hash
-    file(metadata) from ch_csv
+    set val(group), file(all_signatures) from ch_groups_with_signatures_for_diff_hash
+    file metadata from ch_csv.collect()
 
     output:
     file("*__hash_coefficients.csv")
-    file("*__informative_hashes.txt") into ch_hashes_for_hash2kmer
+    file("*__informative_hashes.txt") into ch_informative_hashes_files
 
     script:
     """
@@ -686,6 +689,13 @@ if (!input_is_protein){
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength}
     """
   }
+  ch_informative_hashes_files
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .dump(tag: 'ch_informative_hashes_files_split')
+      .flatten()
+      .dump(tag: 'ch_informative_hashes_files_flattened')
+      .set { ch_hashes_for_hash2kmer }
 }
 
 if (params.hashes || params.diff_hash_expression) {
