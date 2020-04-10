@@ -673,13 +673,12 @@ if (!input_is_protein){
     file("*__informative_hashes.txt") into ch_hashes_for_hash2kmer
 
     script:
-    name = group[0]
     """
     differential_hash_expression.py \\
         --ksize ${hash2kmer_ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
-        --group1 '${name}' \\
+        --group1 '${group}' \\
         --${hash2kmer_molecule} \\
         --no-dna \\
         --metadata-csv ${metadata} \\
