@@ -26,14 +26,27 @@ def helpMessage() {
     Input Options:
       Sequencing reads (FASTQ format):
         --reads [file]                Path to input data (must be surrounded with quotes)
+        --csv                         Comma-separated variable file containing the columns "sample_id" and "fasta" at minimum
+                                      For differential hash expression, the columns "sig" and "group" are also required
+
       Protein input:
-        --protein_fastas
-        --csv_protein_fasta
-        --hashes
+        --protein_fastas              Path to protein fastas
+
       Bam + bed file for intersection:
-        --bam
-        --bai
-        --bed
+        --bam                         Path to a single bam file whose reads to intersect with the bed
+        --bai                         Path to the above bam's bai index file, required for intersection
+        --bed                         Path to a bed file containing regions of interest in the bam file
+
+    hash2kmer options:
+      --hashes                        Path to file of hashes whose sequence to find in the protein fastas, default None
+      --hash2kmer_ksize               K-mer size to use to find matching k-mers in sequence, default 21
+      --hash2kmer_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
+
+   Differential hash expression options:
+      --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, default don't do it
+      --diff_hash_group               Column in csv indicating group membership, default "group"
+      --diff_hash_sig                 Column in csv indicating path to sourmash signature file, default "sig"
+
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
