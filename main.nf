@@ -127,7 +127,7 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-input_is_protein = params.protein_fastas || params.csv_protein_fasta || params.protein_fasta_paths
+input_is_protein = params.protein_fastas || params.csv || params.protein_fasta_paths
 
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
@@ -156,13 +156,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     Channel.fromPath(params.protein_fastas)
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
         .set { ch_protein_fastas }
-  } else if (params.csv_protein_fasta) {
+  } else if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
-      .fromPath(params.csv_protein_fasta)
+      .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
-      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .set { ch_protein_fastas }
   } else if (params.protein_fasta_paths){
     Channel
@@ -310,7 +310,7 @@ if (params.hashes) summary['Hashes']                                        = pa
 if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
 if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
-if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
+if (params.csv) summary['CSV of protein fastas']              = params.csv
 // How the DIAMOND search database is created
 if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
 if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
