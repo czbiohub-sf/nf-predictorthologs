@@ -416,7 +416,7 @@ ch_reads_trimmed
 /*
  * STEP 2 - khtools bloom-filter
  */
-process khtools_peptide_bloom_filter {
+process make_protein_index {
   tag "${peptides}__${bloom_id}"
   label "process_low"
 
@@ -432,7 +432,7 @@ process khtools_peptide_bloom_filter {
   script:
   bloom_id = "molecule-${molecule}"
   """
-  khtools bloom-filter \\
+  khtools index \\
     --tablesize 1e7 \\
     --molecule ${molecule} \\
     --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
