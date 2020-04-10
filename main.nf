@@ -315,7 +315,7 @@ if (params.hashes) summary['Hashes']                                        = pa
 if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
 if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
-if (params.csv) summary['CSV of protein fastas']              = params.csv
+if (params.csv) summary['CSV of protein fastas']                            = params.csv
 // How the DIAMOND search database is created
 if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
 if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
@@ -565,9 +565,9 @@ if (!input_is_protein){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 2 - khtools bloom-filter
+   * STEP 2 - khtools index
    */
-  process khtools_peptide_bloom_filter {
+  process make_protein_index {
     tag "${peptides}__${bloom_id}"
     label "process_low"
 
@@ -583,7 +583,7 @@ if (!input_is_protein){
     script:
     bloom_id = "molecule-${molecule}"
     """
-    khtools bloom-filter \\
+    khtools index \\
       --tablesize 1e7 \\
       --molecule ${molecule} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
@@ -606,9 +606,9 @@ if (!input_is_protein){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 3 - khtools extract-coding
+   * STEP 3 - khtools translate
    */
-  process extract_coding {
+  process translate {
     tag "${sample_id}"
     label "process_long"
     publishDir "${params.outdir}/extract_coding/", mode: 'copy'
@@ -621,7 +621,7 @@ if (!input_is_protein){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_protein_seq_for_diamond
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -629,7 +629,7 @@ if (!input_is_protein){
     script:
     sample_bloom_id = "${sample_id}__${bloom_id}"
     """
-    khtools extract-coding \\
+    khtools translate \\
       --molecule ${alphabet[0]} \\
       --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
       --csv ${sample_bloom_id}__coding_scores.csv \\
