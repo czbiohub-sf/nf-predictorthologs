@@ -128,7 +128,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     return coefficients
 
 
-def main(metadata_csv, ksize, molecule, group_col=GROUP, sig_col=SIG,
+def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
          random_state=random_state):
     metadata = pd.read_csv(metadata_csv)
@@ -137,23 +137,36 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, sig_col=SIG,
     sketches = sourmash_utils.load_sketches(metadata_csv[sig_col], ksize, molecule)
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
 
-    for group, df in metadata.groupby(group_col):
+    # If group1 is provided, only do one hash enrichment
+    if group1 is not None:
         logger.info(f"\n--- {group} ---")
-        coefficients = get_hashes_enriched_in_group(group, df, group_col,
+        coefficients = get_hashes_enriched_in_group(group1, metadata, group_col,
                                                     sketch_series, verbose=verbose, C=C,
                                                     n_jobs=n_jobs, solver=solver,
                                                     penalty=penalty,
                                                     random_state=random_state)
-        # Write hashes with coefficients to file
-        sanitized = sanitize_filename(group)
-        csv = f'{sanitized}__hash_coefficients.csv'
-        coefficients.to_csv(csv, index=False, header=False)
+        write_hash_coefficients(coefficients, group, threshold)
+    else:
+        for group, df in metadata.groupby(group_col):
+            logger.info(f"\n--- {group} ---")
+            coefficients = get_hashes_enriched_in_group(group, metadata, group_col,
+                                                        sketch_series, verbose=verbose, C=C,
+                                                        n_jobs=n_jobs, solver=solver,
+                                                        penalty=penalty,
+                                                        random_state=random_state)
+            write_hash_coefficients(coefficients, group, threshold)
 
-        # Write only hashes above threshold to file
-        filtered_coef = coefficients[coefficients > threshold]
-        txt = f'{sanitized}__informative_hashes.txt'
-        informative_hashes = pd.Series(filtered_coef.index)
-        informative_hashes.to_csv(txt, index=False, header=False)
+
+def write_hash_coefficients(coefficients, group, threshold):
+    # Write hashes with coefficients to file
+    sanitized = sanitize_filename(group)
+    csv = f'{sanitized}__hash_coefficients.csv'
+    coefficients.to_csv(csv, index=False, header=False)
+    # Write only hashes above threshold to file
+    filtered_coef = coefficients[coefficients > threshold]
+    txt = f'{sanitized}__informative_hashes.txt'
+    informative_hashes = pd.Series(filtered_coef.index)
+    informative_hashes.to_csv(txt, index=False, header=False)
 
 
 if __name__ == "__main__":
@@ -170,6 +183,10 @@ if __name__ == "__main__":
                         default='group',
                         help="Name of column in metadata containing paths to signature "
                              "files ")
+    parser.add_argument('-g1', "--group1", type=str,
+                        default=None,
+                        help="If provided, only do differential hash enrichment"
+                             " for this group vs the rest")
     parser.add_argument('-s', "--sig-col", type=str,
                         default='sig',
                         help="Name of column in metadata to group by to find "
@@ -219,6 +236,7 @@ approximately the same scale. You can preprocess the data with a scaler from skl
             error('bad ksizes: {}', ", ".join(args.ksize))
             sys.exit(-1)
 
-    main(args.metadata_csv, args.ksize, args.molecule, args.group_col, args.sig_col,
+    main(args.metadata_csv, args.ksize, args.molecule, args.group_col, args.group1,
+         args.sig_col,
          args.threshold, args.verbose, args.C, args.solver, args.penalty, args.n_jobs,
          args.random_state)
