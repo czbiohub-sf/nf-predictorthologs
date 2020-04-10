@@ -43,10 +43,8 @@ def helpMessage() {
       --hash2kmer_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
 
    Differential hash expression options:
-      --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, default don't do it
-      --diff_hash_group               Column in csv indicating group membership, default "group"
-      --diff_hash_sig                 Column in csv indicating path to sourmash signature file, default "sig"
-
+      --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
+                                      This requires the --csv option and additional columns of "group" and "sig" in the csv
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
