@@ -92,7 +92,7 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
     logger.info(f"Running logistic regression: {regressor}")
     regressor.fit(X, y)
 
-    coefficients = pd.Series(regressor.coef_[0], index=X.columns, name=)
+    coefficients = pd.Series(regressor.coef_[0], index=X.columns)
     n_positive = (coefficients > regressor.tol).sum()
     logger.info(f'Number of coefficients greater than tolerance '
                 f'(tolerance: {regressor.tol}): {n_positive}')
@@ -124,7 +124,9 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                   subsample_groups)
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
-                                                random_state=random_state, **kwargs)
+                                                random_state=random_state,
+                                                **kwargs)
+    coefficients.name = group1_name
     return coefficients
 
 
