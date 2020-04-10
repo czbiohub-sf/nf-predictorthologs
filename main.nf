@@ -173,27 +173,11 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .into { ch_protein_fastas }
   }
   if (params.hashes){
-    ch_protein_fastas
-      .map{ it -> it[1] }  // get only the file, not the sample id
-      .collect()           // make a single flat list
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_protein_fastas_flat_list }
-
     Channel.fromPath(params.hashes)
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .map{ row -> row.replaceAll("\\s+", "")}
-        .combine( ch_protein_fastas_flat_list )
-        .set { ch_hashes_fastas }
-        // Desired output:
-        // [1, ["a", "b", "c"]]
-        // [2, ["a", "b", "c"]]
-        // [3, ["a", "b", "c"]]
-        // 1, 2, 3 = hashes
-        // "a", "b", "c" = protein fasta files
-  } else {
-    // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_protein_seq_for_diamond = ch_protein_fastas
+        .set { ch_hashes_for_hash2kmer }
   }
 } else {
   // * Create a channel for input read files
@@ -235,8 +219,11 @@ if (params.diff_hash_expression) {
       .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> file(row.sig) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-      .set { ch_all_signatures }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .collect()
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_all_signatures_flat_list }
+
 
     // Create channel of signatures per group
     Channel
@@ -244,8 +231,9 @@ if (params.diff_hash_expression) {
       .splitCsv(header:true)
       .map{ row -> tuple(row.group) }
       .unique()
-      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-      .set { ch_diff_hash_groups }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
+      .combine( ch_all_signatures_flat_list )
+      .set { ch_groups_with_signatures_for_diff_hash }
   } else {
     exit 1, "--csv is required for differential hash expression!"
   }
@@ -294,6 +282,14 @@ diamond_refseq_release = params.diamond_refseq_release
 //////////////////////////////////////////////////////////////////
 hash2kmer_ksize = params.hash2kmer_ksize
 hash2kmer_molecule = params.hash2kmer_molecule
+
+
+//////////////////////////////////////////////////////////////////
+/* -   Parse differential hash expression parameters         -- */
+//////////////////////////////////////////////////////////////////
+diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
+diff_hash_solver = params.diff_hash_solver
+diff_hash_penalty = params.diff_hash_penalty
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -669,24 +665,49 @@ if (!input_is_protein){
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    file(all_signatures) from ch_all_signatures
-    val(group) from ch_diff_hash_groups
+    tuple val(group), file(all_signatures) from ch_groups_with_signatures_for_diff_hash
     file(metadata) from ch_csv
 
     output:
     file("*__hash_coefficients.txt")
-    file("*__informative_hashes.csv") into ch_informative_hashes
+    file("*__informative_hashes.csv") into ch_hashes_for_hash2kmer
 
     script:
+    name = group[0]
     """
     differential_hash_expression.py \\
         --ksize ${hash2kmer_ksize} \\
         --input-is-protein \\
-        --group1 ${group} \\
+        --n-jobs ${task.cpus} \\
+        --group1 '${name}' \\
         --${hash2kmer_molecule} \\
-        --metadata-csv ${ch_csv}
+        --no-dna \\
+        --metadata-csv ${metadata} \\
+        --use-sig-basename \\
+        --inverse-regularization-strength ${diff_hash_inverse_regularization_strength}
     """
   }
+}
+
+if (params.hashes || params.diff_hash_expression) {
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
+
+  ch_hashes_for_hash2kmer
+      .combine( ch_protein_fastas_flat_list )
+      .set { ch_hashes_with_fastas_for_hash2kmer }
+      // Desired output:
+      // [1, ["a", "b", "c"]]
+      // [2, ["a", "b", "c"]]
+      // [3, ["a", "b", "c"]]
+      // 1, 2, 3 = hashes
+      // "a", "b", "c" = protein fasta files
+} else {
+  // No hashes - just do a diamond blastp search for each peptide fasta
+  ch_protein_seq_for_diamond = ch_protein_fastas
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -699,7 +720,7 @@ if (!input_is_protein){
 /*
  * STEP 5 - convert hashes to k-mers
  */
- if (input_is_protein && params.hashes){
+ if (input_is_protein && (params.hashes || params.diff_hash_expression)){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
@@ -709,7 +730,7 @@ if (!input_is_protein){
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
+    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
 
     output:
     file(kmers)
@@ -730,7 +751,7 @@ if (!input_is_protein){
         --${hash2kmer_molecule} \\
         --first \\
         hash.txt \\
-        ${peptide_fastas}
+        ${fastas}
     """
   }
 }
