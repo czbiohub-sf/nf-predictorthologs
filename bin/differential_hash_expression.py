@@ -173,7 +173,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
 
 def write_hash_coefficients(coefficients, group, threshold):
     # Write hashes with coefficients to file
-    sanitized = sanitize_filename(group)
+    sanitized = sanitize_filename(group).lower()
     csv = f'{sanitized}__hash_coefficients.csv'
     coefficients.to_csv(csv, index=False, header=False)
     # Write only hashes above threshold to file
