@@ -153,7 +153,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
-        logger.info(f"\n--- {group1} ---")
+        logger.info(f"\n--- group: {group1} ---")
         coefficients = get_hashes_enriched_in_group(group1, metadata, group_col,
                                                     sketch_series, verbose=verbose, C=C,
                                                     n_jobs=n_jobs, solver=solver,
@@ -162,7 +162,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
         write_hash_coefficients(coefficients, group1, threshold)
     else:
         for group1, df in metadata.groupby(group_col):
-            logger.info(f"\n--- {group1} ---")
+            logger.info(f"\n--- group: {group1} ---")
             coefficients = get_hashes_enriched_in_group(group1, metadata, group_col,
                                                         sketch_series, verbose=verbose, C=C,
                                                         n_jobs=n_jobs, solver=solver,
