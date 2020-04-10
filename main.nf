@@ -225,6 +225,29 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 }
 
 ////////////////////////////////////////////////////
+/* --    Parse differential hash expression    -- */
+////////////////////////////////////////////////////
+if (params.diff_hash_expression) {
+  if (params.csv) {
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> file(row.sig) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .set { ch_all_signatures }
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group, file(row.sig)) }
+      .groupTuple()
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .set { ch_per_group_signatures }
+  } else {
+    exit 1, "--csv is required for differential hash expression!"
+  }
+}
+
+////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
 if (params.extract_coding_peptide_fasta) {
