@@ -669,8 +669,8 @@ if (!input_is_protein){
     file(metadata) from ch_csv
 
     output:
-    file("*__hash_coefficients.txt")
-    file("*__informative_hashes.csv") into ch_hashes_for_hash2kmer
+    file("*__hash_coefficients.csv")
+    file("*__informative_hashes.txt") into ch_hashes_for_hash2kmer
 
     script:
     name = group[0]
