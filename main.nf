@@ -416,7 +416,7 @@ ch_reads_trimmed
 /*
  * STEP 2 - khtools bloom-filter
  */
-process khtools_peptide_bloom_filter {
+process make_protein_index {
   tag "${peptides}__${bloom_id}"
   label "process_low"
 
@@ -432,7 +432,7 @@ process khtools_peptide_bloom_filter {
   script:
   bloom_id = "molecule-${molecule}"
   """
-  khtools bloom-filter \\
+  khtools index \\
     --tablesize 1e7 \\
     --molecule ${molecule} \\
     --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
@@ -454,9 +454,9 @@ process khtools_peptide_bloom_filter {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 3 - khtools extrct-coding
+ * STEP 3 - khtools translate
  */
-process extract_coding {
+process translate {
   tag "${sample_id}"
   label "process_long"
   publishDir "${params.outdir}/extract_coding/", mode: 'copy'
@@ -477,7 +477,7 @@ process extract_coding {
   script:
   sample_bloom_id = "${sample_id}__${bloom_id}"
   """
-  khtools extract-coding \\
+  khtools translate \\
     --molecule ${alphabet[0]} \\
     --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
     --csv ${sample_bloom_id}__coding_scores.csv \\
