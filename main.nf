@@ -186,8 +186,29 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 } else {
   // * Create a channel for input read files
-  if (params.readPaths) {
-  	if (params.single_end) {
+  if (params.reads_csv) {
+    // Provided a csv file mapping sample_id to read(s) fastq path
+    print("supplied reads_csv, not looking at any supplied --reads or readPaths")
+    if (params.single_end) {
+      Channel
+        .fromPath(params.reads_csv)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.reads_1)))}
+        .ifEmpty { exit 1, "params.reads_csv (${params.reads_csv}) was empty - no input files supplied" }
+        .dump(tag: "reads_single_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+    } else {
+      Channel
+        .fromPath(params.reads_csv)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.reads_1), file(row.reads_2)))}
+        .ifEmpty { exit 1, "params.reads_csv (${params.reads_csv}) was empty - no input files supplied" }
+        .dump(tag: "reads_paired_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+    }
+   } else if (params.readPaths){
+    print("supplied readPaths, not looking at any supplied --reads")
+    if (params.single_end) {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
@@ -201,7 +222,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-  	}
+    }
   } else {
     Channel
       .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
@@ -270,6 +291,7 @@ summary['Run Name']         = custom_runName ?: workflow.runName
 if (params.bam) summary['bam']                                              = params.bam
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
+if (params.reads_csv) summary['CSV of input reads']                         = params.reads_csv
 if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.hashes) summary['Hashes']                                        = params.hashes
