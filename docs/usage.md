@@ -10,6 +10,7 @@
 * [Main arguments](#main-arguments)
   * [`-profile`](#-profile)
   * [`--reads`](#--reads)
+  * [`--csv`](#--csv)
   * [`--single_end`](#--single_end)
 * [Reference genomes](#reference-genomes)
   * [`--genome` (using iGenomes)](#--genome-using-igenomes)
@@ -134,6 +135,19 @@ Please note the following requirements:
 3. When using the pipeline with paired end data, the path must use `{1,2}` notation to specify read pairs.
 
 If left unspecified, a default pattern is used: `data/*{1,2}.fastq.gz`
+
+### `--csv`
+
+Alternatively, specify location of a csv file containing sample names and paths to FastQ files.
+
+```bash
+--csv 'path/to/data/samples.csv'
+```
+
+1. For single end data, the csv header must contain: `sample_id,read1`
+2. For paired end data, the csv header must contain: `sample_id,read1,read2`
+3. These columns must exist in this order, but additional columns will not affect data import.
+
 
 ### `--single_end`
 

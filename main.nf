@@ -26,6 +26,7 @@ def helpMessage() {
     Input Options:
       Sequencing reads (FASTQ format):
         --reads [file]                Path to input data (must be surrounded with quotes)
+        --csv   [file]                Path to csv containing input sample id's and path to FastQ files
       Protein input:
         --protein_fastas
         --csv_protein_fasta
@@ -191,7 +192,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     print("supplied csv, not looking at any supplied --reads or readPaths")
     if (params.single_end) {
       Channel
-        .fromPath(params.reads_csv)
+        .fromPath(params.csv)
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -199,9 +200,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     } else {
       Channel
-        .fromPath(params.reads_csv)
+        .fromPath(params.csv)
         .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2))}
+        .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
@@ -215,7 +216,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
-  	} else {
+    } else {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
@@ -291,7 +292,7 @@ summary['Run Name']         = custom_runName ?: workflow.runName
 if (params.bam) summary['bam']                                              = params.bam
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (params.reads_csv) summary['CSV of input reads']                         = params.reads_csv
+if (params.csv) summary['CSV of input reads']                               = params.csv
 if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.hashes) summary['Hashes']                                        = params.hashes
