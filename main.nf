@@ -186,15 +186,15 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 } else {
   // * Create a channel for input read files
-  if (params.reads_csv) {
+  if (params.csv) {
     // Provided a csv file mapping sample_id to read(s) fastq path
-    print("supplied reads_csv, not looking at any supplied --reads or readPaths")
+    print("supplied csv, not looking at any supplied --reads or readPaths")
     if (params.single_end) {
       Channel
         .fromPath(params.reads_csv)
         .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.reads_1)))}
-        .ifEmpty { exit 1, "params.reads_csv (${params.reads_csv}) was empty - no input files supplied" }
+        .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     } else {
@@ -202,7 +202,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .fromPath(params.reads_csv)
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2))}
-        .ifEmpty { exit 1, "params.reads_csv (${params.reads_csv}) was empty - no input files supplied" }
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
     }
