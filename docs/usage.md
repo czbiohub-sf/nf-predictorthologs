@@ -148,7 +148,6 @@ Alternatively, specify location of a csv file containing sample names and paths 
 2. For paired end data, the csv header must contain: `sample_id,read1,read2`
 3. These columns must exist in this order, but additional columns will not affect data import.
 
-
 ### `--single_end`
 
 By default, the pipeline expects paired-end data. If you have single-end data, you need to specify `--single_end` on the command line when you launch the pipeline. A normal glob pattern, enclosed in quotation marks, can then be used for `--reads`. For example:
