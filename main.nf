@@ -201,7 +201,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       Channel
         .fromPath(params.reads_csv)
         .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.reads_1), file(row.reads_2)))}
+        .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2))}
         .ifEmpty { exit 1, "params.reads_csv (${params.reads_csv}) was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
