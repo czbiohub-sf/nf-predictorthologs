@@ -621,7 +621,7 @@ if (!input_is_protein){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -642,10 +642,10 @@ if (!input_is_protein){
   // Remove empty files
   // it[0] = sample id
   // it[1] = sequence fasta file
-  ch_coding_nucleotides
+  ch_coding_peptides_potentially_empty
     .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_nucleotides_nonempty")
-    .set{ ch_coding_nucleotides_nonempty }
+    .dump(tag: "ch_coding_peptides_nonempty")
+    .set{ ch_protein_fastas }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
