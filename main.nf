@@ -839,7 +839,7 @@ if (!params.diamond_database){
 
     script:
     """
-    unzip ${taxondmp_zip}
+    7z x ${taxondmp_zip}
     """
   }
 }

@@ -44,6 +44,12 @@ Each `nf-core` pipeline should be set up with a minimal set of test-data.
 If there are any failures then the automated tests fail.
 These tests are run both with the latest available version of `Nextflow` and also the minimum required version that is stated in the pipeline code.
 
+There is a `Makefile` with all current tests in it, so all tests can be run locally with:
+
+```
+make test
+```
+
 ## Patch
 
 : warning: Only in the unlikely and regretful event of a release happening with a bug.
