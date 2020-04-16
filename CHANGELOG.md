@@ -19,5 +19,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
   - Actually installed `rsync` via apt in `Dockerfile`, not just `unzip` ([#16](https://github.com/czbiohub/nf-predictorthologs/pull/16))
 - Added bedtools=2.29.2 to dependencies
 - Added Rust and sourmash ([#24](https://github.com/czbiohub/nf-predictorthologs/pull/24))
+- Added pandas=1.0.3, scikit-learn=0.22.1, and sourmash=3.2.2 to dependencies
 
 ### `Deprecated`
