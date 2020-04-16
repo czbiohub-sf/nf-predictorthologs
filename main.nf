@@ -163,21 +163,15 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .splitCsv(header:true)
       .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .dump( tag: 'csv__ch_protein_fastas' )
       .set { ch_protein_fastas }
   } else if (params.protein_fasta_paths){
     Channel
       .from(params.protein_fasta_paths)
       .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
       .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
-      .dump(tag: "protein_fasta_paths")
+      .dump(tag: "protein_fasta_paths__ch_protein_fastas")
       .into { ch_protein_fastas }
-  }
-  if (params.hashes){
-    Channel.fromPath(params.hashes)
-        .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-        .splitText()
-        .map{ row -> row.replaceAll("\\s+", "")}
-        .set { ch_hashes_for_hash2kmer }
   }
 } else {
   // * Create a channel for input read files
@@ -204,6 +198,14 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .dump(tag: "read_paths")
       .into { ch_read_files_fastqc; ch_read_files_trimming }
   }
+}
+
+if (params.hashes){
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .set { ch_hashes_for_hash2kmer }
 }
 
 ////////////////////////////////////////////////////
@@ -514,7 +516,6 @@ if (!params.skip_trimming && !input_is_protein){
       file "*fastp.html" into ch_fastp_html
 
       script:
-      println "${name}: ${reads.size()}"
       // One set of reads --> single end
       if (reads[1] == null) {
           """
@@ -688,6 +689,7 @@ if (!input_is_protein){
         --use-sig-basename \\
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
+        --max-group-size 100 \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength}
     """
   }
@@ -731,7 +733,7 @@ if (params.hashes || params.diff_hash_expression) {
 /*
  * STEP 5 - convert hashes to k-mers
  */
- if (input_is_protein && (params.hashes || params.diff_hash_expression)){
+ if (params.hashes || params.diff_hash_expression) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
