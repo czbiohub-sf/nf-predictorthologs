@@ -112,7 +112,7 @@ def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
 
 
 def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_series,
-                                 subsample_groups=MAX_GROUP_SIZE, random_state=0,
+                                 max_group_size=MAX_GROUP_SIZE, random_state=0,
                                  verbose=False, **kwargs):
     rows = annotations[group_col] == group1_name
 
@@ -122,9 +122,9 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     group2_annotations = annotations.loc[~rows]
 
     group1_sigs = maybe_subsample(sketch_series[group1_annotations.index],
-                                  subsample_groups)
+                                  max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_annotations.index],
-                                  subsample_groups)
+                                  max_group_size)
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
@@ -135,7 +135,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0, use_sig_basename=False):
+         random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE):
     metadata = pd.read_csv(metadata_csv)
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
@@ -158,7 +158,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                     sketch_series, verbose=verbose, C=C,
                                                     n_jobs=n_jobs, solver=solver,
                                                     penalty=penalty,
-                                                    random_state=random_state)
+                                                    random_state=random_state,
+                                                    max_group_size=max_group_size)
         write_hash_coefficients(coefficients, group1, threshold)
     else:
         for group1, df in metadata.groupby(group_col):
@@ -244,6 +245,9 @@ sklearn.preprocessing.""")
     parser.add_argument('-p', '--n-jobs', type=int, default=1,
                         help='Number of concurrent processes to use for'
                              ' joblib.Parallel')
+    parser.add_argument('-m', '--max-group-size', type=int, default=MAX_GROUP_SIZE,
+                        help='If a group is larger than this, subsample random cells '
+                             '(using the --random-state) ')
     parser.add_argument('-r', '--random-state', type=int, default=0,
                         help='Set seed of random number generator to ensure '
                              'reproducible results')
@@ -271,4 +275,4 @@ sklearn.preprocessing.""")
          args.sig_col,
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename)
+         args.random_state, args.use_sig_basename, args.max_group_size)
