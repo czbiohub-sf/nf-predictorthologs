@@ -663,7 +663,7 @@ if (!input_is_protein){
   // download refseq
   process diff_hash {
     tag "${group}"
-    label "process_medium"
+    label "process_high"
 
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
