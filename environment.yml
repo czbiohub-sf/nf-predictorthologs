@@ -21,7 +21,7 @@ dependencies:
   - bioconda::fastp=0.20.0
   - bioconda::bedtools=2.29.2
   - pip=20.0.2
-  - conda-forge::rust=1.41.0
+  - conda-forge::rust=1.41.0    # Required for building sourmash from source
   - conda-forge::scikit-learn=0.22.1
   - bioconda::sourmash=3.2.2
   - conda-forge::pandas=1.0.3
