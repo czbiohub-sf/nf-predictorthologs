@@ -629,9 +629,9 @@ if (!input_is_protein){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - convert hashes to k-mers
+ * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- if (input_is_protein && params.hashes){
+ if (input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
@@ -665,13 +665,57 @@ if (!input_is_protein){
         ${peptide_fastas}
     """
   }
+  ch_coding_peptides
+    .dump(tag: 'ch_coding_peptides')
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_coding_peptides_nonempty")
+    .set {ch_coding_peptides_nonempty}
 }
 
-ch_coding_peptides
-  .dump(tag: 'ch_coding_peptides')
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_coding_peptides_nonempty")
-  .set {ch_coding_peptides_nonempty}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                    CONVERT HASHES TO SIGNATURES                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers
+ */
+ if (params.protein_searcher == 'sourmash' && params.hashes){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2sig {
+    tag "${hash}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2sig/", mode: 'copy'
+
+    input:
+    val(hash) from ch_hashes_for_hash2sig
+
+    output:
+    set val(hash_id), file("${sig}") into ch_hash_sigs
+
+    script:
+    hash_id = "hash-${hash}"
+    sig = "${hash_id}.sig"
+    """
+    echo ${hash} >> hash.txt
+    hash2sig.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --no-dna \\
+        --scaled 1 \\
+        --input-is-protein \\
+        --${hash2kmer_molecule} \\
+        --first \\
+        --output ${sig} \\
+        hash.txt
+    """
+  }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -833,7 +877,7 @@ if (params.protein_searcher == 'diamond') {
         --query ${coding_peptides} \\
         > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
     """
-  }  
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -851,10 +895,10 @@ if (params.protein_searcher == 'sourmash'){
    tag "${reference_proteome.baseName}"
    label "process_low"
 
-   publishDir "${params.outdir}/sourmash/", mode: 'copy'
+   publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
    input:
-   file(reference_proteome) from ch_diamond_protein_fasta
+   file(reference_proteome) from ch_sourmash_reference_fasta
 
    output:
    file("${reference_proteome.baseName}__${sketch_id}.log")
@@ -877,11 +921,11 @@ if (params.protein_searcher == 'sourmash'){
    """
  }
 
-   process sourmash_db_index {
+  process sourmash_db_index {
     tag "${reference_proteome.baseName}"
     label "process_low"
 
-    publishDir "${params.outdir}/sourmash/", mode: 'copy'
+    publishDir "${params.outdir}/sourmash/index", mode: 'copy'
 
     input:
     file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index
@@ -904,22 +948,26 @@ if (params.protein_searcher == 'sourmash'){
    tag "${reference_proteome.baseName}"
    label "process_low"
 
-   publishDir "${params.outdir}/sourmash/", mode: 'copy'
+   publishDir "${params.outdir}/sourmash/search", mode: 'copy'
 
    input:
-   set file(sbt_hidden_files), file(sbt_json) from ch_sourmash_index
+   set file(sbt_hidden_files), file(sbt_json) from ch_sourmash_index.collect()
+   set val(hash_id), file("${sig}") from ch_hash_sigs
 
    output:
-   set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
+   file("${hash_id}.csv")
 
    script:
    sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
    """
    sourmash search \\
+       --best-only \\
+       --output ${hash_id}.csv \\
        --ksize ${hash2kmer_ksize} \\
        --${hash2kmer_molecule} \\
        ${reference_proteome_sig.baseName} \\
-       ${reference_proteome_sig}
+       ${reference_proteome_sig} \\
+       >
    """
  }
 
