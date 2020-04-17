@@ -234,7 +234,7 @@ if (params.extract_coding_peptide_fasta) {
 if (params.reference_proteome_fasta) {
 Channel.fromPath(params.reference_proteome_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.reference_proteome_fasta}" }
-     .into{ ch_diamond_protein_fasta; ch_sourmash_reference_fasta }
+     .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
 if (params.diamond_taxonmap_gz) {
 Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
@@ -800,7 +800,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
+  if (!params.diamond_database && (params.reference_proteome_fasta || params.diamond_refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_low"
@@ -808,7 +808,7 @@ if (params.protein_searcher == 'diamond') {
      publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
 
      input:
-     file(reference_proteome) from ch_diamond_protein_fasta
+     file(reference_proteome) from ch_diamond_reference_fasta
      file(taxonnodes) from ch_diamond_taxonnodes
      file(taxonnames) from ch_diamond_taxonnames
      file(taxonmap_gz) from ch_diamond_taxonmap_gz
