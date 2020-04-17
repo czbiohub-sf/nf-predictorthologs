@@ -640,6 +640,8 @@ if (!input_is_protein){
     hash_id = "hash-${hash}"
     kmers = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
+    // If counting genes later, then get all reads containing hashes
+    first_flag = '--first' if not params.count_genes else ''
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
@@ -649,7 +651,7 @@ if (!input_is_protein){
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
         --${hash2kmer_molecule} \\
-        --first \\
+        ${first_flag} \\
         hash.txt \\
         ${peptide_fastas}
     """
