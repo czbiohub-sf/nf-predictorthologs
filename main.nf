@@ -692,7 +692,7 @@ if (!input_is_protein){
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
-        > ${group}.log
+        > '${group}.log'
     """
   }
   ch_informative_hashes_files
