@@ -31,6 +31,7 @@ def main():
         help='Consume protein sequences - no translation needed.'
     )
     add_construct_moltype_args(p)
+    args = p.parse_args()
 
     # check arguments.
     if args.scaled and args.num:
