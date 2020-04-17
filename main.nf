@@ -921,7 +921,7 @@ if (params.protein_searcher == 'sourmash'){
  }
 
   process sourmash_db_index {
-    tag "${reference_proteome.baseName}"
+    tag "${reference_proteome_sig.baseName}"
     label "process_low"
 
     publishDir "${params.outdir}/sourmash/index", mode: 'copy'
@@ -944,14 +944,14 @@ if (params.protein_searcher == 'sourmash'){
   }
 
   process sourmash_db_search {
-   tag "${reference_proteome.baseName}"
+   tag "${reference_sbt_json.baseName}"
    label "process_low"
 
    publishDir "${params.outdir}/sourmash/search", mode: 'copy'
 
    input:
-   set file(sbt_hidden_files), file(sbt_json) from ch_sourmash_index.collect()
-   set val(hash_id), file("${sig}") from ch_hash_sigs
+   set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
+   set val(hash_id), file(query_sig) from ch_hash_sigs
 
    output:
    file("${hash_id}.csv")
@@ -964,9 +964,8 @@ if (params.protein_searcher == 'sourmash'){
        --output ${hash_id}.csv \\
        --ksize ${hash2kmer_ksize} \\
        --${hash2kmer_molecule} \\
-       ${reference_proteome_sig.baseName} \\
-       ${reference_proteome_sig} \\
-       >
+       ${query_sig} \\
+       ${reference_sbt_json} \\
    """
  }
 
