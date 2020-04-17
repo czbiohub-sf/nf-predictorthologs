@@ -21,3 +21,6 @@ test_input_is_protein:
 
 test_fastq:
 	nextflow run -profile $@,${CONTAINER} .
+
+test_sourmash_search:
+	nextflow run -profile $@,${CONTAINER} .
