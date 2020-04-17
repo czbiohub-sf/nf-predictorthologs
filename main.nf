@@ -822,6 +822,95 @@ process diamond_blastp {
   """
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --                  MAKE SOURMASH INDEX                      -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 7 - make peptide search database for DIAMOND
+ */
+if (params.protein_searcher == 'sourmash'){
+  process sourmash_db_compute {
+   tag "${reference_proteome.baseName}"
+   label "process_low"
+
+   publishDir "${params.outdir}/sourmash/", mode: 'copy'
+
+   input:
+   file(reference_proteome) from ch_diamond_protein_fasta
+
+   output:
+   file("${reference_proteome.baseName}__${sketch_id}.log")
+   file("${reference_proteome.baseName}__${sketch_id}.sig") into ch_proteome_sig_for_sourmash_index
+
+   script:
+   sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+   """
+   sourmash compute \\
+      --ksizes ${hash2kmer_ksize} \\
+      --input-is-protein \\
+      --track-abundance \\
+      --singleton \\
+      --scaled 1 \\
+      --no-dna \\
+      --${hash2kmer_molecule} \\
+      --output ${reference_proteome.baseName}__${sketch_id}.sig \\
+      ${reference_proteome} \\
+      > ${reference_proteome.baseName}__${sketch_id}.log
+   """
+ }
+
+   process sourmash_db_index {
+    tag "${reference_proteome.baseName}"
+    label "process_low"
+
+    publishDir "${params.outdir}/sourmash/", mode: 'copy'
+
+    input:
+    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index
+
+    output:
+    set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
+
+    script:
+    sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+    """
+    sourmash index \\
+        --ksize ${hash2kmer_ksize} \\
+        --${hash2kmer_molecule} \\
+        ${reference_proteome_sig.baseName} \\
+        ${reference_proteome_sig}
+    """
+  }
+
+  process sourmash_db_search {
+   tag "${reference_proteome.baseName}"
+   label "process_low"
+
+   publishDir "${params.outdir}/sourmash/", mode: 'copy'
+
+   input:
+   set file(sbt_hidden_files), file(sbt_json) from ch_sourmash_index
+
+   output:
+   set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
+
+   script:
+   sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+   """
+   sourmash search \\
+       --ksize ${hash2kmer_ksize} \\
+       --${hash2kmer_molecule} \\
+       ${reference_proteome_sig.baseName} \\
+       ${reference_proteome_sig}
+   """
+ }
+
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
