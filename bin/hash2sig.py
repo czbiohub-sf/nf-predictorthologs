@@ -11,6 +11,8 @@ import sourmash
 from sourmash import MinHash, SourmashSignature
 from sourmash import sourmash_args
 from sourmash.logging import notify, error
+from sourmash.cli.utils import add_construct_moltype_args
+from sourmash.sourmash_args import calculate_moltype
 
 
 def main():
@@ -24,7 +26,11 @@ def main():
     p.add_argument('--name', default='', help='signature name')
     p.add_argument('--filename', default='',
                    help='filename to add to signature')
-    args = p.parse_args()
+    p.add_argument(
+        '--input-is-protein', action='store_true',
+        help='Consume protein sequences - no translation needed.'
+    )
+    add_construct_moltype_args(p)
 
     # check arguments.
     if args.scaled and args.num:
@@ -49,6 +55,14 @@ def main():
         error("ERROR, no hashes loaded from {}!", args.hashfile)
         return -1
 
+    # Ensure that protein ksizes are divisible by 3
+    if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
+        if args.ksize % 3 != 0:
+            error('protein ksizes must be divisible by 3, sorry!')
+            error('bad ksizes: {}', ", ".join(args.ksize))
+            sys.exit(-1)
+
+
     notify('loaded {} distinct hashes from {}', len(hashes), args.hashfile)
 
     # now, create the MinHash object that we'll use.
@@ -63,7 +77,8 @@ def main():
         num = len(hashes)
 
     # construct empty MinHash object according to args
-    minhash = MinHash(n=num, ksize=args.ksize, scaled=scaled)
+    minhash = MinHash(n=num, ksize=args.ksize, scaled=scaled, dayhoff=args.dayhoff,
+                      is_protein=args.input_is_protein, hp=args.hp)
 
     # add hashes into!
     minhash.add_many(hashes)
