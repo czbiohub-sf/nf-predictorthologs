@@ -673,6 +673,7 @@ if (!input_is_protein){
     file metadata from ch_csv.collect()
 
     output:
+    file("${group}.log")
     file("*__hash_coefficients.csv")
     file("*__informative_hashes.txt") into ch_informative_hashes_files
 
@@ -690,7 +691,8 @@ if (!input_is_protein){
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
-        --inverse-regularization-strength ${diff_hash_inverse_regularization_strength}
+        --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
+        > ${group}.log
     """
   }
   ch_informative_hashes_files
