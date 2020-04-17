@@ -709,7 +709,6 @@ if (!input_is_protein){
         --scaled 1 \\
         --input-is-protein \\
         --${hash2kmer_molecule} \\
-        --first \\
         --output ${sig} \\
         hash.txt
     """
