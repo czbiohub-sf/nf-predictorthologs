@@ -756,7 +756,7 @@ if (params.hashes || params.diff_hash_expression) {
     kmers = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
     // If counting genes later, then get all reads containing hashes
-    first_flag = '--first' if not params.count_genes else ''
+    first_flag = params.count_genes ? '--first' : ''
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
