@@ -24,3 +24,6 @@ test_fastq:
 
 test_diff_hash:
 	nextflow run -profile $@,${CONTAINER} .
+
+test_hash_featurecounts:
+	nextflow run -profile $@,${CONTAINER} .
