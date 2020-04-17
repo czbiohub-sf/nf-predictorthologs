@@ -141,45 +141,56 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .set {ch_bed_bam_bai}
 } else if (input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
-  if (params.protein_fastas){
-    Channel.fromPath(params.protein_fastas)
-        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+  if (params.protein_searcher == 'diamond') {
+    log.info "Using DIAMOND for protein search and reading input fastas"
+    if (params.protein_fastas){
+      Channel.fromPath(params.protein_fastas)
+          .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+          .set { ch_protein_fastas }
+    } else if (params.csv_protein_fasta) {
+      // Provided a csv file mapping sample_id to protein fasta path
+      Channel
+        .fromPath(params.csv_protein_fasta)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
+        .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
         .set { ch_protein_fastas }
-  } else if (params.csv_protein_fasta) {
-    // Provided a csv file mapping sample_id to protein fasta path
-    Channel
-      .fromPath(params.csv_protein_fasta)
-      .splitCsv(header:true)
-      .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
-      .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
-      .set { ch_protein_fastas }
-  } else if (params.protein_fasta_paths){
-    Channel
-      .from(params.protein_fasta_paths)
-      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
-      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
-      .dump(tag: "protein_fasta_paths")
-      .into { ch_protein_fastas }
+    } else if (params.protein_fasta_paths){
+      Channel
+        .from(params.protein_fasta_paths)
+        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+        .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+        .dump(tag: "protein_fasta_paths")
+        .into { ch_protein_fastas }
+    }
   }
+
   if (params.hashes){
-    ch_protein_fastas
-      .map{ it -> it[1] }  // get only the file, not the sample id
-      .collect()           // make a single flat list
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_protein_fastas_flat_list }
 
     Channel.fromPath(params.hashes)
         .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
         .splitText()
         .map{ row -> row.replaceAll("\\s+", "")}
-        .combine( ch_protein_fastas_flat_list )
-        .set { ch_hashes_fastas }
-        // Desired output:
-        // [1, ["a", "b", "c"]]
-        // [2, ["a", "b", "c"]]
-        // [3, ["a", "b", "c"]]
-        // 1, 2, 3 = hashes
-        // "a", "b", "c" = protein fasta files
+        .dump( tag: 'ch_hashes' )
+        .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
+
+    if (params.protein_searcher == "diamond") {
+      ch_protein_fastas
+        .map{ it -> it[1] }  // get only the file, not the sample id
+        .collect()           // make a single flat list
+        .map{ it -> [it] }   // Nest within a list so the next step does what I want
+        .set{ ch_protein_fastas_flat_list }
+
+      ch_hashes_for_hash2kmer
+          .combine( ch_protein_fastas_flat_list )
+          .set { ch_hashes_fastas }
+          // Desired output:
+          // [1, ["a", "b", "c"]]
+          // [2, ["a", "b", "c"]]
+          // [3, ["a", "b", "c"]]
+          // 1, 2, 3 = hashes
+          // "a", "b", "c" = protein fasta files
+    }
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
     ch_coding_peptides = ch_protein_fastas
@@ -220,10 +231,10 @@ if (params.extract_coding_peptide_fasta) {
        .set{ ch_extract_coding_peptide_fasta }
 }
 
-if (params.diamond_protein_fasta) {
-Channel.fromPath(params.diamond_protein_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond protein fasta file not found: ${params.diamond_protein_fasta}" }
-     .set{ ch_diamond_protein_fasta }
+if (params.reference_proteome_fasta) {
+Channel.fromPath(params.reference_proteome_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.reference_proteome_fasta}" }
+     .into{ ch_diamond_protein_fasta; ch_sourmash_reference_fasta }
 }
 if (params.diamond_taxonmap_gz) {
 Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
