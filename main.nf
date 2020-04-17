@@ -777,6 +777,53 @@ ch_protein_seq_for_diamond
   .dump(tag: "ch_protein_seq_for_diamond_nonempty")
   .set {ch_protein_seq_for_diamond_nonempty}
 
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 5 - convert hashes to k-mers
+ */
+ if (params.hashes || params.diff_hash_expression) {
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${hash}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
+
+    output:
+    file(kmers)
+    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
+
+    script:
+    hash_id = "hash-${hash}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    """
+    echo ${hash} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${hash2kmer_molecule} \\
+        --first \\
+        hash.txt \\
+        ${fastas}
+    """
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
