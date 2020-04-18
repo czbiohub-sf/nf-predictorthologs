@@ -221,7 +221,7 @@ if (params.count_genes) {
       .map{ row -> tuple(row.sample_id, row.bam) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .dump( tag: 'csv__ch_sample_bams' )
-      .set { ch_sample_bams }
+      .set { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
   } else {
     exit 1, "Must provide --csv when doing gene counting"
   }
@@ -1018,7 +1018,7 @@ if (params.count_genes) {
 
     input:
     set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes
-    set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
+    set val(bam_id), file(bam) from ch_bams_for_filter_unaligned_reads
 
     output:
     set val(sample_id), file(reads_in_hashes_bam) into ch_bam_featurecounts
