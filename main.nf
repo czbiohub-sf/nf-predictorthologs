@@ -863,7 +863,7 @@ if (!params.diamond_database){
 if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
   process diamond_makedb {
    tag "${reference_proteome.baseName}"
-   label "process_low"
+   label "process_high"
 
    publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
 
@@ -879,6 +879,7 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
    script:
    """
    diamond makedb \\
+       --threads ${task.cpus} \\
        -d ${reference_proteome.baseName}_db \\
        --taxonmap ${taxonmap_gz} \\
        --taxonnodes ${taxonnodes} \\
