@@ -744,7 +744,7 @@ if (params.protein_searcher == 'diamond'){
     val refseq_release from diamond_refseq_release
 
     output:
-    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
+    file("${refseq_release}.fa.gz") into ch_diamond_reference_fasta, ch_sourmash_reference_fasta
 
     script:
     """
