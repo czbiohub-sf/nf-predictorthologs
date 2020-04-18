@@ -202,14 +202,14 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
   	} else {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
   	}
   } else {
     Channel
@@ -223,10 +223,10 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
-if (params.extract_coding_peptide_fasta) {
-  Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
-       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
-       .set{ ch_extract_coding_peptide_fasta }
+if (params.translate_peptide_fasta) {
+  Channel.fromPath(params.translate_peptide_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.translate_peptide_fasta}" }
+       .set{ ch_translate_peptide_fasta }
 }
 
 if (params.reference_proteome_fasta) {
@@ -251,11 +251,11 @@ if (params.diamond_database){
 }
 
 //////////////////////////////////////////////////////////////////
-/* -     Parse extract_coding and diamond parameters         -- */
+/* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.extract_coding_peptide_ksize
-peptide_molecule = params.extract_coding_peptide_molecule
-jaccard_threshold = params.extract_coding_jaccard_threshold
+peptide_ksize = params.translate_peptide_ksize
+peptide_molecule = params.translate_peptide_molecule
+jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
 
 //////////////////////////////////////////////////////////////////
@@ -290,7 +290,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['khtools translate Ref']               = params.extract_coding_peptide_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']               = params.translate_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
@@ -555,7 +555,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/khtools/", mode: 'copy'
 
     input:
-    file(peptides) from ch_extract_coding_peptide_fasta
+    file(peptides) from ch_translate_peptide_fasta
     each molecule from peptide_molecule
 
     output:
@@ -572,7 +572,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-  // From Paolo - how to do extract_coding on ALL combinations of bloom filters
+  // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_khtools_bloom_filters
     .groupTuple(by: [0, 3])
       .combine(ch_reads_trimmed_nonempty)
@@ -592,7 +592,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   process translate {
     tag "${sample_id}"
     label "process_long"
-    publishDir "${params.outdir}/extract_coding/", mode: 'copy'
+    publishDir "${params.outdir}/translate/", mode: 'copy'
 
     input:
     tuple \
