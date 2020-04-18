@@ -2,7 +2,7 @@ ifndef CONTAINER
 CONTAINER := "docker"
 endif
 
-test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_sourmash_search
+test: test_fastq test_download_refseq test_existing_database test_bam test_input_is_protein test_hash2kmer test_sourmash_search
 
 test_fastq:
 	nextflow run -profile $@,${CONTAINER} .
