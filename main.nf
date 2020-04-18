@@ -1013,7 +1013,7 @@ if (params.count_genes) {
     publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
-    set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(sample_id), file(read_ids_with_hash) from ch_read_ids_with_hash
     set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
 
     output:
