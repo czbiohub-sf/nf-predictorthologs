@@ -199,7 +199,7 @@ if __name__ == "__main__":
         '--input-is-protein', action='store_true',
         help='Consume protein sequences - no translation needed.'
     )
-    sketch_args.add_argument(
+    parser.add_argument(
         '--with-abundance', action='store_true',
         help='Include hash abundances for differential hash expression'
     )
