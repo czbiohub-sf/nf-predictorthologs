@@ -116,8 +116,6 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-input_is_protein = params.protein_fastas || params.csv_protein_fasta || params.protein_fasta_paths
-
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
@@ -139,7 +137,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
-} else if (input_is_protein) {
+} else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   if (params.protein_searcher == 'diamond') {
     log.info "Using DIAMOND for protein search and reading input fastas"
@@ -292,7 +290,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!input_is_protein) summary['khtools translate Ref']               = params.extract_coding_peptide_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
@@ -440,7 +438,7 @@ if (params.bam && params.bed && params.bai) {
 /*
  * STEP 1 - FastQC
  */
-if (!input_is_protein) {
+if (!params.input_is_protein) {
   process fastqc {
       tag "$name"
       label 'process_medium'
@@ -476,7 +474,7 @@ if (!input_is_protein) {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !input_is_protein){
+if (!params.skip_trimming && !params.input_is_protein){
   process fastp {
       label 'process_low'
       tag "$name"
@@ -531,7 +529,7 @@ if (!params.skip_trimming && !input_is_protein){
       // gzipped files are 20 bytes when empty
       .filter{ it[1].size() > 20 }
       .set { ch_reads_trimmed_nonempty }
-} else if (!input_is_protein) {
+} else if (!params.input_is_protein) {
   ch_reads_trimmed_nonempty = ch_read_files_trimming
 } else {
   ch_fastp_results = Channel.empty()
@@ -539,7 +537,7 @@ if (!params.skip_trimming && !input_is_protein){
 
 
 
-if (params.protein_searcher == 'diamond'){
+if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -554,7 +552,7 @@ if (params.protein_searcher == 'diamond'){
     tag "${peptides}__${bloom_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+    publishDir "${params.outdir}/khtools/", mode: 'copy'
 
     input:
     file(peptides) from ch_extract_coding_peptide_fasta
@@ -630,11 +628,6 @@ if (params.protein_searcher == 'diamond'){
     .dump(tag: "ch_coding_nucleotides_nonempty")
     .set{ ch_coding_nucleotides_nonempty }
 
-  ch_coding_peptides
-    .dump(tag: 'ch_coding_peptides')
-    .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_query_protein_sequences")
-    .set { ch_query_protein_sequences }
 }
 
 
@@ -648,7 +641,7 @@ if (params.protein_searcher == 'diamond'){
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- if (input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
+ if (params.input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
@@ -683,6 +676,13 @@ if (params.protein_searcher == 'diamond'){
     """
   }
 }
+
+
+ch_coding_peptides
+  .dump(tag: 'ch_coding_peptides')
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_query_protein_sequences")
+  .set { ch_query_protein_sequences }
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -816,7 +816,7 @@ if (params.protein_searcher == 'diamond') {
      tag "${reference_proteome.baseName}"
      label "process_low"
 
-     publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+     publishDir "${params.outdir}/diamond/", mode: 'copy'
 
      input:
      file(reference_proteome) from ch_diamond_reference_fasta
