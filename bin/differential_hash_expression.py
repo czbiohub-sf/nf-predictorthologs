@@ -113,7 +113,7 @@ def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
 
 def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_series,
                                  max_group_size=MAX_GROUP_SIZE, random_state=0,
-                                 verbose=False, **kwargs):
+                                 verbose=False, with_abundance=False, **kwargs):
     rows = annotations[group_col] == group1_name
 
     group1_annotations = annotations.loc[rows]
@@ -135,7 +135,8 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE):
+         random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE,
+         with_abundance=True):
     metadata = pd.read_csv(metadata_csv)
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
@@ -198,6 +199,10 @@ if __name__ == "__main__":
         '--input-is-protein', action='store_true',
         help='Consume protein sequences - no translation needed.'
     )
+    sketch_args.add_argument(
+        '--with-abundance', action='store_true',
+        help='Include hash abundances for differential hash expression'
+    )
     parser.add_argument('-g', "--group-col", type=str,
                         default='group',
                         help="Name of column in metadata containing paths to signature "
@@ -217,14 +222,14 @@ if __name__ == "__main__":
 Algorithm to use in the optimization problem.
 - For small datasets, 'liblinear' is a good choice, whereas 'sag' and 'saga' are faster
   for large ones.
-- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle 
+- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle
   multinomial loss; 'liblinear' is limited to one-versus-rest schemes.
 - 'newton-cg', 'lbfgs', 'sag' and 'saga' handle L2 or no penalty
 - 'liblinear' and 'saga' also handle L1 penalty
 - 'saga' also supports 'elasticnet' penalty
 - 'liblinear' does not support setting penalty='none'
 Note that 'sag' and 'saga' fast convergence is only guaranteed on features with
-approximately the same scale. You can preprocess the data with a scaler from 
+approximately the same scale. You can preprocess the data with a scaler from
 sklearn.preprocessing.""")
     parser.add_argument('-C', "--inverse-regularization-strength", type=float,
                         default=0.1,
@@ -275,4 +280,5 @@ sklearn.preprocessing.""")
          args.sig_col,
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename, args.max_group_size)
+         args.random_state, args.use_sig_basename, args.max_group_size,
+         args.with_abundance)
