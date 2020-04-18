@@ -768,7 +768,7 @@ if (params.hashes || params.diff_hash_expression) {
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_coding_peptides, ch_seqs_with_hashes
+    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond, ch_seqs_with_hashes
 
     script:
     hash_id = "hash-${hash}"
