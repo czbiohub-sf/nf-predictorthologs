@@ -123,6 +123,9 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
     group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
+    logger.info(f'Group 1 signatures: {group1_sigs}')
+    logger.info(f'Group 2 signatures: {group2_sigs}')
+
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
