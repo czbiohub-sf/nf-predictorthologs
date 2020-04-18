@@ -209,6 +209,24 @@ if (params.hashes){
 }
 
 ////////////////////////////////////////////////////
+/* --         Parse gene counting       -- */
+////////////////////////////////////////////////////
+if (params.count_genes) {
+  if (params.csv) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.sample_id, row.bam) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .dump( tag: 'csv__ch_sample_bams' )
+      .set { ch_sample_bams }
+  } else {
+    exit 1, "Must provide --csv when doing gene counting"
+  }
+}
+
+////////////////////////////////////////////////////
 /* --    Parse differential hash expression    -- */
 ////////////////////////////////////////////////////
 if (params.diff_hash_expression) {
