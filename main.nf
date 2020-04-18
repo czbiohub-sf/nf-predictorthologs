@@ -678,13 +678,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 }
 
 
-ch_coding_peptides
-  .dump(tag: 'ch_coding_peptides')
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_query_protein_sequences")
-  .set { ch_query_protein_sequences }
-
-
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -769,6 +762,13 @@ ch_coding_peptides
 
 
 if (params.protein_searcher == 'diamond') {
+
+  ch_coding_peptides
+    .dump(tag: 'ch_coding_peptides')
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_query_protein_sequences")
+    .set { ch_query_protein_sequences }
+
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
