@@ -1026,7 +1026,7 @@ if (params.count_genes) {
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} > header.sam
-    bioawk 'NR == FNR { a[$0]; next } $name in a' ${sample_id} ${bam} \\
+    bioawk 'NR == FNR { a[\$0]; next } \$name in a' ${sample_id} ${bam} \\
       > ${reads_in_hashes_sam}
     # Add header and convert to bam
     samtools reheader header.sam ${reads_in_hashes_sam} \\
