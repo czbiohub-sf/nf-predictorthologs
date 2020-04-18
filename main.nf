@@ -1041,53 +1041,53 @@ if (params.count_genes) {
   /*
    * STEP 11 - Filter per-sample bams for aligned read ids
    */
-   process featureCounts {
-       label 'process_low'
-       tag "${bam_featurecounts.baseName - '.sorted'}"
-       publishDir "${params.outdir}/featureCounts", mode: "${params.publish_dir_mode}",
-           saveAs: {filename ->
-               if (filename.indexOf("biotype_counts") > 0) "biotype_counts/$filename"
-               else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-               else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
-               else "$filename"
-           }
-
-       input:
-       file bam from ch_bam_featurecounts
-       file gtf from gtf_featureCounts.collect()
-       file biotypes_header from ch_biotypes_header.collect()
-
-       output:
-       file "${bam.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-       file "${bam.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
-       file "${bam.baseName}_biotype_counts*mqc.{txt,tsv}" optional true into featureCounts_biotype
-
-       script:
-       def featureCounts_direction = 0
-       def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
-       if (forwardStranded && !unStranded) {
-           featureCounts_direction = 1
-       } else if (reverseStranded && !unStranded) {
-           featureCounts_direction = 2
-       }
-       // Try to get real sample name
-       sample_name = bam_featurecounts.baseName - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-       biotype_qc = params.skipBiotypeQC ? '' : "featureCounts -a $gtf -g $biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts"
-       mod_biotype = params.skipBiotypeQC ? '' : "cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n +3 | cat $biotypes_header - >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt && mqc_features_stat.py ${bam_featurecounts.baseName}_biotype_counts_mqc.txt -s $sample_name -f rRNA -o ${bam_featurecounts.baseName}_biotype_counts_gs_mqc.tsv"
-       """
-       featureCounts \\
-          -a $gtf \\
-          -g ${params.fc_group_features} \\
-          -t ${params.fc_count_type} \\
-          -o ${bam_featurecounts.baseName}_gene.featureCounts.txt \\
-          $extraAttributes \\
-          -p \\
-          -s $featureCounts_direction \\
-          $bam_featurecounts
-       $biotype_qc
-       $mod_biotype
-       """
-   }
+   // process featureCounts {
+   //     label 'process_low'
+   //     tag "${bam_featurecounts.baseName - '.sorted'}"
+   //     publishDir "${params.outdir}/featureCounts", mode: "${params.publish_dir_mode}",
+   //         saveAs: {filename ->
+   //             if (filename.indexOf("biotype_counts") > 0) "biotype_counts/$filename"
+   //             else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+   //             else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+   //             else "$filename"
+   //         }
+   //
+   //     input:
+   //     file bam from ch_bam_featurecounts
+   //     file gtf from gtf_featureCounts.collect()
+   //     file biotypes_header from ch_biotypes_header.collect()
+   //
+   //     output:
+   //     file "${bam.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
+   //     file "${bam.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
+   //     file "${bam.baseName}_biotype_counts*mqc.{txt,tsv}" optional true into featureCounts_biotype
+   //
+   //     script:
+   //     def featureCounts_direction = 0
+   //     def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
+   //     if (forwardStranded && !unStranded) {
+   //         featureCounts_direction = 1
+   //     } else if (reverseStranded && !unStranded) {
+   //         featureCounts_direction = 2
+   //     }
+   //     // Try to get real sample name
+   //     sample_name = bam_featurecounts.baseName - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
+   //     biotype_qc = params.skipBiotypeQC ? '' : "featureCounts -a $gtf -g $biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts"
+   //     mod_biotype = params.skipBiotypeQC ? '' : "cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n +3 | cat $biotypes_header - >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt && mqc_features_stat.py ${bam_featurecounts.baseName}_biotype_counts_mqc.txt -s $sample_name -f rRNA -o ${bam_featurecounts.baseName}_biotype_counts_gs_mqc.tsv"
+   //     """
+   //     featureCounts \\
+   //        -a $gtf \\
+   //        -g ${params.fc_group_features} \\
+   //        -t ${params.fc_count_type} \\
+   //        -o ${bam_featurecounts.baseName}_gene.featureCounts.txt \\
+   //        $extraAttributes \\
+   //        -p \\
+   //        -s $featureCounts_direction \\
+   //        $bam_featurecounts
+   //     $biotype_qc
+   //     $mod_biotype
+   //     """
+   // }
 }
 
 
