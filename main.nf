@@ -528,7 +528,7 @@ if (!params.skip_trimming && !input_is_protein){
 
 
 
-if (!input_is_protein){
+if (params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -618,6 +618,12 @@ if (!input_is_protein){
     .filter{ it[1].size() > 0 }
     .dump(tag: "ch_coding_nucleotides_nonempty")
     .set{ ch_coding_nucleotides_nonempty }
+
+  ch_coding_peptides
+    .dump(tag: 'ch_coding_peptides')
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_query_protein_sequences")
+    .set { ch_query_protein_sequences }
 }
 
 
@@ -665,11 +671,6 @@ if (!input_is_protein){
         ${peptide_fastas}
     """
   }
-  ch_coding_peptides
-    .dump(tag: 'ch_coding_peptides')
-    .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_peptides_nonempty")
-    .set {ch_coding_peptides_nonempty}
 }
 
 
@@ -726,7 +727,9 @@ if (!input_is_protein){
 /*
  * STEP 5 - rsync to download refeseq
  */
- if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
+ need_refseq_download = !params.reference_proteome_fasta && params.refseq_release
+ existing_reference = params.diamond_database || params.sourmash_index
+ if (!existing_reference && (need_refseq_download)){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
@@ -828,13 +831,6 @@ if (params.protein_searcher == 'diamond') {
    }
   }
 
-
-  // From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
-   ch_coding_peptides_nonempty
-    .combine( ch_diamond_db )
-    .dump(tag: 'ch_coding_peptides_nonempty_with_diamond_db')
-    .set{ ch_coding_peptides_nonempty_with_diamond_db }
-
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -853,13 +849,12 @@ if (params.protein_searcher == 'diamond') {
 
     input:
     // Basenames from dumped channel:
-    // [DUMP: ch_coding_peptides_nonempty_with_diamond_db]
+    // [DUMP: ch_query_protein_sequences_with_diamond_db]
     //   [ENSPPYT00000000455__molecule-dayhoff,
     //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
     //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
-    tuple \
-      val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
-        from ch_coding_peptides_nonempty_with_diamond_db
+    file(diamond_db) from ch_diamond_db.collect()
+    set val(sample_bloom_id), file(coding_peptides) from ch_query_protein_sequences
 
     output:
     file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
