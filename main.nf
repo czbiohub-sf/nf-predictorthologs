@@ -293,6 +293,7 @@ hash2kmer_molecule = params.hash2kmer_molecule
 //////////////////////////////////////////////////////////////////
 /* -   Parse differential hash expression parameters         -- */
 //////////////////////////////////////////////////////////////////
+diff_hash_with_abundance = params.diff_hash_with_abundance
 diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
@@ -680,6 +681,7 @@ if (!input_is_protein){
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
+    abundance_flag = diff_hash_with_abundance ? '--with-abundance' : ''
     """
     differential_hash_expression.py \\
         --ksize ${hash2kmer_ksize} \\
@@ -693,6 +695,7 @@ if (!input_is_protein){
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
+        ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
         > '${group_cleaned}.log'
     """
