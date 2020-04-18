@@ -768,7 +768,7 @@ if (params.hashes || params.diff_hash_expression) {
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond, ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
+    set val(hash), val(hash_id), file(sequences) into ch_protein_seq_for_diamond, ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
     script:
     hash_id = "hash-${hash}"
@@ -939,14 +939,15 @@ process diamond_blastp {
   //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
   //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
   tuple \
-    val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
+    val(hash), val(hash_id), file(coding_peptides), file(diamond_db) \
       from ch_protein_seq_for_diamond_nonempty_with_diamond_db
 
   output:
-  file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  file(tsv) into ch_diamond_blastp_output
 
   script:
   ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
+  tsv = "${hash_id}__diamond__${diamond_db.baseName}.tsv"
   """
   diamond blastp \\
       ${ouptut_format} \\
@@ -955,7 +956,7 @@ process diamond_blastp {
       --db ${diamond_db} \\
       --evalue 0.00001  \\
       --query ${coding_peptides} \\
-      > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
+      > ${tsv}
   """
 }
 
@@ -968,16 +969,51 @@ if (params.count_genes) {
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 9 - Filter per-sample bams for aligned read ids
+   * STEP 9 - Extract sequence ids of reads containing hashes
    */
-  process make_bam_of_reads_containing_hashes {
-    tag "${hash_id}__${bam_id}"
-    label "process_medium"
+  process bioawk_get_read_ids_with_hash {
+    tag "${sample_id}"
+    label "process_low"
 
-    publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy'
+    publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_bam_of_hashes
+    set val(hash_id), file(seqs_with_hash) from ch_seqs_with_hashes_for_bam_of_hashes
+    set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
+
+    output:
+    set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
+
+    script:
+    sample_id = "${bam_id}__${hash_id}"
+    read_ids_with_hash = "${sample_id}__reads_ids_with_hash.txt"
+    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
+    """
+    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} > ${read_ids_with_hash}
+    bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
+    """
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE BAM CONTAINING HASHES                         -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 9 - Filter per-sample bams for aligned read ids
+   */
+  process bioawk_filter_bam_for_reads_with_hashes {
+    tag "${sample_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
+
+    input:
+    set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
     set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
 
     output:
@@ -985,15 +1021,13 @@ if (params.count_genes) {
     set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
-    sample_id = "${bam_id}__${hash_id}"
-    read_ids_mapped = f"${sample_id}__aligned_read_ids.txt"
-    reads_in_hashes_sam = f'reads-in-shared-hashes.sam'
-    reads_in_hashes_bam = f"${sample_id}__reads-in-shared-hashes.bam"
+    reads_in_hashes_sam = 'reads-in-shared-hashes.sam'
+    reads_in_hashes_bam = "${sample_id}__reads-in-shared-hashes.bam"
+    read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} > header.sam
-    bioawk -c fastx '{ print \$name }' ${seqs_fasta} > ${read_names}
-    samtools view ${bam} | fgrep -f ${read_names} > ${reads_in_hashes_sam}
-
+    bioawk 'NR == FNR { a[$0]; next } $name in a' ${sample_id} ${bam} \\
+      > ${reads_in_hashes_sam}
     # Add header and convert to bam
     samtools reheader header.sam ${reads_in_hashes_sam} \\
       | samtools view -Sb - > ${reads_in_hashes_bam}
@@ -1018,7 +1052,7 @@ if (params.count_genes) {
     publishDir "${params.outdir}/filter_unaligned_reads/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
+    set val(hash), val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
     set val(sample_id), file(read_ids_mapped) from ch_read_ids_mapped
 
     output:
