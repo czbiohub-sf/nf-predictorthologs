@@ -974,7 +974,7 @@ if (params.count_genes) {
     tag "${hash_id}__${bam_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+    publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy'
 
     input:
     set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_bam_of_hashes
@@ -982,10 +982,11 @@ if (params.count_genes) {
 
     output:
     set val(sample_id), file(reads_in_hashes_bam) into ch_bam_featurecounts
+    set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
     sample_id = "${bam_id}__${hash_id}"
-    read_names = f"read_names.txt"
+    read_ids_mapped = f"${sample_id}__aligned_read_ids.txt"
     reads_in_hashes_sam = f'reads-in-shared-hashes.sam'
     reads_in_hashes_bam = f"${sample_id}__reads-in-shared-hashes.bam"
     """
@@ -1011,26 +1012,22 @@ if (params.count_genes) {
    * STEP 10 - Filter per-sample sequences for unaligned read ids
    */
   process filter_unaligned_reads {
-    tag "${hash_id}__${bam_id}"
+    tag "${hash_id}__${sample_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+    publishDir "${params.outdir}/filter_unaligned_reads/", mode: 'copy'
 
     input:
     set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
-    set val(bam_id), file(bam) from ch_bams_for_filter_unaligned_reads
+    set val(sample_id), file(read_ids_mapped) from ch_read_ids_mapped
 
     output:
-    set val(sample_id), file(reads_in_hashes_bam) into ch_bam_featurecounts
+    set val(sample_id), file(fasta_unmapped) into ch_fasta_unmapped
 
     script:
-    sample_id = "${bam_id}__${hash_id}"
-    read_names = f"read_names.txt"
-    reads_in_hashes_sam = f'reads-in-shared-hashes.sam'
-    reads_in_hashes_bam = f"${sample_id}__reads-in-shared-hashes.bam"
-    fasta_unmapped = f'{outdir}/J7_B000578_B009057_S223__coding_reads_peptides__unmapped.fasta'
+    fasta_unmapped = "${read_ids_mapped.simpleName}__unmapped.fasta"
     """
-    fgrep --file $read_ids_mapped --invert-match $fasta > $fasta_unmapped
+    fgrep --file ${read_ids_mapped} --invert-match ${seqs_fasta} > ${fasta_unmapped}
     """
   }
 
