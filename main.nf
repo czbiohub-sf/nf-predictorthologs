@@ -39,7 +39,7 @@ def helpMessage() {
       --single_end [bool]             Specifies that the input is single-end reads
 
     BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
-      --diamond_refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
+      --refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
                                       e.g. "complete", "archea", "plasmid", "protozoa", "viral".
                                       Default is "vertebrate_mammalian"
       --diamond_protein_fasta         Use all of manually curated, verified UniProt/SwissProt as the reference
@@ -258,13 +258,22 @@ if (params.diamond_database){
 peptide_ksize = params.extract_coding_peptide_ksize
 peptide_molecule = params.extract_coding_peptide_molecule
 jaccard_threshold = params.extract_coding_jaccard_threshold
-diamond_refseq_release = params.diamond_refseq_release
+refseq_release = params.refseq_release
 
 //////////////////////////////////////////////////////////////////
-/* -                 Parse hash2kmer parameters              -- */
+/* -        Parse sourmash/hash2kmer parameters              -- */
 //////////////////////////////////////////////////////////////////
 sourmash_ksize = params.sourmash_ksize
 sourmash_molecule = params.sourmash_molecule
+
+//////////////////////////////////////////////////////////////////
+/* -        Summarize reference proteome parameters          -- */
+//////////////////////////////////////////////////////////////////
+provided_reference_proteome = params.reference_proteome_fasta || params.refseq_release
+existing_reference = params.diamond_database || params.sourmash_index
+need_refseq_download = !existing_reference && !params.reference_proteome_fasta && params.refseq_release
+// println("existing_reference: ${existing_reference}")
+// println("provided_reference_proteome: ${provided_reference_proteome}")
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -283,19 +292,19 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
+if (!input_is_protein) summary['khtools translate Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
-if (params.reference_proteome) summary['Reference Proteome fasta']          = params.reference_proteome
+if (params.reference_proteome_fasta) summary['Reference Proteome fasta']          = params.reference_proteome_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
 if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
 if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
-if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
-summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
-summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
+if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
+if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
@@ -318,7 +327,7 @@ if (params.email || params.email_on_fail) {
     summary['E-mail on failure'] = params.email_on_fail
     summary['MultiQC maxsize']   = params.max_multiqc_email_size
 }
-log.info summary.collect { k,v -> "${k.padRight(18)}: $v" }.join("\n")
+log.info summary.collect { k,v -> "${k.padRight(25)}: $v" }.join("\n")
 log.info "-\033[2m--------------------------------------------------\033[0m-"
 
 // Check the hostnames against configured profiles
@@ -729,9 +738,7 @@ if (params.protein_searcher == 'diamond'){
 /*
  * STEP 5 - rsync to download refeseq
  */
- need_refseq_download = !params.reference_proteome_fasta && params.refseq_release
- existing_reference = params.diamond_database || params.sourmash_index
- if (!existing_reference && (need_refseq_download)){
+ if (!existing_reference && need_refseq_download){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
@@ -740,11 +747,10 @@ if (params.protein_searcher == 'diamond'){
 
     publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
-    input:
-    val refseq_release from diamond_refseq_release
-
     output:
-    file("${refseq_release}.fa.gz") into ch_diamond_reference_fasta, ch_sourmash_reference_fasta
+    // Enclose in parentheses to avoid "No such variable: process" error
+    // Reference: https://github.com/nextflow-io/nextflow/issues/141
+    file("${refseq_release}.fa.gz") into (ch_diamond_reference_fasta, ch_sourmash_reference_fasta)
 
     script:
     """
@@ -805,7 +811,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  if (!params.diamond_database && (params.reference_proteome_fasta || params.diamond_refseq_release)){
+  if (!params.diamond_database && (params.reference_proteome_fasta || params.refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_low"
