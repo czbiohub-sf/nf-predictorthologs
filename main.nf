@@ -217,6 +217,7 @@ if (params.count_genes) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
+      .filter{ row -> row.bam }
       .map{ row -> tuple(row.sample_id, row.bam) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .dump( tag: 'csv__ch_sample_bams' )
