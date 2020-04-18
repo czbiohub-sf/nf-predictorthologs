@@ -768,7 +768,7 @@ if (params.hashes || params.diff_hash_expression) {
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond, ch_seqs_with_hashes
+    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond, ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
     script:
     hash_id = "hash-${hash}"
@@ -977,7 +977,7 @@ if (params.count_genes) {
     publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes
+    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_bam_of_hashes
     set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
 
     output:
@@ -1017,7 +1017,7 @@ if (params.count_genes) {
     publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes
+    set val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
     set val(bam_id), file(bam) from ch_bams_for_filter_unaligned_reads
 
     output:
