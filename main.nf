@@ -145,13 +145,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       Channel.fromPath(params.protein_fastas)
           .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
           .set { ch_protein_fastas }
-    } else if (params.csv_protein_fasta) {
+    } else if (params.csv) {
       // Provided a csv file mapping sample_id to protein fasta path
       Channel
-        .fromPath(params.csv_protein_fasta)
+        .fromPath(params.csv)
         .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.peptide_fasta)))}
-        .ifEmpty { exit 1, "params.csv_protein_fasta (${params.csv_protein_fasta}) was empty - no input files supplied" }
+        .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .set { ch_protein_fastas }
     } else if (params.protein_fasta_paths){
       Channel
