@@ -204,7 +204,8 @@ if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> row.replaceAll("\\s+", "")}
+      .map{ row -> tuple("hashes", row.replaceAll("\\s+", "") )}
+      .transpose()
       .set { ch_hashes_for_hash2kmer }
 }
 
@@ -663,7 +664,7 @@ if (!input_is_protein){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process diff_hash {
-    tag "${group}"
+    tag "${group_cleaned}"
     label "process_medium"
 
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
@@ -673,11 +674,12 @@ if (!input_is_protein){
     file metadata from ch_csv.collect()
 
     output:
-    file("${group}.log")
+    file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    file("*__informative_hashes.txt") into ch_informative_hashes_files
+    set val(group_cleaned), file("*__informative_hashes.txt") into ch_informative_hashes_files
 
     script:
+    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
     """
     differential_hash_expression.py \\
         --ksize ${hash2kmer_ksize} \\
@@ -692,15 +694,20 @@ if (!input_is_protein){
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
-        > '${group}.log'
+        > '${group_cleaned}.log'
     """
   }
   ch_informative_hashes_files
-      .splitText()
-      .map{ row -> row.replaceAll("\\s+", "")}
+      .dump(tag: 'ch_informative_hashes_files')
+      // [group_name, text_file]
+      .map{ it -> tuple(it[0], it[1].splitText() )}
+      // [group_name, [123, 456, 789]]
       .dump(tag: 'ch_informative_hashes_files_split')
-      .flatten()
-      .dump(tag: 'ch_informative_hashes_files_flattened')
+      // [group_name, 123]
+      // [group_name, 456]
+      // [group_name, 789]
+      .transpose()
+      .dump(tag: 'ch_informative_hashes_files_transposed')
       .set { ch_hashes_for_hash2kmer }
 }
 
@@ -713,6 +720,7 @@ if (params.hashes || params.diff_hash_expression) {
 
   ch_hashes_for_hash2kmer
       .combine( ch_protein_fastas_flat_list )
+      .dump(tag: 'ch_hashes_for_hash2kmer__combine__ch_protein_fastas_flat_list')
       .set { ch_hashes_with_fastas_for_hash2kmer }
       // Desired output:
       // [1, ["a", "b", "c"]]
@@ -739,30 +747,31 @@ if (params.hashes || params.diff_hash_expression) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${hash}"
+    tag "${hash_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
+    tuple val(group), val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
+    set val(group), val(hash_id), file(sequences) into ch_protein_seq_for_diamond
 
     script:
-    hash_id = "hash-${hash}"
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "group-${group}__hash-${hash_cleaned}"
     kmers = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
     """
-    echo ${hash} >> hash.txt
+    echo '${hash}' >> hash.txt
     hash2kmer.py \\
         --ksize ${hash2kmer_ksize} \\
         --no-dna \\
         --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
+        --output-sequences '${sequences}' \\
+        --output-kmers '${kmers}' \\
         --${hash2kmer_molecule} \\
         --first \\
         hash.txt \\
@@ -773,7 +782,7 @@ if (params.hashes || params.diff_hash_expression) {
 
 ch_protein_seq_for_diamond
   .dump(tag: 'ch_protein_seq_for_diamond')
-  .filter{ it[1].size() > 0 }
+  .filter{ it[2].size() > 0 }
   .dump(tag: "ch_protein_seq_for_diamond_nonempty")
   .set {ch_protein_seq_for_diamond_nonempty}
 
@@ -910,7 +919,7 @@ process diamond_blastp {
   tag "${sample_bloom_id}"
   label "process_medium"
 
-  publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+  publishDir "${params.outdir}/diamond/blastp/${group}", mode: 'copy'
 
   input:
   // Basenames from dumped channel:
@@ -919,11 +928,11 @@ process diamond_blastp {
   //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
   //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
   tuple \
-    val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
+    val(group), val(hash_id), file(coding_peptides), file(diamond_db) \
       from ch_protein_seq_for_diamond_nonempty_with_diamond_db
 
   output:
-  file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  file("${hash_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
   ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
@@ -935,7 +944,7 @@ process diamond_blastp {
       --db ${diamond_db} \\
       --evalue 0.00001  \\
       --query ${coding_peptides} \\
-      > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
+      > ${hash_id}__diamond__${diamond_db.baseName}.tsv
   """
 }
 
