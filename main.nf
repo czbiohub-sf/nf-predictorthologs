@@ -239,7 +239,7 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> file(row.sig) }
+      .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
       .map{ it -> [it] }   // Nest within a list so the next step does what I want
