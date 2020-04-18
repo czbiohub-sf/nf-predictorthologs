@@ -971,7 +971,7 @@ if (params.count_genes) {
   /*
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
-  process bioawk_get_read_ids_with_hash {
+  process bioawk_read_ids_with_hash {
     tag "${sample_id}"
     label "process_low"
 
@@ -979,7 +979,6 @@ if (params.count_genes) {
 
     input:
     set val(hash_id), file(seqs_with_hash) from ch_seqs_with_hashes_for_bam_of_hashes
-    set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
 
     output:
     set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
