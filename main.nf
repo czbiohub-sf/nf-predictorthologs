@@ -263,8 +263,8 @@ diamond_refseq_release = params.diamond_refseq_release
 //////////////////////////////////////////////////////////////////
 /* -                 Parse hash2kmer parameters              -- */
 //////////////////////////////////////////////////////////////////
-hash2kmer_ksize = params.hash2kmer_ksize
-hash2kmer_molecule = params.hash2kmer_molecule
+sourmash_ksize = params.sourmash_ksize
+sourmash_molecule = params.sourmash_molecule
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -278,18 +278,20 @@ def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Run Name']         = custom_runName ?: workflow.runName
 // Input is sequencing reads --> need to convert to protein
+if (params.csv) summary['CSV of samples']                                   = params.csv
 if (params.bam) summary['bam']                                              = params.bam
+if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
 if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
 // Input is protein -- have protein sequences and hashes
-if (params.hashes) summary['Hashes']                                        = params.hashes
-if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
-if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
-if (params.csv_protein_fasta) summary['CSV of protein fastas']              = params.csv_protein_fasta
 // How the DIAMOND search database is created
-if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
+if (params.reference_proteome) summary['Reference Proteome fasta']          = params.reference_proteome
+summary['Protein searcher']                                                 = params.protein_searcher
+if (params.hashes) summary['Hashes']                                        = params.hashes
+if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
+if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
 if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
@@ -660,12 +662,12 @@ if (params.protein_searcher == 'diamond'){
     """
     echo ${hash} >> hash.txt
     hash2kmer.py \\
-        --ksize ${hash2kmer_ksize} \\
+        --ksize ${sourmash_ksize} \\
         --no-dna \\
         --input-is-protein \\
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
-        --${hash2kmer_molecule} \\
+        --${sourmash_molecule} \\
         --first \\
         hash.txt \\
         ${peptide_fastas}
@@ -705,11 +707,11 @@ if (params.protein_searcher == 'diamond'){
     """
     echo ${hash} >> hash.txt
     hash2sig.py \\
-        --ksize ${hash2kmer_ksize} \\
+        --ksize ${sourmash_ksize} \\
         --no-dna \\
         --scaled 1 \\
         --input-is-protein \\
-        --${hash2kmer_molecule} \\
+        --${sourmash_molecule} \\
         --output ${sig} \\
         hash.txt
     """
@@ -899,16 +901,16 @@ if (params.protein_searcher == 'sourmash'){
    file("${reference_proteome.baseName}__${sketch_id}.sig") into ch_proteome_sig_for_sourmash_index
 
    script:
-   sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
    sourmash compute \\
-      --ksizes ${hash2kmer_ksize} \\
+      --ksizes ${sourmash_ksize} \\
       --input-is-protein \\
       --track-abundance \\
       --singleton \\
       --scaled 1 \\
       --no-dna \\
-      --${hash2kmer_molecule} \\
+      --${sourmash_molecule} \\
       --output ${reference_proteome.baseName}__${sketch_id}.sig \\
       ${reference_proteome} \\
       > ${reference_proteome.baseName}__${sketch_id}.log
@@ -928,11 +930,11 @@ if (params.protein_searcher == 'sourmash'){
     set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
 
     script:
-    sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
     """
     sourmash index \\
-        --ksize ${hash2kmer_ksize} \\
-        --${hash2kmer_molecule} \\
+        --ksize ${sourmash_ksize} \\
+        --${sourmash_molecule} \\
         ${reference_proteome_sig.baseName} \\
         ${reference_proteome_sig}
     """
@@ -952,13 +954,13 @@ if (params.protein_searcher == 'sourmash'){
    file("${hash_id}.csv")
 
    script:
-   sketch_id = "molecule-${hash2kmer_molecule}__ksize-${hash2kmer_ksize}__scaled-1__track_abundance-true"
+   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
    sourmash search \\
        --best-only \\
        --output ${hash_id}.csv \\
-       --ksize ${hash2kmer_ksize} \\
-       --${hash2kmer_molecule} \\
+       --ksize ${sourmash_ksize} \\
+       --${sourmash_molecule} \\
        ${query_sig} \\
        ${reference_sbt_json} \\
    """
