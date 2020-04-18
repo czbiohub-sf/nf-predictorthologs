@@ -116,15 +116,13 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                  verbose=False, **kwargs):
     rows = annotations[group_col] == group1_name
 
-    group1_annotations = annotations.loc[rows]
+    group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
 
     # Everything not in group 1
-    group2_annotations = annotations.loc[~rows]
+    group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
 
-    group1_sigs = maybe_subsample(sketch_series[group1_annotations.index],
-                                  max_group_size)
-    group2_sigs = maybe_subsample(sketch_series[group2_annotations.index],
-                                  max_group_size)
+    group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
+    group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
@@ -217,14 +215,14 @@ if __name__ == "__main__":
 Algorithm to use in the optimization problem.
 - For small datasets, 'liblinear' is a good choice, whereas 'sag' and 'saga' are faster
   for large ones.
-- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle 
+- For multiclass problems, only 'newton-cg', 'sag', 'saga' and 'lbfgs' handle
   multinomial loss; 'liblinear' is limited to one-versus-rest schemes.
 - 'newton-cg', 'lbfgs', 'sag' and 'saga' handle L2 or no penalty
 - 'liblinear' and 'saga' also handle L1 penalty
 - 'saga' also supports 'elasticnet' penalty
 - 'liblinear' does not support setting penalty='none'
 Note that 'sag' and 'saga' fast convergence is only guaranteed on features with
-approximately the same scale. You can preprocess the data with a scaler from 
+approximately the same scale. You can preprocess the data with a scaler from
 sklearn.preprocessing.""")
     parser.add_argument('-C', "--inverse-regularization-strength", type=float,
                         default=0.1,
