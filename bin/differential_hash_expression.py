@@ -138,8 +138,10 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
          random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE):
     metadata = pd.read_csv(metadata_csv)
+
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
+    logger.info(f"metadata head: {metadata.head()}")
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
@@ -153,7 +155,6 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                          f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
     logger.info(f"Sketch series head: {sketch_series.head()}")
-
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
