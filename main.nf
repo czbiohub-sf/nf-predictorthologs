@@ -985,9 +985,8 @@ if (params.count_genes) {
     set val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
 
     script:
-    sample_id = "${bam_id}__${hash_id}"
-    read_ids_with_hash = "${sample_id}__reads_ids_with_hash.txt"
-    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
+    read_ids_with_hash = "${hash_id}__reads_ids_with_hash.txt"
+    read_headers_with_hash = "${hash_id}__reads_headers_with_hash.txt"
     """
     bioawk -c fastx '{ print \$name }' ${seqs_with_hash} > ${read_ids_with_hash}
     bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
