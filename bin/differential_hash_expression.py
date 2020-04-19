@@ -60,7 +60,10 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
 
     # Create pandas dataframe of hash abundances
     hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
+    logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
+
     hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
+    logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f'Number of hashes in group1: {len(hash_df1.index)}')
     logger.info(f'Number of hashes in group2: {len(hash_df2.index)}')
@@ -128,6 +131,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
+                                                with_abundance=with_abundance,
                                                 **kwargs)
     coefficients.name = group1_name
     return coefficients
