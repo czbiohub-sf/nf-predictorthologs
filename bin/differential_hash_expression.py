@@ -40,11 +40,11 @@ logger.setLevel(logging.INFO)
 
 def make_hash_df(sigs, with_abundance=False):
     if with_abundance:
-        records = {x.name(): x.minhash.get_mins(with_abundance=False)
+        records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
     else:
         # Set value of each hash abundance to 1
-        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=True), 1)
+        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
                    for x in sigs}
     return pd.DataFrame(records)
 
