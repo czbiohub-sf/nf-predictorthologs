@@ -652,7 +652,7 @@ if (!input_is_protein){
   // it[0] = sample id
   // it[1] = sequence fasta file
   ch_coding_peptides_potentially_empty
-    .filter{ it[1].size() > 0 }
+    .filter{ it[2].size() > 0 }
     .dump(tag: "ch_coding_peptides_nonempty")
     .set{ ch_protein_fastas }
 }
