@@ -24,3 +24,13 @@ test_hash2kmer:
 
 test_sourmash_search:
 	nextflow run -profile $@,${CONTAINER} .
+
+# --- Linting --- #
+
+lint: markdownlint yamllint
+
+markdownlint:
+	markdownlint . -c .github/markdownlint.yml
+
+yamllint:
+	yamllint $(find . -type f -name "*.yml")
