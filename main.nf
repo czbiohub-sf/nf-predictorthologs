@@ -620,105 +620,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
     """
   }
-  // Remove empty files
-  // it[0] = sample id
-  // it[1] = sequence fasta file
-  ch_coding_nucleotides
-    .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_nucleotides_nonempty")
-    .set{ ch_coding_nucleotides_nonempty }
 
 }
 
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
- */
- if (params.input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${hash}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-    input:
-    tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
-
-    output:
-    file(kmers)
-    set val(hash_id), file(sequences) into ch_coding_peptides
-
-    script:
-    hash_id = "hash-${hash}"
-    kmers = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
-    """
-    echo ${hash} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${sourmash_molecule} \\
-        --first \\
-        hash.txt \\
-        ${peptide_fastas}
-    """
-  }
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --                    CONVERT HASHES TO SIGNATURES                     -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 4 - convert hashes to k-mers
- */
- if (params.protein_searcher == 'sourmash' && params.hashes){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2sig {
-    tag "${hash}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2sig/", mode: 'copy'
-
-    input:
-    val(hash) from ch_hashes_for_hash2sig
-
-    output:
-    set val(hash_id), file("${sig}") into ch_hash_sigs
-
-    script:
-    hash_id = "hash-${hash}"
-    sig = "${hash_id}.sig"
-    """
-    echo ${hash} >> hash.txt
-    hash2sig.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --scaled 1 \\
-        --input-is-protein \\
-        --${sourmash_molecule} \\
-        --output ${sig} \\
-        hash.txt
-    """
-  }
-}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -760,8 +664,61 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --       PREPARE PROTEIN SEQUENCES FOR SEARCHING WITH DIAMOND          -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 if (params.protein_searcher == 'diamond') {
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+   */
+   if (params.input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
+    // No protein fasta provided for searching for orthologs, need to
+    // download refseq
+    process hash2kmer {
+      tag "${hash}"
+      label "process_low"
+
+      publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+      input:
+      tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
+
+      output:
+      file(kmers)
+      set val(hash_id), file(sequences) into ch_coding_peptides
+
+      script:
+      hash_id = "hash-${hash}"
+      kmers = "${hash_id}__kmer.txt"
+      sequences = "${hash_id}__sequences.fasta"
+      """
+      echo ${hash} >> hash.txt
+      hash2kmer.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --input-is-protein \\
+          --output-sequences ${sequences} \\
+          --output-kmers ${kmers} \\
+          --${sourmash_molecule} \\
+          --first \\
+          hash.txt \\
+          ${peptide_fastas}
+      """
+    }
+  }
+
 
   ch_coding_peptides
     .dump(tag: 'ch_coding_peptides')
@@ -885,14 +842,65 @@ if (params.protein_searcher == 'diamond') {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
-/* --                  MAKE SOURMASH INDEX                      -- */
+/* --            PREPARE HASHES FOR SEARCHING WITH SOURMASH               -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 7 - make peptide search database for DIAMOND
- */
 if (params.protein_searcher == 'sourmash'){
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                    CONVERT HASHES TO SIGNATURES                     -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 4 - convert hashes to k-mers
+   */
+   if (params.protein_searcher == 'sourmash' && params.hashes){
+    // No protein fasta provided for searching for orthologs, need to
+    // download refseq
+    process hash2sig {
+      tag "${hash}"
+      label "process_low"
+
+      publishDir "${params.outdir}/hash2sig/", mode: 'copy'
+
+      input:
+      val(hash) from ch_hashes_for_hash2sig
+
+      output:
+      set val(hash_id), file("${sig}") into ch_hash_sigs
+
+      script:
+      hash_id = "hash-${hash}"
+      sig = "${hash_id}.sig"
+      """
+      echo ${hash} >> hash.txt
+      hash2sig.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --scaled 1 \\
+          --input-is-protein \\
+          --${sourmash_molecule} \\
+          --output ${sig} \\
+          hash.txt
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE SOURMASH INDEX                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 7 - make peptide search database for DIAMOND
+   */
   process sourmash_db_compute {
    tag "${reference_proteome.baseName}"
    label "process_low"
