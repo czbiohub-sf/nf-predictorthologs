@@ -131,6 +131,15 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
 
+if (params.hashes) {
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .dump( tag: 'ch_hashes' )
+      .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
+}
+
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
     print("supplied bam, not looking at any supplied --reads")
@@ -176,13 +185,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .into { ch_protein_fastas }
     }
     if (params.hashes) {
-      Channel.fromPath(params.hashes)
-          .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-          .splitText()
-          .map{ row -> row.replaceAll("\\s+", "")}
-          .dump( tag: 'ch_hashes' )
-          .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
-
         ch_protein_fastas
           .map{ it -> it[1] }  // get only the file, not the sample id
           .collect()           // make a single flat list
@@ -192,10 +194,10 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         ch_hashes_for_hash2kmer
             .combine( ch_protein_fastas_flat_list )
             .set { ch_hashes_fastas_for_hash2kmer }
+    } else {
+      // No hashes - just do a diamond blastp search for each peptide fasta
+      ch_query_protein_sequences = ch_protein_fastas
     }
-  } else {
-    // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_query_protein_sequences = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
