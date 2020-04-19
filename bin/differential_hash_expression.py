@@ -136,7 +136,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
          random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE,
-         with_abundance=True):
+         with_abundance=False):
     metadata = pd.read_csv(metadata_csv)
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
@@ -160,7 +160,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                     n_jobs=n_jobs, solver=solver,
                                                     penalty=penalty,
                                                     random_state=random_state,
-                                                    max_group_size=max_group_size)
+                                                    max_group_size=max_group_size,
+                                                    with_abundance=with_abundance)
         write_hash_coefficients(coefficients, group1, threshold)
     else:
         for group1, df in metadata.groupby(group_col):
@@ -170,7 +171,9 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                         C=C,
                                                         n_jobs=n_jobs, solver=solver,
                                                         penalty=penalty,
-                                                        random_state=random_state)
+                                                        random_state=random_state,
+                                                        max_group_size=max_group_size,
+                                                        with_abundance=with_abundance)
             write_hash_coefficients(coefficients, group1, threshold)
 
 
