@@ -26,14 +26,25 @@ def helpMessage() {
     Input Options:
       Sequencing reads (FASTQ format):
         --reads [file]                Path to input data (must be surrounded with quotes)
+        --csv                         Comma-separated variable file containing the columns "sample_id" and "fasta" at minimum
+                                      For differential hash expression, the columns "sig" and "group" are also required
+
       Protein input:
-        --protein_fastas
-        --csv_protein_fasta
-        --hashes
+        --protein_fastas              Path to protein fastas
+
       Bam + bed file for intersection:
-        --bam
-        --bai
-        --bed
+        --bam                         Path to a single bam file whose reads to intersect with the bed
+        --bai                         Path to the above bam's bai index file, required for intersection
+        --bed                         Path to a bed file containing regions of interest in the bam file
+
+    hash2kmer options:
+      --hashes                        Path to file of hashes whose sequence to find in the protein fastas, default None
+      --hash2kmer_ksize               K-mer size to use to find matching k-mers in sequence, default 21
+      --hash2kmer_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
+
+   Differential hash expression options:
+      --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
+                                      This requires the --csv option and additional columns of "group" and "sig" in the csv
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
@@ -220,6 +231,50 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 }
 
+if (params.hashes){
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .set { ch_hashes_for_hash2kmer }
+}
+
+////////////////////////////////////////////////////
+/* --    Parse differential hash expression    -- */
+////////////////////////////////////////////////////
+if (params.diff_hash_expression) {
+  if (params.csv) {
+    // Create metadata csv channel
+    ch_csv = Channel.fromPath(params.csv)
+
+    // Create channel of all signatures
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> file(row.sig) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .collect()
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_all_signatures_flat_list }
+
+
+    // Create channel of signatures per group
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
+      .unique()
+      .dump(tag: 'csv_unique_groups')
+      .combine( ch_all_signatures_flat_list )
+      .dump(tag: 'ch_groups_with_signatures_for_diff_hash')
+      .set { ch_groups_with_signatures_for_diff_hash }
+    // exit 1, "testing"
+  } else {
+    exit 1, "--csv is required for differential hash expression!"
+  }
+}
+
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
@@ -272,6 +327,14 @@ existing_reference = params.diamond_database || params.sourmash_index
 need_refseq_download = !existing_reference && !params.reference_proteome_fasta && params.refseq_release
 // println("existing_reference: ${existing_reference}")
 // println("provided_reference_proteome: ${provided_reference_proteome}")
+
+
+//////////////////////////////////////////////////////////////////
+/* -   Parse differential hash expression parameters         -- */
+//////////////////////////////////////////////////////////////////
+diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
+diff_hash_solver = params.diff_hash_solver
+diff_hash_penalty = params.diff_hash_penalty
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -398,7 +461,7 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 
 /*
- * STEP 0 - samtoools view
+ * STEP 0 - samtools view
  */
 
 if (params.bam && params.bed && params.bai) {
@@ -495,7 +558,6 @@ if (!params.skip_trimming && !params.input_is_protein){
       file "*fastp.html" into ch_fastp_html
 
       script:
-      println "${name}: ${reads.size()}"
       // One set of reads --> single end
       if (reads[1] == null) {
           """
@@ -602,7 +664,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -623,6 +685,142 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
 }
 
+  // Remove empty files
+  // it[0] = sample id
+  // it[1] = sequence fasta file
+  ch_coding_peptides_potentially_empty
+    .filter{ it[1].size() > 0 }
+    .dump(tag: "ch_coding_peptides_nonempty")
+    .set{ ch_protein_fastas }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --             PERFORM DIFFERENTIAL HASH EXPRESSION                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers
+ */
+ if (input_is_protein && params.csv && params.diff_hash_expression){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process diff_hash {
+    tag "${group}"
+    label "process_medium"
+
+    publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
+
+    input:
+    set val(group), file(all_signatures) from ch_groups_with_signatures_for_diff_hash
+    file metadata from ch_csv.collect()
+
+    output:
+    file("${group}.log")
+    file("*__hash_coefficients.csv")
+    file("*__informative_hashes.txt") into ch_informative_hashes_files
+
+    script:
+    """
+    differential_hash_expression.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --input-is-protein \\
+        --n-jobs ${task.cpus} \\
+        --group1 '${group}' \\
+        --${hash2kmer_molecule} \\
+        --no-dna \\
+        --metadata-csv ${metadata} \\
+        --use-sig-basename \\
+        --penalty ${diff_hash_penalty} \\
+        --solver ${diff_hash_solver} \\
+        --max-group-size 100 \\
+        --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
+        > '${group}.log'
+    """
+  }
+  ch_informative_hashes_files
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .dump(tag: 'ch_informative_hashes_files_split')
+      .flatten()
+      .dump(tag: 'ch_informative_hashes_files_flattened')
+      .set { ch_hashes_for_hash2kmer }
+}
+
+if (params.hashes || params.diff_hash_expression) {
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
+
+  ch_hashes_for_hash2kmer
+      .combine( ch_protein_fastas_flat_list )
+      .set { ch_hashes_with_fastas_for_hash2kmer }
+      // Desired output:
+      // [1, ["a", "b", "c"]]
+      // [2, ["a", "b", "c"]]
+      // [3, ["a", "b", "c"]]
+      // 1, 2, 3 = hashes
+      // "a", "b", "c" = protein fasta files
+} else {
+  // No hashes - just do a diamond blastp search for each peptide fasta
+  ch_protein_seq_for_diamond = ch_protein_fastas
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 5 - convert hashes to k-mers
+ */
+ if (params.hashes || params.diff_hash_expression) {
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${hash}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
+
+    output:
+    file(kmers)
+    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
+
+    script:
+    hash_id = "hash-${hash}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    """
+    echo ${hash} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${hash2kmer_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${hash2kmer_molecule} \\
+        --first \\
+        hash.txt \\
+        ${fastas}
+    """
+  }
+}
+
+ch_protein_seq_for_diamond
+  .dump(tag: 'ch_protein_seq_for_diamond')
+  .filter{ it[1].size() > 0 }
+  .dump(tag: "ch_protein_seq_for_diamond_nonempty")
+  .set {ch_protein_seq_for_diamond_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -633,7 +831,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 5 - rsync to download refeseq
+ * STEP 6 - rsync to download refeseq
  */
  if (!existing_reference && need_refseq_download){
   // No protein fasta provided for searching for orthologs, need to
@@ -683,7 +881,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
    */
-   if (params.input_is_protein && params.hashes && params.protein_searcher == 'diamond'){
+   if (params.input_is_protein && params.hashes ){
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2kmer {
@@ -992,7 +1190,7 @@ if (params.protein_searcher == 'sourmash'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 9 - MultiQC
+ * STEP 10 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
@@ -1026,7 +1224,7 @@ process multiqc {
 }
 
 /*
- * STEP 10 - Output Description HTML
+ * STEP 11 - Output Description HTML
  */
 process output_documentation {
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
