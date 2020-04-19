@@ -152,6 +152,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   if (params.protein_searcher == 'diamond') {
     log.info "Using DIAMOND for protein search and reading input fastas"
+    ////////////////////////////////////////////////////
+    /* --          Parse protein fastas            -- */
+    ////////////////////////////////////////////////////
     if (params.protein_fastas){
       Channel.fromPath(params.protein_fastas)
           .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
@@ -172,37 +175,27 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .dump(tag: "protein_fasta_paths")
         .into { ch_protein_fastas }
     }
-  }
+    if (params.hashes) {
+      Channel.fromPath(params.hashes)
+          .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+          .splitText()
+          .map{ row -> row.replaceAll("\\s+", "")}
+          .dump( tag: 'ch_hashes' )
+          .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
 
-  if (params.hashes){
+        ch_protein_fastas
+          .map{ it -> it[1] }  // get only the file, not the sample id
+          .collect()           // make a single flat list
+          .map{ it -> [it] }   // Nest within a list so the next step does what I want
+          .set{ ch_protein_fastas_flat_list }
 
-    Channel.fromPath(params.hashes)
-        .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-        .splitText()
-        .map{ row -> row.replaceAll("\\s+", "")}
-        .dump( tag: 'ch_hashes' )
-        .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
-
-    if (params.protein_searcher == "diamond") {
-      ch_protein_fastas
-        .map{ it -> it[1] }  // get only the file, not the sample id
-        .collect()           // make a single flat list
-        .map{ it -> [it] }   // Nest within a list so the next step does what I want
-        .set{ ch_protein_fastas_flat_list }
-
-      ch_hashes_for_hash2kmer
-          .combine( ch_protein_fastas_flat_list )
-          .set { ch_hashes_fastas }
-          // Desired output:
-          // [1, ["a", "b", "c"]]
-          // [2, ["a", "b", "c"]]
-          // [3, ["a", "b", "c"]]
-          // 1, 2, 3 = hashes
-          // "a", "b", "c" = protein fasta files
+        ch_hashes_for_hash2kmer
+            .combine( ch_protein_fastas_flat_list )
+            .set { ch_hashes_fastas_for_hash2kmer }
     }
   } else {
     // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_coding_peptides = ch_protein_fastas
+    ch_query_protein_sequences = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
@@ -231,13 +224,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 }
 
-if (params.hashes){
-  Channel.fromPath(params.hashes)
-      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText()
-      .map{ row -> row.replaceAll("\\s+", "")}
-      .set { ch_hashes_for_hash2kmer }
-}
 
 ////////////////////////////////////////////////////
 /* --    Parse differential hash expression    -- */
@@ -325,8 +311,6 @@ sourmash_molecule = params.sourmash_molecule
 provided_reference_proteome = params.reference_proteome_fasta || params.refseq_release
 existing_reference = params.diamond_database || params.sourmash_index
 need_refseq_download = !existing_reference && !params.reference_proteome_fasta && params.refseq_release
-// println("existing_reference: ${existing_reference}")
-// println("provided_reference_proteome: ${provided_reference_proteome}")
 
 
 //////////////////////////////////////////////////////////////////
@@ -664,7 +648,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides_potentially_empty
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -686,10 +670,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   // Remove empty files
   // it[0] = sample id
   // it[1] = sequence fasta file
-  ch_coding_peptides_potentially_empty
+  ch_translated_proteins_potentially_empty
     .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_peptides_nonempty")
-    .set{ ch_protein_fastas }
+    .dump(tag: "ch_translated_proteins_potentially_empty")
+    .set{ ch_protein_seq_for_diamond }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -747,26 +731,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       .set { ch_hashes_for_hash2kmer }
 }
 
-if (params.hashes || params.diff_hash_expression) {
-  ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
-    .collect()           // make a single flat list
-    .map{ it -> [it] }   // Nest within a list so the next step does what I want
-    .set{ ch_protein_fastas_flat_list }
-
-  ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_flat_list )
-      .set { ch_hashes_with_fastas_for_hash2kmer }
-      // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
-      // 1, 2, 3 = hashes
-      // "a", "b", "c" = protein fasta files
-} else {
-  // No hashes - just do a diamond blastp search for each peptide fasta
-  ch_protein_seq_for_diamond = ch_protein_fastas
-}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -817,6 +781,27 @@ if (params.hashes || params.diff_hash_expression) {
 ///////////////////////////////////////////////////////////////////////////////
 if (params.protein_searcher == 'diamond') {
 
+  if (params.diff_hash_expression) {
+    ch_protein_fastas
+      .map{ it -> it[1] }  // get only the file, not the sample id
+      .collect()           // make a single flat list
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_protein_fastas_flat_list }
+
+    ch_hashes_for_hash2kmer
+        .combine( ch_protein_fastas_flat_list )
+        .set { ch_hashes_with_fastas_for_hash2kmer }
+        // Desired output:
+        // [1, ["a", "b", "c"]]
+        // [2, ["a", "b", "c"]]
+        // [3, ["a", "b", "c"]]
+        // 1, 2, 3 = hashes
+        // "a", "b", "c" = protein fasta files
+  } else if (!params.hashes) {
+    // No hashes - use the original provided protein fastas
+    ch_protein_seq_for_diamond = ch_protein_fastas
+  }
+
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -837,11 +822,11 @@ if (params.protein_searcher == 'diamond') {
       publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
       input:
-      tuple val(hash), file(peptide_fastas) from ch_hashes_fastas
+      tuple val(hash), file(peptide_fastas) from ch_hashes_fastas_for_hash2kmer
 
       output:
       file(kmers)
-      set val(hash_id), file(sequences) into ch_protein_fastas
+      set val(hash_id), file(sequences) into ch_seqs_from_hash2kmer
 
       script:
       hash_id = "hash-${hash}"
@@ -861,14 +846,13 @@ if (params.protein_searcher == 'diamond') {
           ${peptide_fastas}
       """
     }
+
+    ch_seqs_from_hash2kmer
+      .dump(tag: 'ch_seqs_from_hash2kmer')
+      .filter{ it[1].size() > 0 }
+      .dump(tag: "ch_query_protein_sequences__from_hash2kmer")
+      .set { ch_query_protein_sequences }
   }
-
-
-  ch_protein_fastas
-    .dump(tag: 'ch_coding_peptides')
-    .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_query_protein_sequences")
-    .set { ch_query_protein_sequences }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
