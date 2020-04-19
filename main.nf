@@ -212,7 +212,7 @@ if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> tuple("hashes", row.replaceAll("\\s+", "") )}
+      .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
       .transpose()
       .set { ch_hashes_for_hash2kmer }
 }
@@ -730,9 +730,10 @@ if (!input_is_protein){
 
 if (params.hashes || params.diff_hash_expression) {
   ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
+    .map{ it -> it[2] }  // get only the file, not the sample id
     .collect()           // make a single flat list
     .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .dump( tag: 'ch_protein_fastas_flat_list' )
     .set{ ch_protein_fastas_flat_list }
 
   ch_hashes_for_hash2kmer
@@ -740,9 +741,9 @@ if (params.hashes || params.diff_hash_expression) {
       .dump(tag: 'ch_hashes_for_hash2kmer__combine__ch_protein_fastas_flat_list')
       .set { ch_hashes_with_fastas_for_hash2kmer }
       // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
+      // ["hash", 123, ["a", "b", "c"]]
+      // ["hash", 456, ["a", "b", "c"]]
+      // ["hash", 789, ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
 } else {
@@ -770,7 +771,7 @@ if (params.hashes || params.diff_hash_expression) {
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(group), val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
+    set val(group), val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
 
     output:
     file(kmers)
