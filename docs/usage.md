@@ -191,11 +191,11 @@ sample10,sample10__coding_reads_peptides.fasta,Liver unaligned,sample10_molecule
 There are two different kinds of reference proteomes used in this pipeline:
 
 1. Reference proteome for translation
-  * In general, it is desirable for this first proteome used for translation is a very conservative set of highly curated protein sequences, such as manually curated from UniProt/SwissProt.
-  * The reason for this is that it is not desirable to have false positives when translating the sequences, and to only have highly trustworthy translated sequences for downstream processing
+    * In general, it is desirable for this first proteome used for translation is a very conservative set of highly curated protein sequences, such as manually curated from UniProt/SwissProt.
+    * The reason for this is that it is not desirable to have false positives when translating the sequences, and to only have highly trustworthy translated sequences for downstream processing
 2. Reference proteome for searching translated proteins
-  * This proteome for searching can be more permissive (a superset of above) as this is used for searching, and we're interested in casting the widest net for finding potential matches, thus we recommend RefSeq over UniProt as their submission guidelines are more permissive.
-  * A caveat is that in RefSeq, there are also many dubious sequences, and fortunately these are easy to find with the identifier. Sequence IDs that start with `NP_` are the most trustworthy as they have an associated `NM_` (protein-coding RNA transcirpt) or `NC_` (complete genomic molecule) accessions. Read more about the wild, wild world of NCBI accession ids [here](https://www.ncbi.nlm.nih.gov/books/NBK21091/table/ch18.T.refseq_accession_numbers_and_mole/?report=objectonly)
+    * This proteome for searching can be more permissive (a superset of above) as this is used for searching, and we're interested in casting the widest net for finding potential matches, thus we recommend RefSeq over UniProt as their submission guidelines are more permissive.
+    * A caveat is that in RefSeq, there are also many dubious sequences, and fortunately these are easy to find with the identifier. Sequence IDs that start with `NP_` are the most trustworthy as they have an associated `NM_` (protein-coding RNA transcirpt) or `NC_` (complete genomic molecule) accessions. Read more about the wild, wild world of NCBI accession ids [here](https://www.ncbi.nlm.nih.gov/books/NBK21091/table/ch18.T.refseq_accession_numbers_and_mole/?report=objectonly)
 
 ### Proteomes for translating
 
@@ -221,21 +221,13 @@ Here are our recommendations for a variety of divergence times:
   * `--translate_peptide_molecule hp`
   * `--translate_peptide_ksize 45`
 
-
-
-
 ### Proteomes for searching
 
 #### `--refseq_release` (using NCBI RefSeq)
 
 There are 31 different species supported in the iGenomes references. To run the pipeline, you must specify which to use with the `--genome` flag.
 
-Common proteomes that are supported are:
-
-valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/
-// e.g. "complete", "archea", "plasmid", "protozoa", "viral", "vertebrate_mammalian"
-
-We recommend using the narrowest group for your particular search of interest. E.g. if you are searching within mammals, use the "vertebrate_mammalian" group
+Common proteomes that are supported are valid terms from [NCBI RefSeq Releases](ftp://ftp.ncbi.nlm.nih.gov/refseq/release/). We recommend using the narrowest group for your particular search of interest. E.g. if you are searching within mammals, use the "vertebrate_mammalian" group
 
 * RefSeq Complete
   * `--refseq_release complete`
@@ -264,8 +256,6 @@ We recommend using the narrowest group for your particular search of interest. E
 * Viral
   * `--refseq_release viral`
 
-
-
 <!-- TODO nf-core: Describe reference path flags -->
 
 #### `--reference_proteome_fasta`
@@ -275,7 +265,6 @@ If you prefer, you can specify the full path to your reference genome when you r
 ```bash
 --reference_proteome_fasta '[path to Proteome Fasta reference]'
 ```
-
 
 ## Job resources
 
