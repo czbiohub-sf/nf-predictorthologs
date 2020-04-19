@@ -683,8 +683,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-}
-
   // Remove empty files
   // it[0] = sample id
   // it[1] = sequence fasta file
@@ -704,7 +702,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 /*
  * STEP 4 - convert hashes to k-mers
  */
- if (input_is_protein && params.csv && params.diff_hash_expression){
+ if (params.input_is_protein && params.csv && params.diff_hash_expression){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process diff_hash {
@@ -769,58 +767,6 @@ if (params.hashes || params.diff_hash_expression) {
   // No hashes - just do a diamond blastp search for each peptide fasta
   ch_protein_seq_for_diamond = ch_protein_fastas
 }
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 5 - convert hashes to k-mers
- */
- if (params.hashes || params.diff_hash_expression) {
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${hash}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-    input:
-    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
-
-    output:
-    file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
-
-    script:
-    hash_id = "hash-${hash}"
-    kmers = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
-    """
-    echo ${hash} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${hash2kmer_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${hash2kmer_molecule} \\
-        --first \\
-        hash.txt \\
-        ${fastas}
-    """
-  }
-}
-
-ch_protein_seq_for_diamond
-  .dump(tag: 'ch_protein_seq_for_diamond')
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_protein_seq_for_diamond_nonempty")
-  .set {ch_protein_seq_for_diamond_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -895,7 +841,7 @@ if (params.protein_searcher == 'diamond') {
 
       output:
       file(kmers)
-      set val(hash_id), file(sequences) into ch_coding_peptides
+      set val(hash_id), file(sequences) into ch_protein_fastas
 
       script:
       hash_id = "hash-${hash}"
@@ -918,7 +864,7 @@ if (params.protein_searcher == 'diamond') {
   }
 
 
-  ch_coding_peptides
+  ch_protein_fastas
     .dump(tag: 'ch_coding_peptides')
     .filter{ it[1].size() > 0 }
     .dump(tag: "ch_query_protein_sequences")
@@ -1194,9 +1140,6 @@ if (params.protein_searcher == 'sourmash'){
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
-
-    // when:
-    // !input_is_protein
 
     input:
     file (multiqc_config) from ch_multiqc_config
