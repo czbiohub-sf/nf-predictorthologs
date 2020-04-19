@@ -154,21 +154,29 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   if (params.protein_fastas){
     Channel.fromPath(params.protein_fastas)
+        // Need to duplicate fields to make this compatible downtsream
+        // When the ids include the differential hash and the group id
+        .map { it -> tuple(it[0], it[0], it[1]) }
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .dump( tag: 'params.protein_fastas__ch_protein_fastas' )
         .set { ch_protein_fastas }
   } else if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
+      // Need to duplicate fields to make this compatible downtsream
+      // When the ids include the differential hash and the group id
+      .map{ row -> tuple(row.sample_id, row.sample_id, tuple(file(row.fasta)))}
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .dump( tag: 'csv__ch_protein_fastas' )
       .set { ch_protein_fastas }
   } else if (params.protein_fasta_paths){
     Channel
       .from(params.protein_fasta_paths)
-      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      // Need to duplicate fields to make this compatible downtsream
+      // When the ids include the differential hash and the group id
+      .map { row -> [ row[0], row[0], [ file(row[1][0], checkIfExists: true)] ] }
       .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
       .dump(tag: "protein_fasta_paths__ch_protein_fastas")
       .into { ch_protein_fastas }
