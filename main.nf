@@ -729,7 +729,7 @@ if (!input_is_protein){
       // [group_name, 789]
       .transpose()
       .dump(tag: 'ch_informative_hashes_files_transposed')
-      .set { ch_group_to_hashes_for_hash2kmer; ch_group_to_hashes_for_joining }
+      .into { ch_group_to_hashes_for_hash2kmer; ch_group_to_hashes_for_joining }
 
   ch_group_to_hashes_for_hash2kmer
     // Take only the hash value
