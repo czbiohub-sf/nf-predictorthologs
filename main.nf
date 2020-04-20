@@ -39,8 +39,8 @@ def helpMessage() {
 
     hash2kmer options:
       --hashes                        Path to file of hashes whose sequence to find in the protein fastas, default None
-      --hash2kmer_ksize               K-mer size to use to find matching k-mers in sequence, default 21
-      --hash2kmer_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
+      --sourmash_ksize               K-mer size to use to find matching k-mers in sequence, default 21
+      --sourmash_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
 
    Differential hash expression options:
       --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
@@ -709,11 +709,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     script:
     """
     differential_hash_expression.py \\
-        --ksize ${hash2kmer_ksize} \\
+        --ksize ${sourmash_ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
         --group1 '${group}' \\
-        --${hash2kmer_molecule} \\
+        --${sourmash_molecule} \\
         --no-dna \\
         --metadata-csv ${metadata} \\
         --use-sig-basename \\
@@ -730,7 +730,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       .dump(tag: 'ch_informative_hashes_files_split')
       .flatten()
       .dump(tag: 'ch_informative_hashes_files_flattened')
-      .set { ch_hashes_for_hash2kmer }
+      .into { ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 }
 
 
@@ -988,7 +988,7 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 4 - convert hashes to k-mers
    */
-   if (params.protein_searcher == 'sourmash' && params.hashes){
+   if (params.protein_searcher == 'sourmash' && (params.hashes || params.diff_hash_expression)){
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2sig {
