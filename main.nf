@@ -214,7 +214,11 @@ if (params.hashes){
       .splitText()
       .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
       .transpose()
-      .set { ch_hashes_for_hash2kmer }
+      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+
+  ch_group_to_hashes_for_hash2kmer
+    .map{ it -> it[1] }
+    .set{ ch_hashes_for_hash2kmer }
 }
 
 ////////////////////////////////////////////////////
@@ -725,7 +729,13 @@ if (!input_is_protein){
       // [group_name, 789]
       .transpose()
       .dump(tag: 'ch_informative_hashes_files_transposed')
-      .set { ch_hashes_for_hash2kmer }
+      .set { ch_group_to_hashes_for_hash2kmer; ch_group_to_hashes_for_joining }
+
+  ch_group_to_hashes_for_hash2kmer
+    // Take only the hash value
+    .map{ it -> tuple(it[1]) }
+    .unique()
+    .set{ ch_hashes_for_hash2kmer }
 }
 
 if (params.hashes || params.diff_hash_expression) {
@@ -771,15 +781,15 @@ if (params.hashes || params.diff_hash_expression) {
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    set val(group), val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
+    set val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
 
     output:
     file(kmers)
-    set val(group), val(hash_id), file(sequences) into ch_protein_seq_for_diamond
+    set val(hash_id), file(sequences) into ch_protein_seq_from_hash2kmer
 
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
-    hash_id = "group-${group}__hash-${hash_cleaned}"
+    hash_id = "hash-${hash_cleaned}"
     kmers = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
     """
@@ -796,6 +806,11 @@ if (params.hashes || params.diff_hash_expression) {
         ${fastas}
     """
   }
+
+  ch_group_to_hashes_for_joining
+    .join(ch_protein_seq_from_hash2kmer)
+    .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
+    .set{ ch_protein_seq_for_diamond }
 }
 
 ch_protein_seq_for_diamond
@@ -950,7 +965,7 @@ process diamond_blastp {
       from ch_protein_seq_for_diamond_nonempty_with_diamond_db
 
   output:
-  file("${hash_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  file("${group}__${hash_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
   script:
   ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
