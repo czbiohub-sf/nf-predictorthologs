@@ -58,3 +58,8 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           nextflow run ${GITHUB_WORKSPACE} -profile test_diff_hash,docker
+      - name: Test differential hash expression with abundance
+        run: |
+          # TODO nf-core: You can customise CI pipeline run tests as required
+          # (eg. adding multiple test runs with different parameters)
+          nextflow run ${GITHUB_WORKSPACE} -profile test_diff_hash,docker --with_abundance

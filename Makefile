@@ -2,7 +2,7 @@ ifndef CONTAINER
 CONTAINER := "docker"
 endif
 
-test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_diff_hash
+test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_diff_hash test_diff_hash_abundance
 
 test_bam:
 	nextflow run -profile $@,${CONTAINER} .
@@ -24,3 +24,6 @@ test_fastq:
 
 test_diff_hash:
 	nextflow run -profile $@,${CONTAINER} .
+
+test_diff_hash_abundance:
+	nextflow run -profile $@,${CONTAINER} . --with_abundance
