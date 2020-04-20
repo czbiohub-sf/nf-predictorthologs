@@ -194,7 +194,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         ch_hashes_for_hash2kmer
             .combine( ch_protein_fastas_flat_list )
             .set { ch_hashes_fastas_for_hash2kmer }
-    } else {
+    } else if (!params.diff_hash_expression) {
       // No hashes - just do a diamond blastp search for each peptide fasta
       ch_query_protein_sequences = ch_protein_fastas
     }
@@ -675,7 +675,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_translated_proteins_potentially_empty
     .filter{ it[1].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
-    .set{ ch_protein_seq_for_diamond }
+    .set{ ch_query_protein_sequences }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -799,9 +799,6 @@ if (params.protein_searcher == 'diamond') {
         // [3, ["a", "b", "c"]]
         // 1, 2, 3 = hashes
         // "a", "b", "c" = protein fasta files
-  } else if (!params.hashes) {
-    // No hashes - use the original provided protein fastas
-    ch_protein_seq_for_diamond = ch_protein_fastas
   }
 
   ///////////////////////////////////////////////////////////////////////////////
