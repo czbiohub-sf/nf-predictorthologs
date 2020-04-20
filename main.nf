@@ -193,7 +193,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 
         ch_hashes_for_hash2kmer
             .combine( ch_protein_fastas_flat_list )
-            .set { ch_hashes_fastas_for_hash2kmer }
+            .set { ch_hashes_with_fastas_for_hash2kmer }
     } else if (!params.diff_hash_expression) {
       // No hashes - just do a diamond blastp search for each peptide fasta
       ch_query_protein_sequences = ch_protein_fastas
@@ -784,6 +784,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 if (params.protein_searcher == 'diamond') {
 
   if (params.diff_hash_expression) {
+    // Combine the extracted hashes with the known proteins
     ch_protein_fastas
       .map{ it -> it[1] }  // get only the file, not the sample id
       .collect()           // make a single flat list
@@ -811,7 +812,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
    */
-   if (params.input_is_protein && params.hashes ){
+   if (params.input_is_protein && (params.hashes || params.diff_hash_expression)){
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2kmer {
@@ -821,7 +822,7 @@ if (params.protein_searcher == 'diamond') {
       publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
       input:
-      tuple val(hash), file(peptide_fastas) from ch_hashes_fastas_for_hash2kmer
+      tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
 
       output:
       file(kmers)
