@@ -1,5 +1,5 @@
 ifndef CONTAINER
-CONTAINER := "docker"
+CONTAINER := docker
 endif
 
 test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_diff_hash test_sourmash_search test_diff_hash_sourmash
