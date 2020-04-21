@@ -190,7 +190,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     }
   } else if (!params.diff_hash_expression) {
     // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_query_protein_sequences = ch_protein_fastas
+    ch_protein_seq_for_diamond = ch_protein_fastas
   }
 } else {
   // * Create a channel for input read files
@@ -271,15 +271,15 @@ if (params.diff_hash_expression) {
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
-if (params.translate_peptide_fasta) {
-  Channel.fromPath(params.translate_peptide_fasta, checkIfExists: true)
-       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.translate_peptide_fasta}" }
-       .set{ ch_translate_peptide_fasta }
+if (params.proteome_translation_fasta) {
+  Channel.fromPath(params.proteome_translation_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.proteome_translation_fasta}" }
+       .set{ ch_proteome_translation_fasta }
 }
 
-if (params.reference_proteome_fasta) {
-Channel.fromPath(params.reference_proteome_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.reference_proteome_fasta}" }
+if (params.proteome_search_fasta) {
+Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.proteome_search_fasta}" }
      .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
 if (params.diamond_taxonmap_gz) {
@@ -315,9 +315,9 @@ sourmash_molecule = params.sourmash_molecule
 //////////////////////////////////////////////////////////////////
 /* -        Summarize reference proteome parameters          -- */
 //////////////////////////////////////////////////////////////////
-provided_reference_proteome = params.reference_proteome_fasta || params.refseq_release
+provided_reference_proteome = params.proteome_search_fasta || params.refseq_release
 existing_reference = params.diamond_database || params.sourmash_index
-need_refseq_download = !existing_reference && !params.reference_proteome_fasta && params.refseq_release
+need_refseq_download = !existing_reference && !params.proteome_search_fasta && params.refseq_release
 
 
 //////////////////////////////////////////////////////////////////
@@ -346,7 +346,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['khtools translate Ref']               = params.translate_peptide_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']               = params.proteome_translation_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
@@ -358,7 +358,7 @@ if (params.diff_hash_expression) summary['Diff Hash solver']                = pa
 if (params.diff_hash_expression) summary['Diff Hash penalty']               = params.diff_hash_penalty
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
-if (params.reference_proteome_fasta) summary['Reference Proteome fasta']          = params.reference_proteome_fasta
+if (params.proteome_search_fasta) summary['Reference Proteome fasta']          = params.proteome_search_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
 if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
@@ -618,7 +618,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/khtools/", mode: 'copy'
 
     input:
-    file(peptides) from ch_translate_peptide_fasta
+    file(peptides) from ch_proteome_translation_fasta
     each molecule from peptide_molecule
 
     output:
@@ -922,7 +922,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  if (!params.diamond_database && (params.reference_proteome_fasta || params.refseq_release)){
+  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_low"
