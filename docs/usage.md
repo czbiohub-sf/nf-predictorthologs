@@ -20,11 +20,11 @@
 		- [Differential hash expression](#differential-hash-expression)
 	- [Reference proteomes](#reference-proteomes)
 		- [Proteomes for translating](#proteomes-for-translating)
-			- [`--translate_peptide_fasta`](#-translatepeptidefasta)
+			- [`--proteome_translate_fasta`](#-proteometranslatefasta)
 			- [`--translate_peptide_ksize` & `--translate_peptide_molecule`](#-translatepeptideksize-translatepeptidemolecule)
 		- [Proteomes for searching](#proteomes-for-searching)
 			- [`--refseq_release` (using NCBI RefSeq)](#-refseqrelease-using-ncbi-refseq)
-			- [`--reference_proteome_fasta`](#-referenceproteomefasta)
+			- [`--proteome_search_fasta`](#-proteomesearchfasta)
 	- [Job resources](#job-resources)
 		- [Automatic resubmission](#automatic-resubmission)
 		- [Custom resource requests](#custom-resource-requests)
@@ -215,7 +215,7 @@ There are two different kinds of reference proteomes used in this pipeline:
 
 ### Proteomes for translating
 
-#### `--translate_peptide_fasta`
+#### `--proteome_translate_fasta`
 
 We recommend using manually curated sequences from UniProt/SwissProt. By default, we use the Human reference proteome `ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640_9606.fasta.gz`. If your organism of interest is closely related to any of the organisms in the [Reference Proteomes](https://www.ebi.ac.uk/reference_proteomes/) dataset, we recommend using that.
 
@@ -274,12 +274,12 @@ Common proteomes that are supported are valid terms from [NCBI RefSeq Releases](
 
 <!-- TODO nf-core: Describe reference path flags -->
 
-#### `--reference_proteome_fasta`
+#### `--proteome_search_fasta`
 
 If you prefer, you can specify the full path to your reference genome when you run the pipeline:
 
 ```bash
---reference_proteome_fasta '[path to Proteome Fasta reference]'
+--proteome_search_fasta '[path to Proteome Fasta reference]'
 ```
 
 ## Job resources
