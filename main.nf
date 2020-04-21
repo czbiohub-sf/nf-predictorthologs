@@ -135,9 +135,13 @@ if (params.hashes) {
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> row.replaceAll("\\s+", "")}
-      .dump( tag: 'ch_hashes' )
-      .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
+      .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
+      .transpose()
+      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+
+  ch_group_to_hashes_for_hash2kmer
+    .map{ it -> it[1] }
+    .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 }
 
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
@@ -219,12 +223,12 @@ if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
+      .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
       .transpose()
       .into { ch_hashes_to_group_for_joining; ch_hashes_to_group_for_hash2kmer }
 
   ch_hashes_to_group_for_hash2kmer
-    .map{ it -> it[1] }
+    .map{ it -> it[0] }
     .set{ ch_hashes_for_hash2kmer }
 }
 
@@ -661,7 +665,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides_potentially_empty
+    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -686,7 +690,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_translated_proteins_potentially_empty
     .filter{ it[1].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
-    .set{ ch_query_protein_sequences }
+    .set{ ch_protein_seq_for_diamond }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -715,7 +719,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group_cleaned), file("*__informative_hashes.txt") into ch_informative_hashes_files
+    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
@@ -741,12 +745,16 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_informative_hashes_files
       .dump(tag: 'ch_informative_hashes_files')
       // [group_name, text_file]
-      .map{ it -> tuple(it[1].splitText(), it[0] )}
-      // [group_name, [123, 456, 789]]
+      .map{ it -> tuple(it[1].splitText(), it[0])}
+      // [group, ['123\n', '456\n', '789\n']]
       .dump(tag: 'ch_informative_hashes_files_split')
-      .flatten()
-      .dump(tag: 'ch_informative_hashes_files_flattened')
-      .into { ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
+      .transpose()
+      .dump(tag: 'ch_informative_hashes_files_transposed')
+      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+
+    ch_group_to_hashes_for_hash2kmer
+      .map{ it -> it[0] }
+      .set{ ch_hashes_for_hash2kmer }
 }
 
 
@@ -832,7 +840,7 @@ if (params.protein_searcher == 'diamond') {
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2kmer {
-      tag "${hash}"
+      tag "${hash_cleaned}"
       label "process_low"
 
       publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
@@ -842,14 +850,15 @@ if (params.protein_searcher == 'diamond') {
 
       output:
       file(kmers)
-      set val(hash_id), file(sequences) into ch_seqs_from_hash2kmer
+      set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
 
       script:
-      hash_id = "hash-${hash}"
+      hash_cleaned = hash.replaceAll('\\n', '')
+      hash_id = "hash-${hash_cleaned}"
       kmers = "${hash_id}__kmer.txt"
       sequences = "${hash_id}__sequences.fasta"
       """
-      echo ${hash} >> hash.txt
+      echo ${hash_cleaned} >> hash.txt
       hash2kmer.py \\
           --ksize ${sourmash_ksize} \\
           --no-dna \\
@@ -862,12 +871,12 @@ if (params.protein_searcher == 'diamond') {
           ${peptide_fastas}
       """
     }
+    ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
 
-    ch_seqs_from_hash2kmer
-      .dump(tag: 'ch_seqs_from_hash2kmer')
-      .filter{ it[1].size() > 0 }
-      .dump(tag: "ch_query_protein_sequences__from_hash2kmer")
-      .set { ch_query_protein_sequences }
+    ch_group_to_hashes_for_joining
+      .join(ch_seqs_from_hash2kmer)
+      .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
+      .set{ ch_protein_seq_for_diamond }
   }
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -951,10 +960,10 @@ if (params.protein_searcher == 'diamond') {
    * STEP 8 - Search DIAMOND database for closest match to
    */
   process diamond_blastp {
-    tag "${sample_bloom_id}"
+    tag "${sample_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+    publishDir "${params.outdir}/diamond/blastp/${group_cleaned}", mode: 'copy'
 
     input:
     // Basenames from dumped channel:
@@ -963,22 +972,26 @@ if (params.protein_searcher == 'diamond') {
     //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
     //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
     file(diamond_db) from ch_diamond_db.collect()
-    set val(sample_bloom_id), file(coding_peptides) from ch_query_protein_sequences
+    set val(hash), val(group), file(coding_peptides) from ch_protein_seq_for_diamond
 
     output:
-    file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+    file(tsv) into ch_diamond_blastp_output
 
     script:
-    ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
+    hash_cleaned = hash.replaceAll('\\n', '')
+    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
+    sample_id = "${group_cleaned}__hash-${hash_cleaned}"
+    tsv = "${sample_id}__diamond__${diamond_db.baseName}.tsv"
+    output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
     diamond blastp \\
-        ${ouptut_format} \\
+        ${output_format} \\
         --threads ${task.cpus} \\
         --max-target-seqs 3 \\
         --db ${diamond_db} \\
         --evalue 0.00001  \\
         --query ${coding_peptides} \\
-        > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
+        > ${tsv}
     """
   }
 }
