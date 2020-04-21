@@ -799,7 +799,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 if (params.protein_searcher == 'diamond') {
 
-  if (params.diff_hash_expression) {
+  if (params.diff_hash_expression || params.hashes) {
     // Combine the extracted hashes with the known proteins
     ch_protein_fastas
       .map{ it -> it[1] }  // get only the file, not the sample id
