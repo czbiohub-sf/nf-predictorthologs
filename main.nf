@@ -686,9 +686,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // Remove empty files
   // it[0] = sample id
-  // it[1] = sequence fasta file
+  // it[1] = bloom id
+  // it[2] = sequence fasta file
   ch_translated_proteins_potentially_empty
-    .filter{ it[1].size() > 0 }
+    .filter{ it[2].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
     .set{ ch_protein_seq_for_diamond }
 }
