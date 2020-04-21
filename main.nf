@@ -188,9 +188,11 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .dump(tag: "protein_fasta_paths")
         .into { ch_protein_fastas }
     }
-  } else if (!params.diff_hash_expression) {
-    // No hashes - just do a diamond blastp search for each peptide fasta
-    ch_protein_seq_for_diamond = ch_protein_fastas
+    if (!(params.diff_hash_expression || params.hashes)) {
+      // No hashes - just do a diamond blastp search for each peptide fasta
+      // Not extracting the sequences containing hashes of interest
+      ch_protein_seq_for_diamond = ch_protein_fastas
+    }
   }
 } else {
   // * Create a channel for input read files
