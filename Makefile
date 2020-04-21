@@ -27,6 +27,7 @@ test_diff_hash:
 
 test_diff_hash_abundance:
 	nextflow run -profile $@,${CONTAINER} . --with_abundance
+
 test_sourmash_search:
 	nextflow run -profile $@,${CONTAINER} .
 
