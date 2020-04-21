@@ -951,10 +951,10 @@ if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_
  * STEP 9 - Search DIAMOND database for closest match to
  */
 process diamond_blastp {
-  tag "${sample_bloom_id}"
+  tag "${sample_id}"
   label "process_medium"
 
-  publishDir "${params.outdir}/diamond/blastp/${group}", mode: 'copy'
+  publishDir "${params.outdir}/diamond/blastp/${group_cleaned}", mode: 'copy'
 
   input:
   // Basenames from dumped channel:
@@ -972,7 +972,8 @@ process diamond_blastp {
   script:
   hash_cleaned = hash.replaceAll('\\n', '')
   hash_id = "hash-${hash_cleaned}"
-  tsv = "${group_cleaned}__${hash_id}__diamond__${diamond_db.baseName}.tsv"
+  sample_id = "${group_cleaned}__${hash_id}"
+  tsv = "${sample_id}__diamond__${diamond_db.baseName}.tsv"
   output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
   """
   diamond blastp \\
