@@ -39,8 +39,8 @@ def helpMessage() {
 
     hash2kmer options:
       --hashes                        Path to file of hashes whose sequence to find in the protein fastas, default None
-      --hash2kmer_ksize               K-mer size to use to find matching k-mers in sequence, default 21
-      --hash2kmer_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
+      --sourmash_ksize               K-mer size to use to find matching k-mers in sequence, default 21
+      --sourmash_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
 
    Differential hash expression options:
       --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
@@ -50,7 +50,7 @@ def helpMessage() {
       --single_end [bool]             Specifies that the input is single-end reads
 
     BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
-      --diamond_refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
+      --refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
                                       e.g. "complete", "archea", "plasmid", "protozoa", "viral".
                                       Default is "vertebrate_mammalian"
       --diamond_protein_fasta         Use all of manually curated, verified UniProt/SwissProt as the reference
@@ -127,11 +127,18 @@ ch_multiqc_config = file("$baseDir/assets/multiqc_config.yaml", checkIfExists: t
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config, checkIfExists: true) : Channel.empty()
 ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 
-input_is_protein = params.protein_fastas || params.csv || params.protein_fasta_paths
-
 ////////////////////////////////////////////////////
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
+
+if (params.hashes) {
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .splitText()
+      .map{ row -> row.replaceAll("\\s+", "")}
+      .dump( tag: 'ch_hashes' )
+      .into { ch_hashes_for_hash2sig; ch_hashes_for_hash2kmer }
+}
 
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
@@ -150,28 +157,47 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
-} else if (input_is_protein) {
+} else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
-  if (params.protein_fastas){
-    Channel.fromPath(params.protein_fastas)
-        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+  if (params.protein_searcher == 'diamond') {
+    log.info "Using DIAMOND for protein search and reading input fastas"
+    ////////////////////////////////////////////////////
+    /* --          Parse protein fastas            -- */
+    ////////////////////////////////////////////////////
+    if (params.protein_fastas){
+      Channel.fromPath(params.protein_fastas)
+          .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+          .set { ch_protein_fastas }
+    } else if (params.csv) {
+      // Provided a csv file mapping sample_id to protein fasta path
+      Channel
+        .fromPath(params.csv)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .set { ch_protein_fastas }
-  } else if (params.csv) {
-    // Provided a csv file mapping sample_id to protein fasta path
-    Channel
-      .fromPath(params.csv)
-      .splitCsv(header:true)
-      .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
-      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-      .dump( tag: 'csv__ch_protein_fastas' )
-      .set { ch_protein_fastas }
-  } else if (params.protein_fasta_paths){
-    Channel
-      .from(params.protein_fasta_paths)
-      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
-      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
-      .dump(tag: "protein_fasta_paths__ch_protein_fastas")
-      .into { ch_protein_fastas }
+    } else if (params.protein_fasta_paths){
+      Channel
+        .from(params.protein_fasta_paths)
+        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+        .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+        .dump(tag: "protein_fasta_paths")
+        .into { ch_protein_fastas }
+    }
+    if (params.hashes) {
+        ch_protein_fastas
+          .map{ it -> it[1] }  // get only the file, not the sample id
+          .collect()           // make a single flat list
+          .map{ it -> [it] }   // Nest within a list so the next step does what I want
+          .set{ ch_protein_fastas_flat_list }
+
+        ch_hashes_for_hash2kmer
+            .combine( ch_protein_fastas_flat_list )
+            .set { ch_hashes_with_fastas_for_hash2kmer }
+    } else if (!params.diff_hash_expression) {
+      // No hashes - just do a diamond blastp search for each peptide fasta
+      ch_query_protein_sequences = ch_protein_fastas
+    }
   }
 } else {
   // * Create a channel for input read files
@@ -182,14 +208,14 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
   	} else {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_extract_coding }
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
   	}
   } else {
     Channel
@@ -200,13 +226,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 }
 
-if (params.hashes){
-  Channel.fromPath(params.hashes)
-      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText()
-      .map{ row -> row.replaceAll("\\s+", "")}
-      .set { ch_hashes_for_hash2kmer }
-}
 
 ////////////////////////////////////////////////////
 /* --    Parse differential hash expression    -- */
@@ -247,16 +266,16 @@ if (params.diff_hash_expression) {
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
-if (params.extract_coding_peptide_fasta) {
-  Channel.fromPath(params.extract_coding_peptide_fasta, checkIfExists: true)
-       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.extract_coding_peptide_fasta}" }
-       .set{ ch_extract_coding_peptide_fasta }
+if (params.translate_peptide_fasta) {
+  Channel.fromPath(params.translate_peptide_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.translate_peptide_fasta}" }
+       .set{ ch_translate_peptide_fasta }
 }
 
-if (params.diamond_protein_fasta) {
-Channel.fromPath(params.diamond_protein_fasta, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond protein fasta file not found: ${params.diamond_protein_fasta}" }
-     .set{ ch_diamond_protein_fasta }
+if (params.reference_proteome_fasta) {
+Channel.fromPath(params.reference_proteome_fasta, checkIfExists: true)
+     .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.reference_proteome_fasta}" }
+     .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
 if (params.diamond_taxonmap_gz) {
 Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
@@ -275,18 +294,25 @@ if (params.diamond_database){
 }
 
 //////////////////////////////////////////////////////////////////
-/* -     Parse extract_coding and diamond parameters         -- */
+/* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.extract_coding_peptide_ksize
-peptide_molecule = params.extract_coding_peptide_molecule
-jaccard_threshold = params.extract_coding_jaccard_threshold
-diamond_refseq_release = params.diamond_refseq_release
+peptide_ksize = params.translate_peptide_ksize
+peptide_molecule = params.translate_peptide_molecule
+jaccard_threshold = params.translate_jaccard_threshold
+refseq_release = params.refseq_release
 
 //////////////////////////////////////////////////////////////////
-/* -                 Parse hash2kmer parameters              -- */
+/* -        Parse sourmash/hash2kmer parameters              -- */
 //////////////////////////////////////////////////////////////////
-hash2kmer_ksize = params.hash2kmer_ksize
-hash2kmer_molecule = params.hash2kmer_molecule
+sourmash_ksize = params.sourmash_ksize
+sourmash_molecule = params.sourmash_molecule
+
+//////////////////////////////////////////////////////////////////
+/* -        Summarize reference proteome parameters          -- */
+//////////////////////////////////////////////////////////////////
+provided_reference_proteome = params.reference_proteome_fasta || params.refseq_release
+existing_reference = params.diamond_database || params.sourmash_index
+need_refseq_download = !existing_reference && !params.reference_proteome_fasta && params.refseq_release
 
 
 //////////////////////////////////////////////////////////////////
@@ -308,22 +334,24 @@ def summary = [:]
 if (workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Run Name']         = custom_runName ?: workflow.runName
 // Input is sequencing reads --> need to convert to protein
+if (params.csv) summary['CSV of samples']                                   = params.csv
 if (params.bam) summary['bam']                                              = params.bam
+if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!input_is_protein) summary['kmerslay extract-coding Ref']               = params.extract_coding_peptide_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']               = params.translate_peptide_fasta
 // Input is protein -- have protein sequences and hashes
-if (params.hashes) summary['Hashes']                                        = params.hashes
-if (params.hashes) summary['hash2kmer ksize']                               = params.hash2kmer_ksize
-if (params.hashes) summary['hash2kmer molecule']                            = params.hash2kmer_molecule
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
-if (params.csv) summary['CSV of protein fastas']                            = params.csv
 // How the DIAMOND search database is created
-if (params.diamond_protein_fasta) summary['DIAMOND Proteome fasta']         = params.diamond_protein_fasta
-if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release) summary['DIAMOND Refseq release']        = params.diamond_refseq_release
+if (params.reference_proteome_fasta) summary['Reference Proteome fasta']          = params.reference_proteome_fasta
+summary['Protein searcher']                                                 = params.protein_searcher
+if (params.hashes) summary['Hashes']                                        = params.hashes
+if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
+if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
+if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
-summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
-summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
+if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
+if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
@@ -346,7 +374,7 @@ if (params.email || params.email_on_fail) {
     summary['E-mail on failure'] = params.email_on_fail
     summary['MultiQC maxsize']   = params.max_multiqc_email_size
 }
-log.info summary.collect { k,v -> "${k.padRight(18)}: $v" }.join("\n")
+log.info summary.collect { k,v -> "${k.padRight(25)}: $v" }.join("\n")
 log.info "-\033[2m--------------------------------------------------\033[0m-"
 
 // Check the hostnames against configured profiles
@@ -459,7 +487,7 @@ if (params.bam && params.bed && params.bai) {
 /*
  * STEP 1 - FastQC
  */
-if (!input_is_protein) {
+if (!params.input_is_protein) {
   process fastqc {
       tag "$name"
       label 'process_medium'
@@ -495,7 +523,7 @@ if (!input_is_protein) {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !input_is_protein){
+if (!params.skip_trimming && !params.input_is_protein){
   process fastp {
       label 'process_low'
       tag "$name"
@@ -549,7 +577,7 @@ if (!params.skip_trimming && !input_is_protein){
       // gzipped files are 20 bytes when empty
       .filter{ it[1].size() > 20 }
       .set { ch_reads_trimmed_nonempty }
-} else if (!input_is_protein) {
+} else if (!params.input_is_protein) {
   ch_reads_trimmed_nonempty = ch_read_files_trimming
 } else {
   ch_fastp_results = Channel.empty()
@@ -557,7 +585,7 @@ if (!params.skip_trimming && !input_is_protein){
 
 
 
-if (!input_is_protein){
+if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -572,10 +600,10 @@ if (!input_is_protein){
     tag "${peptides}__${bloom_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/khtools/bloom_filter/", mode: 'copy'
+    publishDir "${params.outdir}/khtools/", mode: 'copy'
 
     input:
-    file(peptides) from ch_extract_coding_peptide_fasta
+    file(peptides) from ch_translate_peptide_fasta
     each molecule from peptide_molecule
 
     output:
@@ -592,7 +620,7 @@ if (!input_is_protein){
     """
   }
 
-  // From Paolo - how to do extract_coding on ALL combinations of bloom filters
+  // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_khtools_bloom_filters
     .groupTuple(by: [0, 3])
       .combine(ch_reads_trimmed_nonempty)
@@ -612,7 +640,7 @@ if (!input_is_protein){
   process translate {
     tag "${sample_id}"
     label "process_long"
-    publishDir "${params.outdir}/extract_coding/", mode: 'copy'
+    publishDir "${params.outdir}/translate/", mode: 'copy'
 
     input:
     tuple \
@@ -622,7 +650,7 @@ if (!input_is_protein){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_coding_peptides_potentially_empty
+    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
@@ -640,13 +668,14 @@ if (!input_is_protein){
       ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
     """
   }
+
   // Remove empty files
   // it[0] = sample id
   // it[1] = sequence fasta file
-  ch_coding_peptides_potentially_empty
+  ch_translated_proteins_potentially_empty
     .filter{ it[1].size() > 0 }
-    .dump(tag: "ch_coding_peptides_nonempty")
-    .set{ ch_protein_fastas }
+    .dump(tag: "ch_translated_proteins_potentially_empty")
+    .set{ ch_query_protein_sequences }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -659,7 +688,7 @@ if (!input_is_protein){
 /*
  * STEP 4 - convert hashes to k-mers
  */
- if (input_is_protein && params.csv && params.diff_hash_expression){
+ if (params.input_is_protein && params.csv && params.diff_hash_expression){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process diff_hash {
@@ -680,11 +709,11 @@ if (!input_is_protein){
     script:
     """
     differential_hash_expression.py \\
-        --ksize ${hash2kmer_ksize} \\
+        --ksize ${sourmash_ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
         --group1 '${group}' \\
-        --${hash2kmer_molecule} \\
+        --${sourmash_molecule} \\
         --no-dna \\
         --metadata-csv ${metadata} \\
         --use-sig-basename \\
@@ -701,81 +730,9 @@ if (!input_is_protein){
       .dump(tag: 'ch_informative_hashes_files_split')
       .flatten()
       .dump(tag: 'ch_informative_hashes_files_flattened')
-      .set { ch_hashes_for_hash2kmer }
+      .into { ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 }
 
-if (params.hashes || params.diff_hash_expression) {
-  ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
-    .collect()           // make a single flat list
-    .map{ it -> [it] }   // Nest within a list so the next step does what I want
-    .set{ ch_protein_fastas_flat_list }
-
-  ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_flat_list )
-      .set { ch_hashes_with_fastas_for_hash2kmer }
-      // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
-      // 1, 2, 3 = hashes
-      // "a", "b", "c" = protein fasta files
-} else {
-  // No hashes - just do a diamond blastp search for each peptide fasta
-  ch_protein_seq_for_diamond = ch_protein_fastas
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 5 - convert hashes to k-mers
- */
- if (params.hashes || params.diff_hash_expression) {
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${hash}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-    input:
-    tuple val(hash), file(fastas) from ch_hashes_with_fastas_for_hash2kmer
-
-    output:
-    file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_for_diamond
-
-    script:
-    hash_id = "hash-${hash}"
-    kmers = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
-    """
-    echo ${hash} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${hash2kmer_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${hash2kmer_molecule} \\
-        --first \\
-        hash.txt \\
-        ${fastas}
-    """
-  }
-}
-
-ch_protein_seq_for_diamond
-  .dump(tag: 'ch_protein_seq_for_diamond')
-  .filter{ it[1].size() > 0 }
-  .dump(tag: "ch_protein_seq_for_diamond_nonempty")
-  .set {ch_protein_seq_for_diamond_nonempty}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -788,7 +745,7 @@ ch_protein_seq_for_diamond
 /*
  * STEP 6 - rsync to download refeseq
  */
- if (!(params.diamond_database || params.diamond_protein_fasta) && params.diamond_refseq_release){
+ if (!existing_reference && need_refseq_download){
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process download_refseq {
@@ -797,11 +754,10 @@ ch_protein_seq_for_diamond
 
     publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
 
-    input:
-    val refseq_release from diamond_refseq_release
-
     output:
-    file("${refseq_release}.fa.gz") into ch_diamond_protein_fasta
+    // Enclose in parentheses to avoid "No such variable: process" error
+    // Reference: https://github.com/nextflow-io/nextflow/issues/141
+    file("${refseq_release}.fa.gz") into (ch_diamond_reference_fasta, ch_sourmash_reference_fasta)
 
     script:
     """
@@ -821,121 +777,337 @@ ch_protein_seq_for_diamond
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
-/* --                      PREPARE TAXA FOR DIAMOND                       -- */
+/* --       PREPARE PROTEIN SEQUENCES FOR SEARCHING WITH DIAMOND          -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 7 - unzip taxonomy information files for input to DIAMOND
- */
-if (!params.diamond_database){
-  process diamond_prepare_taxa {
-    tag "${taxondmp_zip.baseName}"
-    label "process_low"
+if (params.protein_searcher == 'diamond') {
 
-    publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+  if (params.diff_hash_expression) {
+    // Combine the extracted hashes with the known proteins
+    ch_protein_fastas
+      .map{ it -> it[1] }  // get only the file, not the sample id
+      .collect()           // make a single flat list
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_protein_fastas_flat_list }
+
+    ch_hashes_for_hash2kmer
+        .combine( ch_protein_fastas_flat_list )
+        .set { ch_hashes_with_fastas_for_hash2kmer }
+        // Desired output:
+        // [1, ["a", "b", "c"]]
+        // [2, ["a", "b", "c"]]
+        // [3, ["a", "b", "c"]]
+        // 1, 2, 3 = hashes
+        // "a", "b", "c" = protein fasta files
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+   */
+   if (params.input_is_protein && (params.hashes || params.diff_hash_expression)){
+    // No protein fasta provided for searching for orthologs, need to
+    // download refseq
+    process hash2kmer {
+      tag "${hash}"
+      label "process_low"
+
+      publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+      input:
+      tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+
+      output:
+      file(kmers)
+      set val(hash_id), file(sequences) into ch_seqs_from_hash2kmer
+
+      script:
+      hash_id = "hash-${hash}"
+      kmers = "${hash_id}__kmer.txt"
+      sequences = "${hash_id}__sequences.fasta"
+      """
+      echo ${hash} >> hash.txt
+      hash2kmer.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --input-is-protein \\
+          --output-sequences ${sequences} \\
+          --output-kmers ${kmers} \\
+          --${sourmash_molecule} \\
+          --first \\
+          hash.txt \\
+          ${peptide_fastas}
+      """
+    }
+
+    ch_seqs_from_hash2kmer
+      .dump(tag: 'ch_seqs_from_hash2kmer')
+      .filter{ it[1].size() > 0 }
+      .dump(tag: "ch_query_protein_sequences__from_hash2kmer")
+      .set { ch_query_protein_sequences }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                      PREPARE TAXA FOR DIAMOND                       -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (!params.diamond_database ){
+    process diamond_prepare_taxa {
+      tag "${taxondmp_zip.baseName}"
+      label "process_low"
+
+      publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+      input:
+      file(taxondmp_zip) from ch_diamond_taxdmp_zip
+
+      output:
+      file("nodes.dmp") into ch_diamond_taxonnodes
+      file("names.dmp") into ch_diamond_taxonnames
+
+      script:
+      """
+      7z x ${taxondmp_zip}
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 7 - make peptide search database for DIAMOND
+   */
+  if (!params.diamond_database && (params.reference_proteome_fasta || params.refseq_release)){
+    process diamond_makedb {
+     tag "${reference_proteome.baseName}"
+     label "process_low"
+
+     publishDir "${params.outdir}/diamond/", mode: 'copy'
+
+     input:
+     file(reference_proteome) from ch_diamond_reference_fasta
+     file(taxonnodes) from ch_diamond_taxonnodes
+     file(taxonnames) from ch_diamond_taxonnames
+     file(taxonmap_gz) from ch_diamond_taxonmap_gz
+
+     output:
+     file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
+
+     script:
+     """
+     diamond makedb \\
+         -d ${reference_proteome.baseName}_db \\
+         --taxonmap ${taxonmap_gz} \\
+         --taxonnodes ${taxonnodes} \\
+         --taxonnames ${taxonnames} \\
+         --in ${reference_proteome}
+     """
+   }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 8 - Search DIAMOND database for closest match to
+   */
+  process diamond_blastp {
+    tag "${sample_bloom_id}"
+    label "process_medium"
+
+    publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
 
     input:
-    file(taxondmp_zip) from ch_diamond_taxdmp_zip
+    // Basenames from dumped channel:
+    // [DUMP: ch_query_protein_sequences_with_diamond_db]
+    //   [ENSPPYT00000000455__molecule-dayhoff,
+    //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
+    //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
+    file(diamond_db) from ch_diamond_db.collect()
+    set val(sample_bloom_id), file(coding_peptides) from ch_query_protein_sequences
 
     output:
-    file("nodes.dmp") into ch_diamond_taxonnodes
-    file("names.dmp") into ch_diamond_taxonnames
+    file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
 
     script:
+    ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
-    7z x ${taxondmp_zip}
+    diamond blastp \\
+        ${ouptut_format} \\
+        --threads ${task.cpus} \\
+        --max-target-seqs 3 \\
+        --db ${diamond_db} \\
+        --evalue 0.00001  \\
+        --query ${coding_peptides} \\
+        > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
     """
   }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --            PREPARE HASHES FOR SEARCHING WITH SOURMASH               -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+if (params.protein_searcher == 'sourmash'){
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 8 - make peptide search database for DIAMOND
- */
-if (!params.diamond_database && (params.diamond_protein_fasta || params.diamond_refseq_release)){
-  process diamond_makedb {
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                    CONVERT HASHES TO SIGNATURES                     -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 4 - convert hashes to k-mers
+   */
+   if (params.protein_searcher == 'sourmash' && (params.hashes || params.diff_hash_expression)){
+    // No protein fasta provided for searching for orthologs, need to
+    // download refseq
+    process hash2sig {
+      tag "${hash}"
+      label "process_low"
+
+      publishDir "${params.outdir}/hash2sig/", mode: 'copy'
+
+      input:
+      val(hash) from ch_hashes_for_hash2sig
+
+      output:
+      set val(hash_id), file("${sig}") into ch_hash_sigs
+
+      script:
+      hash_id = "hash-${hash}"
+      sig = "${hash_id}.sig"
+      """
+      echo ${hash} >> hash.txt
+      hash2sig.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --scaled 1 \\
+          --input-is-protein \\
+          --${sourmash_molecule} \\
+          --output ${sig} \\
+          hash.txt
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE SOURMASH INDEX                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 7 - make peptide search database for DIAMOND
+   */
+  process sourmash_db_compute {
    tag "${reference_proteome.baseName}"
    label "process_low"
 
-   publishDir "${params.outdir}/diamond/makedb/", mode: 'copy'
+   publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
    input:
-   file(reference_proteome) from ch_diamond_protein_fasta
-   file(taxonnodes) from ch_diamond_taxonnodes
-   file(taxonnames) from ch_diamond_taxonnames
-   file(taxonmap_gz) from ch_diamond_taxonmap_gz
+   file(reference_proteome) from ch_sourmash_reference_fasta
 
    output:
-   file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
+   file("${reference_proteome.baseName}__${sketch_id}.log")
+   file("${reference_proteome.baseName}__${sketch_id}.sig") into ch_proteome_sig_for_sourmash_index
 
    script:
+   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
-   diamond makedb \\
-       -d ${reference_proteome.baseName}_db \\
-       --taxonmap ${taxonmap_gz} \\
-       --taxonnodes ${taxonnodes} \\
-       --taxonnames ${taxonnames} \\
-       --in ${reference_proteome}
+   sourmash compute \\
+      --ksizes ${sourmash_ksize} \\
+      --input-is-protein \\
+      --track-abundance \\
+      --singleton \\
+      --scaled 1 \\
+      --no-dna \\
+      --${sourmash_molecule} \\
+      --output ${reference_proteome.baseName}__${sketch_id}.sig \\
+      ${reference_proteome} \\
+      > ${reference_proteome.baseName}__${sketch_id}.log
    """
  }
-}
 
+  process sourmash_db_index {
+    tag "${reference_proteome_sig.baseName}"
+    label "process_low"
 
-// From Paolo - how to run diamond blastp on ALL sets of extracted reads of bloom filters
- ch_protein_seq_for_diamond_nonempty
-  .combine( ch_diamond_db )
-  .dump(tag: 'ch_protein_seq_for_diamond_nonempty_with_diamond_db')
-  .set{ ch_protein_seq_for_diamond_nonempty_with_diamond_db }
+    publishDir "${params.outdir}/sourmash/index", mode: 'copy'
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 9 - Search DIAMOND database for closest match to
- */
-process diamond_blastp {
-  tag "${sample_bloom_id}"
-  label "process_medium"
+    input:
+    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index
 
-  publishDir "${params.outdir}/diamond/blastp/", mode: 'copy'
+    output:
+    set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
 
-  input:
-  // Basenames from dumped channel:
-  // [DUMP: ch_protein_seq_for_diamond_nonempty_with_diamond_db]
-  //   [ENSPPYT00000000455__molecule-dayhoff,
-  //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
-  //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
-  tuple \
-    val(sample_bloom_id), file(coding_peptides), file(diamond_db) \
-      from ch_protein_seq_for_diamond_nonempty_with_diamond_db
+    script:
+    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+    """
+    sourmash index \\
+        --ksize ${sourmash_ksize} \\
+        --${sourmash_molecule} \\
+        ${reference_proteome_sig.baseName} \\
+        ${reference_proteome_sig}
+    """
+  }
 
-  output:
-  file("${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  process sourmash_db_search {
+   tag "${reference_sbt_json.baseName}"
+   label "process_low"
 
-  script:
-  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
-  """
-  diamond blastp \\
-      ${ouptut_format} \\
-      --threads ${task.cpus} \\
-      --max-target-seqs 3 \\
-      --db ${diamond_db} \\
-      --evalue 0.00001  \\
-      --query ${coding_peptides} \\
-      > ${sample_bloom_id}__diamond__${diamond_db.baseName}.tsv
-  """
+   publishDir "${params.outdir}/sourmash/search", mode: 'copy'
+
+   input:
+   set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
+   set val(hash_id), file(query_sig) from ch_hash_sigs
+
+   output:
+   file("${hash_id}.csv")
+
+   script:
+   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+   """
+   sourmash search \\
+       --best-only \\
+       --output ${hash_id}.csv \\
+       --ksize ${sourmash_ksize} \\
+       --${sourmash_molecule} \\
+       ${query_sig} \\
+       ${reference_sbt_json} \\
+   """
+ }
+
 }
 
 
@@ -952,9 +1124,6 @@ process diamond_blastp {
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
-
-    // when:
-    // !input_is_protein
 
     input:
     file (multiqc_config) from ch_multiqc_config

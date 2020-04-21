@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 from pathvalidate import sanitize_filename
 import screed
-import seaborn as sns
 from sklearn.linear_model import LogisticRegression
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
