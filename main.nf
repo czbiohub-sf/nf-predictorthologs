@@ -214,9 +214,9 @@ if (params.hashes){
       .splitText()
       .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
       .transpose()
-      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+      .into { ch_hashes_to_group_for_joining; ch_hashes_to_group_for_hash2kmer }
 
-  ch_group_to_hashes_for_hash2kmer
+  ch_hashes_to_group_for_hash2kmer
     .map{ it -> it[1] }
     .set{ ch_hashes_for_hash2kmer }
 }
@@ -721,7 +721,7 @@ if (!input_is_protein){
   ch_informative_hashes_files
       .dump(tag: 'ch_informative_hashes_files')
       // [group_name, text_file]
-      .map{ it -> tuple(it[0], it[1].splitText() )}
+      .map{ it -> tuple(it[1].splitText(), it[0] )}
       // [group_name, [123, 456, 789]]
       .dump(tag: 'ch_informative_hashes_files_split')
       // [group_name, 123]
@@ -729,11 +729,11 @@ if (!input_is_protein){
       // [group_name, 789]
       .transpose()
       .dump(tag: 'ch_informative_hashes_files_transposed')
-      .into { ch_group_to_hashes_for_hash2kmer; ch_group_to_hashes_for_joining }
+      .into { ch_hashes_to_group_for_hash2kmer; ch_hashes_to_group_for_joining }
 
-  ch_group_to_hashes_for_hash2kmer
+  ch_hashes_to_group_for_hash2kmer
     // Take only the hash value
-    .map{ it -> tuple(it[1]) }
+    .map{ it -> tuple(it[0]) }
     .unique()
     .set{ ch_hashes_for_hash2kmer }
 }
@@ -785,7 +785,7 @@ if (params.hashes || params.diff_hash_expression) {
 
     output:
     file(kmers)
-    set val(hash_id), file(sequences) into ch_protein_seq_from_hash2kmer
+    set val(hash), file(sequences) into ch_protein_seq_from_hash2kmer_to_print, ch_protein_seq_from_hash2kmer
 
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
@@ -806,16 +806,18 @@ if (params.hashes || params.diff_hash_expression) {
         ${fastas}
     """
   }
+  ch_protein_seq_from_hash2kmer_to_print.dump(tag : 'ch_protein_seq_from_hash2kmer')
 
-  ch_group_to_hashes_for_joining
-    .join(ch_protein_seq_from_hash2kmer)
-    .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
+  ch_hashes_to_group_for_joining
+    .dump(tag: 'ch_hashes_to_group_for_joining')
+    .join( ch_protein_seq_from_hash2kmer )
+    .dump(tag: 'ch_hashes_to_group_for_joining__ch_protein_seq_from_hash2kmer')
     .set{ ch_protein_seq_for_diamond }
 }
 
 ch_protein_seq_for_diamond
   .dump(tag: 'ch_protein_seq_for_diamond')
-  .filter{ it[2].size() > 0 }
+  .filter{ it[1].size() > 0 }
   .dump(tag: "ch_protein_seq_for_diamond_nonempty")
   .set {ch_protein_seq_for_diamond_nonempty}
 
@@ -961,23 +963,26 @@ process diamond_blastp {
   //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
   //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
   tuple \
-    val(group), val(hash_id), file(coding_peptides), file(diamond_db) \
+    val(hash), val(group_cleaned), file(coding_peptides), file(diamond_db) \
       from ch_protein_seq_for_diamond_nonempty_with_diamond_db
 
   output:
-  file("${group}__${hash_id}__diamond__${diamond_db.baseName}.tsv") into ch_diamond_blastp_output
+  file(tsv) into ch_diamond_blastp_output
 
   script:
-  ouptut_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
+  hash_cleaned = hash.replaceAll('\\n', '')
+  hash_id = "hash-${hash_cleaned}"
+  tsv = "${group_cleaned}__${hash_id}__diamond__${diamond_db.baseName}.tsv"
+  output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
   """
   diamond blastp \\
-      ${ouptut_format} \\
+      ${output_format} \\
       --threads ${task.cpus} \\
       --max-target-seqs 3 \\
       --db ${diamond_db} \\
       --evalue 0.00001  \\
       --query ${coding_peptides} \\
-      > ${hash_id}__diamond__${diamond_db.baseName}.tsv
+      > ${tsv}
   """
 }
 
