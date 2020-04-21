@@ -2,58 +2,55 @@
 
 ## Table of contents
 
-<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
+<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:0 orderedList:0 -->
 
 - [nf-core/predictorthologs: Usage](#nf-corepredictorthologs-usage)
-	- [Table of contents](#table-of-contents)
-	- [Introduction](#introduction)
-	- [Running the pipeline](#running-the-pipeline)
-- [Other nextflow hidden files, eg. history of pipeline runs and old logs.](#other-nextflow-hidden-files-eg-history-of-pipeline-runs-and-old-logs)
-		- [Updating the pipeline](#updating-the-pipeline)
-		- [Reproducibility](#reproducibility)
-	- [Main arguments](#main-arguments)
-		- [`-profile`](#-profile)
-		- [`--reads`](#-reads)
-		- [`--single_end`](#-singleend)
-		- [`--csv`](#-csv)
-			- [Simple fasta input](#simple-fasta-input)
-		- [Differential hash expression](#differential-hash-expression)
-	- [Reference proteomes](#reference-proteomes)
-		- [Proteomes for translating](#proteomes-for-translating)
-			- [`--proteome_translate_fasta`](#-proteometranslatefasta)
-			- [`--translate_peptide_ksize` & `--translate_peptide_molecule`](#-translatepeptideksize-translatepeptidemolecule)
-		- [Proteomes for searching](#proteomes-for-searching)
-			- [`--refseq_release` (using NCBI RefSeq)](#-refseqrelease-using-ncbi-refseq)
-			- [`--proteome_search_fasta`](#-proteomesearchfasta)
-	- [Job resources](#job-resources)
-		- [Automatic resubmission](#automatic-resubmission)
-		- [Custom resource requests](#custom-resource-requests)
-	- [AWS Batch specific parameters](#aws-batch-specific-parameters)
-		- [`--awsqueue`](#-awsqueue)
-		- [`--awsregion`](#-awsregion)
-		- [`--awscli`](#-awscli)
-	- [Other command line parameters](#other-command-line-parameters)
-		- [`--outdir`](#-outdir)
-		- [`--email`](#-email)
-		- [`--email_on_fail`](#-emailonfail)
-		- [`--max_multiqc_email_size`](#-maxmultiqcemailsize)
-		- [`-name`](#-name)
-		- [`-resume`](#-resume)
-		- [`-c`](#-c)
-		- [`--custom_config_version`](#-customconfigversion)
-	- [Download and use config file with following git commid id](#download-and-use-config-file-with-following-git-commid-id)
-		- [`--custom_config_base`](#-customconfigbase)
-	- [Download and unzip the config files](#download-and-unzip-the-config-files)
-	- [Run the pipeline](#run-the-pipeline)
-		- [`--max_memory`](#-maxmemory)
-		- [`--max_time`](#-maxtime)
-		- [`--max_cpus`](#-maxcpus)
-		- [`--plaintext_email`](#-plaintextemail)
-		- [`--monochrome_logs`](#-monochromelogs)
-		- [`--multiqc_config`](#-multiqcconfig)
+  - [Table of contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Running the pipeline](#running-the-pipeline)
+    - [Updating the pipeline](#updating-the-pipeline)
+    - [Reproducibility](#reproducibility)
+  - [Main arguments](#main-arguments)
+    - [`-profile`](#-profile)
+    - [`--reads`](#-reads)
+    - [`--single_end`](#-singleend)
+    - [`--csv`](#-csv)
+      - [Simple fasta input](#simple-fasta-input)
+    - [Differential hash expression](#differential-hash-expression)
+  - [Reference proteomes](#reference-proteomes)
+    - [Proteomes for translating](#proteomes-for-translating)
+      - [`--proteome_translate_fasta`](#-proteometranslatefasta)
+      - [`--translate_peptide_ksize` & `--translate_peptide_molecule`](#-translatepeptideksize-translatepeptidemolecule)
+    - [Proteomes for searching](#proteomes-for-searching)
+      - [`--refseq_release` (using NCBI RefSeq)](#-refseqrelease-using-ncbi-refseq)
+      - [`--proteome_search_fasta`](#-proteomesearchfasta)
+  - [Job resources](#job-resources)
+    - [Automatic resubmission](#automatic-resubmission)
+    - [Custom resource requests](#custom-resource-requests)
+  - [AWS Batch specific parameters](#aws-batch-specific-parameters)
+    - [`--awsqueue`](#-awsqueue)
+    - [`--awsregion`](#-awsregion)
+    - [`--awscli`](#-awscli)
+  - [Other command line parameters](#other-command-line-parameters)
+    - [`--outdir`](#-outdir)
+    - [`--email`](#-email)
+    - [`--email_on_fail`](#-emailonfail)
+    - [`--max_multiqc_email_size`](#-maxmultiqcemailsize)
+    - [`-name`](#-name)
+    - [`-resume`](#-resume)
+    - [`-c`](#-c)
+    - [`--custom_config_version`](#-customconfigversion)
+    - [`--custom_config_base`](#-customconfigbase)
+  - [Download and unzip the config files](#download-and-unzip-the-config-files)
+  - [Run the pipeline](#run-the-pipeline)
+    - [`--max_memory`](#-maxmemory)
+    - [`--max_time`](#-maxtime)
+    - [`--max_cpus`](#-maxcpus)
+    - [`--plaintext_email`](#-plaintextemail)
+    - [`--monochrome_logs`](#-monochromelogs)
+    - [`--multiqc_config`](#-multiqcconfig)
 
 <!-- /TOC -->
-
 
 ## Introduction
 
@@ -119,19 +116,19 @@ They are loaded in sequence, so later profiles can overwrite earlier profiles.
 
 If `-profile` is not specified, the pipeline will run locally and expect all software to be installed and available on the `PATH`. This is _not_ recommended.
 
-* `docker`
-  * A generic configuration profile to be used with [Docker](http://docker.com/)
-  * Pulls software from dockerhub: [`nfcore/predictorthologs`](http://hub.docker.com/r/nfcore/predictorthologs/)
-* `singularity`
-  * A generic configuration profile to be used with [Singularity](http://singularity.lbl.gov/)
-  * Pulls software from DockerHub: [`nfcore/predictorthologs`](http://hub.docker.com/r/nfcore/predictorthologs/)
-* `conda`
-  * Please only use Conda as a last resort i.e. when it's not possible to run the pipeline with Docker or Singularity.
-  * A generic configuration profile to be used with [Conda](https://conda.io/docs/)
-  * Pulls most software from [Bioconda](https://bioconda.github.io/)
-* `test`
-  * A profile with a complete configuration for automated testing
-  * Includes links to test data so needs no other parameters
+- `docker`
+  - A generic configuration profile to be used with [Docker](http://docker.com/)
+  - Pulls software from dockerhub: [`nfcore/predictorthologs`](http://hub.docker.com/r/nfcore/predictorthologs/)
+- `singularity`
+  - A generic configuration profile to be used with [Singularity](http://singularity.lbl.gov/)
+  - Pulls software from DockerHub: [`nfcore/predictorthologs`](http://hub.docker.com/r/nfcore/predictorthologs/)
+- `conda`
+  - Please only use Conda as a last resort i.e. when it's not possible to run the pipeline with Docker or Singularity.
+  - A generic configuration profile to be used with [Conda](https://conda.io/docs/)
+  - Pulls most software from [Bioconda](https://bioconda.github.io/)
+- `test`
+  - A profile with a complete configuration for automated testing
+  - Includes links to test data so needs no other parameters
 
 <!-- TODO nf-core: Document required command line parameters -->
 
@@ -179,10 +176,10 @@ sample2,sample2.fasta
 
 To do differential hash expression and then search for the enriched hashes in a database, the csv needs to contain the following columns:
 
-* `sample_id`: a uniquely identifying name
-* `fasta`: path to (translated protein) fasta file for the sample
-* `sig`: path to a sourmash signature file for the sample
-* `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
+- `sample_id`: a uniquely identifying name
+- `fasta`: path to (translated protein) fasta file for the sample
+- `sig`: path to a sourmash signature file for the sample
+- `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
 
 Additionally, the parameters `--sourmash_ksize` and `--sourmash_molecule` must be provided.
 
@@ -206,12 +203,12 @@ sample10,sample10__coding_reads_peptides.fasta,Liver unaligned,sample10_molecule
 
 There are two different kinds of reference proteomes used in this pipeline:
 
-1. Reference proteome for translation
-    * In general, it is desirable for this first proteome used for translation is a very conservative set of highly curated protein sequences, such as manually curated from UniProt/SwissProt.
-    * The reason for this is that it is not desirable to have false positives when translating the sequences, and to only have highly trustworthy translated sequences for downstream processing
-2. Reference proteome for searching translated proteins
-    * This proteome for searching can be more permissive (a superset of above) as this is used for searching, and we're interested in casting the widest net for finding potential matches, thus we recommend RefSeq over UniProt as their submission guidelines are more permissive.
-    * A caveat is that in RefSeq, there are also many dubious sequences, and fortunately these are easy to find with the identifier. Sequence IDs that start with `NP_` are the most trustworthy as they have an associated `NM_` (protein-coding RNA transcirpt) or `NC_` (complete genomic molecule) accessions. Read more about the wild, wild world of NCBI accession ids [here](https://www.ncbi.nlm.nih.gov/books/NBK21091/table/ch18.T.refseq_accession_numbers_and_mole/?report=objectonly)
+- **Reference proteome for translation**, `--proteome_translate_fasta`
+  - In general, it is desirable for this first proteome used for translation is a very conservative set of highly curated protein sequences, such as manually curated from UniProt/SwissProt.
+  - The reason for this is that it is not desirable to have false positives when translating the sequences, and to only have highly trustworthy translated sequences for downstream processing
+- **Reference proteome for searching translated proteins**, `--proteome_search_fasta`
+  - This proteome for searching can be more permissive (a superset of above) as this is used for searching, and we're interested in casting the widest net for finding potential matches, thus we recommend RefSeq over UniProt as their submission guidelines are more permissive.
+  - A caveat is that in RefSeq, there are also many dubious sequences, and fortunately these are easy to find with the identifier. Sequence IDs that start with `NP_` are the most trustworthy as they have an associated `NM_` (protein-coding RNA transcirpt) or `NC_` (complete genomic molecule) accessions. Read more about the wild, wild world of NCBI accession ids [here](https://www.ncbi.nlm.nih.gov/books/NBK21091/table/ch18.T.refseq_accession_numbers_and_mole/?report=objectonly)
 
 ### Proteomes for translating
 
@@ -227,15 +224,15 @@ These parameters influence how the translated sequences are pulled out.
 
 Here are our recommendations for a variety of divergence times:
 
-* Closely related (<100 million years diverged), e.g. human and mouse:
-  * `--translate_peptide_molecule protein`
-  * `--translate_peptide_ksize 9`
-* Medium-diverged (100 million years ago < x < 500 million years ago), e.g. human and zebrafish:
-  * `--translate_peptide_molecule dayhoff`
-  * `--translate_peptide_ksize 15`
-* Largely-diverged (500 million years ago < x < 1000 million years ago), e.g. Bilateria:
-  * `--translate_peptide_molecule hp`
-  * `--translate_peptide_ksize 45`
+- Closely related (<100 million years diverged), e.g. human and mouse:
+  - `--translate_peptide_molecule protein`
+  - `--translate_peptide_ksize 9`
+- Medium-diverged (100 million years ago < x < 500 million years ago), e.g. human and zebrafish:
+  - `--translate_peptide_molecule dayhoff`
+  - `--translate_peptide_ksize 15`
+- Largely-diverged (500 million years ago < x < 1000 million years ago), e.g. Bilateria:
+  - `--translate_peptide_molecule hp`
+  - `--translate_peptide_ksize 45`
 
 ### Proteomes for searching
 
@@ -245,32 +242,32 @@ There are 31 different species supported in the iGenomes references. To run the 
 
 Common proteomes that are supported are valid terms from [NCBI RefSeq Releases](ftp://ftp.ncbi.nlm.nih.gov/refseq/release/). We recommend using the narrowest group for your particular search of interest. E.g. if you are searching within mammals, use the "vertebrate_mammalian" group
 
-* RefSeq Complete
-  * `--refseq_release complete`
-* Archea
-  * `--refseq_release archea`
-* Bacteria
-  * `--refseq_release bacteria`
-* Fungi
-  * `--refseq_release fungi`
-* Invertebrate
-  * `--refseq_release invertebrate`
-* Mitochondria
-  * `--refseq_release mitochondrion`
-* Other
-  * `--refseq_release other`
-* Plant
-  * `--refseq_release plant`
-* Plasmid
-  * `--refseq_release plasmid`
-* Plastid
-  * `--refseq_release plastid`
-* Vertebrate (Mammals)
-  * `--refseq_release vertebrate_mammalian`
-* Vertebrate (Other)
-  * `--refseq_release vertebrate_other`
-* Viral
-  * `--refseq_release viral`
+- RefSeq Complete
+  - `--refseq_release complete`
+- Archea
+  - `--refseq_release archea`
+- Bacteria
+  - `--refseq_release bacteria`
+- Fungi
+  - `--refseq_release fungi`
+- Invertebrate
+  - `--refseq_release invertebrate`
+- Mitochondria
+  - `--refseq_release mitochondrion`
+- Other
+  - `--refseq_release other`
+- Plant
+  - `--refseq_release plant`
+- Plasmid
+  - `--refseq_release plasmid`
+- Plastid
+  - `--refseq_release plastid`
+- Vertebrate (Mammals)
+  - `--refseq_release vertebrate_mammalian`
+- Vertebrate (Other)
+  - `--refseq_release vertebrate_other`
+- Viral
+  - `--refseq_release viral`
 
 <!-- TODO nf-core: Describe reference path flags -->
 
@@ -340,7 +337,7 @@ Name for the pipeline run. If not specified, Nextflow will automatically generat
 
 This is used in the MultiQC report (if not default) and in the summary HTML / e-mail (always).
 
-**NB:** Single hyphen (core Nextflow option)
+**NB:*- Single hyphen (core Nextflow option)
 
 ### `-resume`
 
@@ -348,13 +345,13 @@ Specify this when restarting a pipeline. Nextflow will used cached results from 
 
 You can also supply a run name to resume a specific run: `-resume [run-name]`. Use the `nextflow log` command to show previous run names.
 
-**NB:** Single hyphen (core Nextflow option)
+**NB:*- Single hyphen (core Nextflow option)
 
 ### `-c`
 
 Specify the path to a specific config file (this is a core NextFlow command).
 
-**NB:** Single hyphen (core Nextflow option)
+**NB:*- Single hyphen (core Nextflow option)
 
 Note - you can use this to override pipeline defaults.
 
