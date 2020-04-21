@@ -186,7 +186,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
         .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
         .dump(tag: "protein_fasta_paths")
-        .into { ch_protein_fastas }
+        .set { ch_protein_fastas }
     }
     if (!(params.diff_hash_expression || params.hashes)) {
       // No hashes - just do a diamond blastp search for each peptide fasta
