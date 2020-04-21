@@ -273,10 +273,10 @@ if (params.diff_hash_expression) {
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
-if (params.proteome_translation_fasta) {
-  Channel.fromPath(params.proteome_translation_fasta, checkIfExists: true)
-       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.proteome_translation_fasta}" }
-       .set{ ch_proteome_translation_fasta }
+if (params.proteome_translate_fasta) {
+  Channel.fromPath(params.proteome_translate_fasta, checkIfExists: true)
+       .ifEmpty { exit 1, "Peptide fasta file not found: ${params.proteome_translate_fasta}" }
+       .set{ ch_proteome_translate_fasta }
 }
 
 if (params.proteome_search_fasta) {
@@ -348,7 +348,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['khtools translate Ref']               = params.proteome_translation_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']               = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
@@ -620,7 +620,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/khtools/", mode: 'copy'
 
     input:
-    file(peptides) from ch_proteome_translation_fasta
+    file(peptides) from ch_proteome_translate_fasta
     each molecule from peptide_molecule
 
     output:
