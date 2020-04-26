@@ -22,5 +22,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added pandas=1.0.3, scikit-learn=0.22.1, and sourmash=3.2.2 to dependencies
 - Added subread=1.6.4 (featurecounts) and bioawk=1.0
 - Updated MultiQC to version 1.8 to avoid annoying YAML errors
+- Add ripgrep=12.0.1 ([faster than all other `grep`s](https://blog.burntsushi.net/ripgrep/)) to dependencies
 
 ### `Deprecated`
