@@ -191,7 +191,10 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     if (!(params.diff_hash_expression || params.hashes)) {
       // No hashes - just do a diamond blastp search for each peptide fasta
       // Not extracting the sequences containing hashes of interest
-      ch_protein_seq_for_diamond = ch_protein_fastas
+      ch_protein_fastas
+        // add "hash" text for now
+        .map { it -> tuple(false, it[0], it[1])}
+        .set { ch_protein_seq_for_diamond }
     }
   }
 } else {
@@ -966,7 +969,7 @@ if (params.protein_searcher == 'diamond') {
     tag "${sample_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/diamond/blastp/${group_cleaned}", mode: 'copy'
+    publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
 
     input:
     // Basenames from dumped channel:
@@ -981,9 +984,16 @@ if (params.protein_searcher == 'diamond') {
     file(tsv) into ch_diamond_blastp_output
 
     script:
-    hash_cleaned = hash.replaceAll('\\n', '')
     group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
-    sample_id = "${group_cleaned}__hash-${hash_cleaned}"
+    if (hash) {
+      hash_cleaned = hash.replaceAll('\\n', '')
+      sample_id = "${group_cleaned}__hash-${hash_cleaned}"
+      subdir = "${group_cleaned}"
+    }
+    else {
+      sample_id = "${group_cleaned}"
+      subdir = ""
+    }
     tsv = "${sample_id}__diamond__${diamond_db.baseName}.tsv"
     output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
