@@ -760,7 +760,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     ch_group_to_hashes_for_hash2kmer
       .map{ it -> it[0] }
-      .set{ ch_hashes_for_hash2kmer }
+      .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 }
 
 
