@@ -1278,8 +1278,7 @@ if (params.do_featurecounts_orthology) {
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} > header.sam
-    bioawk 'NR == FNR { a[\$0]; next } \$name in a' ${sample_id} ${bam} \\
-      > ${reads_in_hashes_sam}
+    samtools view ${bam} | rg --file ${read_ids_with_hash} - > ${reads_in_hashes_sam}
     # Add header and convert to bam
     samtools reheader header.sam ${reads_in_hashes_sam} \\
       | samtools view -Sb - > ${reads_in_hashes_bam}
