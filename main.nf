@@ -1146,7 +1146,7 @@ if (params.protein_searcher == 'sourmash'){
    """
    sourmash search \\
        --containment \\
-       --threshold 1e-10 \\
+       --threshold 1e-100 \\
        --output ${hash_id}.csv \\
        --ksize ${sourmash_ksize} \\
        --${sourmash_molecule} \\
