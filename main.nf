@@ -1226,23 +1226,25 @@ if (params.do_featurecounts_orthology) {
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
   process bioawk_read_ids_with_hash {
-    tag "${hash_id}"
+    tag "${hash_cleaned}"
     label "process_low"
 
     publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
+    set val(hash), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
 
     output:
-    set val(hash_id), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(hash_id), file(read_headers_with_hash) into ch_read_headers_with_hash
+    set val(hash), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(hash), file(read_headers_with_hash) into ch_read_headers_with_hash
 
     script:
-    read_ids_with_hash = "${hash_id}__reads_ids_with_hash.txt"
-    read_headers_with_hash = "${hash_id}__reads_headers_with_hash.txt"
+    hash_cleaned = hash.replaceAll('\\n', '')
+    read_ids_with_hash = "${hash_cleaned}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hash = "${hash_cleaned}__reads_headers_with_hash.txt"
     """
-    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} > ${read_ids_with_hash}
+    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
+      | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
     bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
     """
   }
@@ -1273,12 +1275,13 @@ if (params.do_featurecounts_orthology) {
     set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
-    reads_in_hashes_sam = 'reads-in-shared-hashes.sam'
-    reads_in_hashes_bam = "${sample_id}__reads-in-shared-hashes.bam"
+    reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
+    reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} > header.sam
-    samtools view ${bam} | rg --file ${read_ids_with_hash} - > ${reads_in_hashes_sam}
+    samtools view ${bam} \\
+      | rg --file ${read_ids_with_hash} - > ${reads_in_hashes_sam}
     # Add header and convert to bam
     samtools reheader header.sam ${reads_in_hashes_sam} \\
       | samtools view -Sb - > ${reads_in_hashes_bam}
