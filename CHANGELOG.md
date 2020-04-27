@@ -16,6 +16,11 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 ### `Fixed`
 
+- Differential hash expression
+  - Output differential hash expression hashes and DIAMOND blastp search results into a per-group subfolder
+  - Add `--with-abundance` flag to allow for differential expression with tracked abundances
+- `hash2kmer.py` ignores empty lines
+
 ### `Dependencies`
 
 - Added 7z (`bioconda==p7zip=15.09`) to deal with compatibilities of bioconda's `unzip` the taxdmp.zip file from NCBI: ([#14](https://github.com/czbiohub/nf-predictorthologs/issues/14))
@@ -24,6 +29,9 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added bedtools=2.29.2 to dependencies
 - Added sourmash Rust (required for compiling sourmash from GitHub) ([#24](https://github.com/czbiohub/nf-predictorthologs/pull/24))
 - Added pandas=1.0.3, scikit-learn=0.22.1, and sourmash=3.2.2 to dependencies
+- Added subread=1.6.4 (featurecounts) and bioawk=1.0
+- Updated MultiQC to version 1.8 to avoid annoying YAML errors
+- Add ripgrep=12.0.1 ([faster than all other `grep`s](https://blog.burntsushi.net/ripgrep/)) to dependencies
 
 
 ### `Deprecated`

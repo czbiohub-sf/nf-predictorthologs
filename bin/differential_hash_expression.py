@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 from pathvalidate import sanitize_filename
 import screed
-import seaborn as sns
 from sklearn.linear_model import LogisticRegression
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
@@ -40,11 +39,11 @@ logger.setLevel(logging.INFO)
 
 def make_hash_df(sigs, with_abundance=False):
     if with_abundance:
-        records = {x.name(): x.minhash.get_mins(with_abundance=False)
+        records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
     else:
         # Set value of each hash abundance to 1
-        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=True), 1)
+        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
                    for x in sigs}
     return pd.DataFrame(records)
 
@@ -60,7 +59,10 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
 
     # Create pandas dataframe of hash abundances
     hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
+    logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
+
     hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
+    logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f'Number of hashes in group1: {len(hash_df1.index)}')
     logger.info(f'Number of hashes in group2: {len(hash_df2.index)}')
@@ -113,7 +115,7 @@ def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
 
 def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_series,
                                  max_group_size=MAX_GROUP_SIZE, random_state=0,
-                                 verbose=False, **kwargs):
+                                 verbose=False, with_abundance=False, **kwargs):
     rows = annotations[group_col] == group1_name
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
@@ -129,6 +131,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
+                                                with_abundance=with_abundance,
                                                 **kwargs)
     coefficients.name = group1_name
     return coefficients
@@ -164,7 +167,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                     n_jobs=n_jobs, solver=solver,
                                                     penalty=penalty,
                                                     random_state=random_state,
-                                                    max_group_size=max_group_size)
+                                                    max_group_size=max_group_size,
+                                                    with_abundance=with_abundance)
         write_hash_coefficients(coefficients, group1, threshold)
     else:
         for group1, df in metadata.groupby(group_col):
@@ -174,7 +178,9 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                         C=C,
                                                         n_jobs=n_jobs, solver=solver,
                                                         penalty=penalty,
-                                                        random_state=random_state)
+                                                        random_state=random_state,
+                                                        max_group_size=max_group_size,
+                                                        with_abundance=with_abundance)
             write_hash_coefficients(coefficients, group1, threshold)
 
 
@@ -184,7 +190,7 @@ def write_hash_coefficients(coefficients, group, threshold):
 
     # Write hashes with coefficients to file
     csv = f'{sanitized}__hash_coefficients.csv'
-    coefficients.to_csv(csv, index=False, header=False)
+    coefficients.to_csv(csv, header=False)
 
     # Write only hashes above threshold to file
     filtered_coef = coefficients[coefficients > threshold]
@@ -202,6 +208,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--input-is-protein', action='store_true',
         help='Consume protein sequences - no translation needed.'
+    )
+    parser.add_argument(
+        '--with-abundance', action='store_true',
+        help='Include hash abundances for differential hash expression'
     )
     parser.add_argument('-g', "--group-col", type=str,
                         default='group',
@@ -280,4 +290,5 @@ sklearn.preprocessing.""")
          args.sig_col,
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename, args.max_group_size)
+         args.random_state, args.use_sig_basename, args.max_group_size,
+         args.with_abundance)

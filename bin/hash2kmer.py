@@ -122,8 +122,11 @@ def main():
     # load in all the hashes
     hashes = set()
     for line in open(args.hashfile, 'rt'):
-        hashval = int(line.strip())
-        hashes.add(hashval)
+        line = line.strip()
+        # Skip empty lines
+        if line:
+            hashval = int(line)
+            hashes.add(hashval)
 
     moltype = calculate_moltype(args)
 
