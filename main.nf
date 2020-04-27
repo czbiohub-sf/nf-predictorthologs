@@ -351,19 +351,19 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['khtools translate Ref']               = params.proteome_translate_fasta
+if (!params.input_is_protein) summary['khtools translate Ref']              = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
-if (using_hashes) summary['hash2kmer ksize']                                = params.hash2kmer_ksize
-if (using_hashes) summary['hash2kmer molecule']                             = params.hash2kmer_molecule
+if (using_hashes) summary['sourmash ksize']                                 = params.sourmash_ksize
+if (using_hashes) summary['sourmash molecule']                              = params.sourmash_molecule
 if (params.diff_hash_expression) summary['Diff Hash abundance?']            = params.diff_hash_with_abundance
 if (params.diff_hash_expression) summary['Diff Hash C']                     = params.diff_hash_inverse_regularization_strength
 if (params.diff_hash_expression) summary['Diff Hash solver']                = params.diff_hash_solver
 if (params.diff_hash_expression) summary['Diff Hash penalty']               = params.diff_hash_penalty
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
-if (params.proteome_search_fasta) summary['Reference Proteome fasta']          = params.proteome_search_fasta
+if (params.proteome_search_fasta) summary['Proteome search ref']            = params.proteome_search_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
 if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
