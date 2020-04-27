@@ -251,6 +251,25 @@ if (params.do_featurecounts_orthology) {
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
       .dump( tag: 'csv__ch_sample_bams' )
       .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
+      // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath ( params.csv )
+      .splitCsv ( header:true )
+      .filter { row -> row.bam }
+      .branch {
+        aligned: row.is_aligned == "aligned"
+        unaligned: row.is_aligned == "unaligned"
+      }
+      .set { ch_csv_is_aligned }
+
+    ch_csv_is_aligned.aligned
+      .map{ row -> tuple(row.sample_id, row.sig, row.fasta, row.bam) }
+      .into { ch_aligned_sig_fasta_bam }
+
+    ch_csv_is_aligned.unaligned
+      .map{ row -> tuple(row.sample_id, row.sig, row.fasta) }
+      .into { ch_unaligned_sig_fasta }
+
   } else {
     exit 1, "Must provide --csv when doing gene counting"
   }
@@ -828,6 +847,79 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
+do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
+if (do_hash2kmer) {
+  // Combine the extracted hashes with the known proteins
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
+
+  ch_hashes_for_hash2kmer
+      .combine( ch_protein_fastas_flat_list )
+      .set { ch_hashes_with_fastas_for_hash2kmer }
+      // Desired output:
+      // [1, ["a", "b", "c"]]
+      // [2, ["a", "b", "c"]]
+      // [3, ["a", "b", "c"]]
+      // 1, 2, 3 = hashes
+      // "a", "b", "c" = protein fasta files
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+ */
+ if (do_hash2kmer) {
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${hash_cleaned}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+
+    output:
+    file(kmers)
+    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
+
+    script:
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "hash-${hash_cleaned}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    """
+    echo ${hash_cleaned} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${sourmash_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${sourmash_molecule} \\
+        --first \\
+        hash.txt \\
+        ${peptide_fastas}
+    """
+  }
+  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+
+  ch_group_to_hashes_for_joining
+    .join(ch_seqs_from_hash2kmer)
+    .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
+    .set{ ch_protein_seq_for_diamond }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -836,78 +928,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 if (params.protein_searcher == 'diamond') {
-
-  if (params.diff_hash_expression || params.hashes) {
-    // Combine the extracted hashes with the known proteins
-    ch_protein_fastas
-      .map{ it -> it[1] }  // get only the file, not the sample id
-      .collect()           // make a single flat list
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_protein_fastas_flat_list }
-
-    ch_hashes_for_hash2kmer
-        .combine( ch_protein_fastas_flat_list )
-        .set { ch_hashes_with_fastas_for_hash2kmer }
-        // Desired output:
-        // [1, ["a", "b", "c"]]
-        // [2, ["a", "b", "c"]]
-        // [3, ["a", "b", "c"]]
-        // 1, 2, 3 = hashes
-        // "a", "b", "c" = protein fasta files
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
-   */
-   if (params.input_is_protein && (params.hashes || params.diff_hash_expression)){
-    // No protein fasta provided for searching for orthologs, need to
-    // download refseq
-    process hash2kmer {
-      tag "${hash_cleaned}"
-      label "process_low"
-
-      publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-      input:
-      tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-
-      output:
-      file(kmers)
-      set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
-
-      script:
-      hash_cleaned = hash.replaceAll('\\n', '')
-      hash_id = "hash-${hash_cleaned}"
-      kmers = "${hash_id}__kmer.txt"
-      sequences = "${hash_id}__sequences.fasta"
-      """
-      echo ${hash_cleaned} >> hash.txt
-      hash2kmer.py \\
-          --ksize ${sourmash_ksize} \\
-          --no-dna \\
-          --input-is-protein \\
-          --output-sequences ${sequences} \\
-          --output-kmers ${kmers} \\
-          --${sourmash_molecule} \\
-          --first \\
-          hash.txt \\
-          ${peptide_fastas}
-      """
-    }
-    ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-
-    ch_group_to_hashes_for_joining
-      .join(ch_seqs_from_hash2kmer)
-      .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
-      .set{ ch_protein_seq_for_diamond }
-  }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1203,7 +1223,7 @@ if (params.do_featurecounts_orthology) {
 
     output:
     set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
+    set val(sample_id), file(read_headers_with_hash) into ch_
 
     script:
     read_ids_with_hash = "${hash_id}__reads_ids_with_hash.txt"
