@@ -139,7 +139,8 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE):
+         random_state=0, use_sig_basename=False, with_abundance=False,
+          max_group_size=MAX_GROUP_SIZE):
     metadata = pd.read_csv(metadata_csv, index_col='sample_id')
 
     if use_sig_basename:
@@ -291,4 +292,4 @@ sklearn.preprocessing.""")
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
          args.random_state, args.use_sig_basename, args.max_group_size,
-         args.with_abundance)
+         args.with_abundance, args.max_group_size)
