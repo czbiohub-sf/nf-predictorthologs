@@ -243,20 +243,20 @@ if (params.hashes){
 if (params.do_featurecounts_orthology) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
-    Channel
-      .fromPath(params.csv)
-      .splitCsv(header:true)
-      .filter{ row -> row.bam }
-      .map{ row -> tuple(row.sample_id, row.bam) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-      .dump( tag: 'csv__ch_sample_bams' )
-      .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
-      // Provided a csv file mapping sample_id to protein fasta path
+    // Channel
+    //   .fromPath(params.csv)
+    //   .splitCsv(header:true)
+    //   .filter{ row -> row.bam }
+    //   .map{ row -> tuple(row.sample_id, row.bam) }
+    //   .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+    //   .dump( tag: 'csv__ch_sample_bams' )
+    //   .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
+    //   // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath ( params.csv )
       .splitCsv ( header:true )
       .filter { row -> row.bam }
-      .branch {
+      .branch { row ->
         aligned: row.is_aligned == "aligned"
         unaligned: row.is_aligned == "unaligned"
       }
@@ -896,7 +896,8 @@ if (do_hash2kmer) {
 
     output:
     file(kmers)
-    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
+    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
+    set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
