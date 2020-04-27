@@ -13,6 +13,11 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 ### `Fixed`
 
+- Differential hash expression
+  - Output differential hash expression hashes and DIAMOND blastp search results into a per-group subfolder
+  - Add `--with-abundance` flag to allow for differential expression with tracked abundances
+- `hash2kmer.py` ignores empty lines
+
 ### `Dependencies`
 
 - ~Added rsync and unzip tools~ -- Install `rsync` and `unzip` via `apt` because they are incompatible with the taxdmp.zip file from NCBI: ([#4](https://github.com/czbiohub/nf-predictorthologs/issues/14))
