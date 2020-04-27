@@ -179,6 +179,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+        .dump( tag: 'ch_protein_fastas__from_csv' )
         .set { ch_protein_fastas }
     } else if (params.protein_fasta_paths){
       Channel
