@@ -891,13 +891,14 @@ if (do_hash2kmer) {
 
     output:
     file(kmers)
-    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
+    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
 
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
     hash_id = "hash-${hash_cleaned}"
     kmers = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
+    first_flag = params.do_featurecounts_orthology ? '' : '--first'
     """
     echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
@@ -907,7 +908,7 @@ if (do_hash2kmer) {
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
         --${sourmash_molecule} \\
-        --first \\
+        ${first_flag} \\
         hash.txt \\
         ${peptide_fastas}
     """
@@ -1219,7 +1220,7 @@ if (params.do_featurecounts_orthology) {
     publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
 
     input:
-    set val(hash_id), file(seqs_with_hash) from ch_seqs_with_hashes_for_bam_of_hashes
+    set val(hash_id), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
 
     output:
     set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
