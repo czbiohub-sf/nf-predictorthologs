@@ -266,6 +266,11 @@ if (params.do_featurecounts_orthology) {
       .map{ row -> tuple(row.sample_id, row.sig, row.fasta, row.bam) }
       .into { ch_aligned_sig_fasta_bam }
 
+    ch_aligned_sig_fasta_bam
+      .map{ it -> it[3] }
+      .unique()
+      .into { ch_unique_bams }
+
     ch_csv_is_aligned.unaligned
       .map{ row -> tuple(row.sample_id, row.sig, row.fasta) }
       .into { ch_unaligned_sig_fasta }
@@ -1214,7 +1219,7 @@ if (params.do_featurecounts_orthology) {
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
   process bioawk_read_ids_with_hash {
-    tag "${sample_id}"
+    tag "${hash_id}"
     label "process_low"
 
     publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
@@ -1223,8 +1228,8 @@ if (params.do_featurecounts_orthology) {
     set val(hash_id), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
 
     output:
-    set val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(sample_id), file(read_headers_with_hash) into ch_
+    set val(hash_id), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(hash_id), file(read_headers_with_hash) into ch_read_headers_with_hash
 
     script:
     read_ids_with_hash = "${hash_id}__reads_ids_with_hash.txt"
@@ -1247,14 +1252,14 @@ if (params.do_featurecounts_orthology) {
    * STEP 9 - Filter per-sample bams for aligned read ids
    */
   process bioawk_filter_bam_for_reads_with_hashes {
-    tag "${sample_id}"
+    tag "${hash_id}_${bam.simpleName}"
     label "process_low"
 
     publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
-    set val(sample_id), file(read_ids_with_hash) from ch_read_ids_with_hash
-    set val(bam_id), file(bam) from ch_bams_for_finding_reads_with_hashes
+    set val(hash_id), file(read_ids_with_hash) from ch_read_ids_with_hash
+    set file(bam) from ch_unique_bams
 
     output:
     set val(sample_id), file(reads_in_hashes_bam) into ch_bam_featurecounts
