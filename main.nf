@@ -1073,7 +1073,7 @@ if (params.protein_searcher == 'sourmash'){
    * STEP 7 - make peptide search database for DIAMOND
    */
   process sourmash_db_compute {
-   tag "${reference_proteome.baseName}"
+   tag "${sample_id}"
    label "process_high"
 
    publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
@@ -1082,11 +1082,14 @@ if (params.protein_searcher == 'sourmash'){
    file(reference_proteome) from ch_sourmash_reference_fasta
 
    output:
-   file("${reference_proteome.baseName}__${sketch_id}.log")
-   file("${reference_proteome.baseName}__${sketch_id}.sig") into ch_proteome_sig_for_sourmash_index
+   file(output_log)
+   file(sig) into ch_proteome_sig_for_sourmash_index
 
    script:
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+   sample_id = "${reference_proteome.simpleName}__${sketch_id}"
+   sig = "${sample_id}.sig"
+   output_log = "${sample_id}.log"
    """
    sourmash compute \\
       --ksizes ${sourmash_ksize} \\
@@ -1096,9 +1099,9 @@ if (params.protein_searcher == 'sourmash'){
       --scaled 1 \\
       --no-dna \\
       --${sourmash_molecule} \\
-      --output ${reference_proteome.simpleName}__${sketch_id}.sig \\
+      --output ${sig}\\
       ${reference_proteome} \\
-      > ${reference_proteome.simpleName}__${sketch_id}.log
+      2> ${output_log}
    """
  }
 
@@ -1109,7 +1112,7 @@ if (params.protein_searcher == 'sourmash'){
     publishDir "${params.outdir}/sourmash/index", mode: 'copy'
 
     input:
-    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index
+    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
 
     output:
     set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
@@ -1142,7 +1145,8 @@ if (params.protein_searcher == 'sourmash'){
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
    sourmash search \\
-       --best-only \\
+       --containment \\
+       --threshold 1e-10 \\
        --output ${hash_id}.csv \\
        --ksize ${sourmash_ksize} \\
        --${sourmash_molecule} \\
