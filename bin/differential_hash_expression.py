@@ -291,5 +291,6 @@ sklearn.preprocessing.""")
          args.sig_col,
          args.threshold, args.verbose, args.inverse_regularization_strength,
          args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename, args.max_group_size,
-         args.with_abundance, args.max_group_size)
+         args.random_state, args.use_sig_basename,
+         max_group_size=args.max_group_size,
+         with_abundance=args.with_abundance)
