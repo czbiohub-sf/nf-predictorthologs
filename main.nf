@@ -941,12 +941,12 @@ if (params.protein_searcher == 'diamond') {
      file(taxonmap_gz) from ch_diamond_taxonmap_gz
 
      output:
-     file("${reference_proteome.baseName}_db.dmnd") into ch_diamond_db
+     file("${reference_proteome.simpleName}_db.dmnd") into ch_diamond_db
 
      script:
      """
      diamond makedb \\
-         -d ${reference_proteome.baseName}_db \\
+         -d ${reference_proteome.simpleName}_db \\
          --taxonmap ${taxonmap_gz} \\
          --taxonnodes ${taxonnodes} \\
          --taxonnames ${taxonnames} \\
@@ -994,7 +994,7 @@ if (params.protein_searcher == 'diamond') {
       sample_id = "${group_cleaned}"
       subdir = ""
     }
-    tsv = "${sample_id}__diamond__${diamond_db.baseName}.tsv"
+    tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
     output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
     diamond blastp \\
@@ -1096,9 +1096,9 @@ if (params.protein_searcher == 'sourmash'){
       --scaled 1 \\
       --no-dna \\
       --${sourmash_molecule} \\
-      --output ${reference_proteome.baseName}__${sketch_id}.sig \\
+      --output ${reference_proteome.simpleName}__${sketch_id}.sig \\
       ${reference_proteome} \\
-      > ${reference_proteome.baseName}__${sketch_id}.log
+      > ${reference_proteome.simpleName}__${sketch_id}.log
    """
  }
 
@@ -1120,7 +1120,7 @@ if (params.protein_searcher == 'sourmash'){
     sourmash index \\
         --ksize ${sourmash_ksize} \\
         --${sourmash_molecule} \\
-        ${reference_proteome_sig.baseName} \\
+        ${reference_proteome_sig.simpleName} \\
         ${reference_proteome_sig}
     """
   }
