@@ -38,7 +38,7 @@ test_diff_hash_sourmash:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
 test_hash_featurecounts:
-	nextflow run -profile $@,${CONTAINER} .
+	${NF_RUN} -profile $@,${CONTAINER} .
 
 
 # --- Linting --- #
