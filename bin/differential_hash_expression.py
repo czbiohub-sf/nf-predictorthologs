@@ -288,7 +288,7 @@ sklearn.preprocessing.""")
     moltype = calculate_moltype(args)
 
     main(metadata_csv=args.metadata_csv,
-         ksisze=args.ksize,
+         ksize=args.ksize,
          molecule=moltype,
          group_col=args.group_col,
          group1=args.group1,
