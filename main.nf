@@ -264,18 +264,19 @@ if (params.do_featurecounts_orthology) {
       .set { ch_csv_is_aligned }
 
     ch_csv_is_aligned.aligned
-      .map{ row -> tuple(row.sample_id, row.sig, row.fasta, row.bam) }
+      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
       .dump( tag: 'ch_aligned_sig_fasta_bam' )
       .into { ch_aligned_sig_fasta_bam }
 
     ch_aligned_sig_fasta_bam
-      .map{ it -> it[3] }
+      // group and bams
+      .map{ it -> tuple(it[0], it[4]) }
       .unique()
       .dump( tag: 'ch_unique_bams' )
       .into { ch_unique_bams }
 
     ch_csv_is_aligned.unaligned
-      .map{ row -> tuple(row.sample_id, row.sig, row.fasta) }
+      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
       .dump( tag: 'ch_unaligned_sig_fasta' )
       .into { ch_unaligned_sig_fasta }
 
