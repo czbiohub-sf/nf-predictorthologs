@@ -240,7 +240,7 @@ if (params.hashes){
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
 ////////////////////////////////////////////////////
-if (params.count_genes) {
+if (params.do_featurecounts_orthology) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
@@ -1181,7 +1181,7 @@ if (params.protein_searcher == 'sourmash'){
 
 }
 
-if (params.count_genes) {
+if (params.do_featurecounts_orthology) {
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
