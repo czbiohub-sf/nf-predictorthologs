@@ -321,6 +321,11 @@ if (params.diamond_database){
        .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
        .set{ ch_diamond_db }
 }
+if (params.sourmash_index){
+  Channel.fromPath(params.sourmash_index, checkIfExists: true)
+       .ifEmpty { exit 1, "Sourmash SBT Index file not found: ${params.sourmash_index}" }
+       .set{ ch_sourmash_index }
+}
 
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
