@@ -186,7 +186,7 @@ def write_hash_coefficients(coefficients, group, threshold):
 
     # Write hashes with coefficients to file
     csv = f'{sanitized}__hash_coefficients.csv'
-    coefficients.to_csv(csv, index=False, header=False)
+    coefficients.to_csv(csv, header=False)
 
     # Write only hashes above threshold to file
     filtered_coef = coefficients[coefficients > threshold]
