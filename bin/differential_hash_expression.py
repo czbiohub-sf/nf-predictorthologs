@@ -287,10 +287,19 @@ sklearn.preprocessing.""")
 
     moltype = calculate_moltype(args)
 
-    main(args.metadata_csv, args.ksize, moltype, args.group_col, args.group1,
-         args.sig_col,
-         args.threshold, args.verbose, args.inverse_regularization_strength,
-         args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename,
+    main(metadata_csv=args.metadata_csv,
+         ksisze=args.ksize,
+         molecule=moltype,
+         group_col=args.group_col,
+         group1=args.group1,
+         sig_col=args.sig_col,
+         threshold=args.threshold,
+         verbose=args.verbose,
+         C=args.inverse_regularization_strength,
+         solver=args.solver,
+         penalty=args.penalty,
+         n_jobs=args.n_jobs,
+         random_state=args.random_state,
+         use_sig_basename=args.use_sig_basename,
          max_group_size=args.max_group_size,
          with_abundance=args.with_abundance)
