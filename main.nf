@@ -1032,7 +1032,7 @@ if (params.protein_searcher == 'sourmash'){
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2sig {
-      tag "${hash}"
+      tag "${hash_id}"
       label "process_low"
 
       publishDir "${params.outdir}/hash2sig/", mode: 'copy'
@@ -1044,10 +1044,11 @@ if (params.protein_searcher == 'sourmash'){
       set val(hash_id), file("${sig}") into ch_hash_sigs
 
       script:
-      hash_id = "hash-${hash}"
+      hash_cleaned = hash.replaceAll('\\n', '')
+      hash_id = "hash-${hash_cleaned}"
       sig = "${hash_id}.sig"
       """
-      echo ${hash} >> hash.txt
+      echo ${hash_cleaned} >> hash.txt
       hash2sig.py \\
           --ksize ${sourmash_ksize} \\
           --no-dna \\
