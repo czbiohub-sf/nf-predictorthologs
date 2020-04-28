@@ -1168,46 +1168,10 @@ if (params.protein_searcher == 'sourmash'){
       .set{ ch_group_to_hash_sig }
   }
 
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE PER-GROUP SOURMASH INDEX                      -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 7 - make peptide search database for DIAMOND
-   */
-  process sourmash_per_group_unaligned_index {
-   tag "${group_cleaned}"
-   label "process_low"
-
-   publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
-
-   input:
-   set val(group), file(sigs) from ch_per_group_unaligned_sig
-
-   output:
-   set val(group), val(group_cleaned), file(".sbt*"), file("*.sbt.json") into ch_per_group_unaligned_sourmash_index, ch_per_group_unaligned_sourmash_index_to_print
-
-   script:
-   group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
-   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-   db_name = "${group_cleaned}__${sketch_id}"
-   """
-   sourmash index \\
-       --ksize ${sourmash_ksize} \\
-       --${sourmash_molecule} \\
-       ${db_name} \\
-       ${sigs}
-   """
-  }
-  ch_per_group_unaligned_sourmash_index_to_print.dump(tag: 'ch_per_group_unaligned_sourmash_index')
-
-  ch_per_group_unaligned_sourmash_index
+  ch_per_group_unaligned_sig
     .join( ch_group_to_hash_sig )
     .dump( tag: 'ch_per_group_unaligned_sourmash_index__ch_group_to_hash_sig' )
-    .into{ ch_group_to_hash_sig_with_group_unaligned_index }
+    .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1219,35 +1183,25 @@ if (params.protein_searcher == 'sourmash'){
   /*
   * STEP 7 - Filter hashes for only unaligned ones
   */
-  process sourmash_search_unaligned {
+  process is_hash_in_unaligned {
     tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
     input:
-    set val(group), val(group_cleaned), file(sbt_hidden_files), file(reference_sbt_json), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_index
+    set val(group), file(sigs) from ch_per_group_unaligned_sig
+    set val(group), val(group_cleaned), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
 
     output:
     set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
 
     script:
+    hash_cleaned = hash.replaceAll('\\n', '')
     sample_id = "${group_cleaned}_${hash_id}"
-    matches = "${sample_id}__matches.sig"
-    query_converted = "query_converted.sig"
+    matches = "${sample_id}__matches.txt"
     """
-    sourmash sig downsample \\
-      --num \$((2**${sourmash_log2_sketch_size})) \\
-      --output ${query_converted} \\
-      ${query_sig}
-    sourmash search \\
-        --containment \\
-        --threshold 1e-100 \\
-        --save-matches ${matches} \\
-        --ksize ${sourmash_ksize} \\
-        --${sourmash_molecule} \\
-        ${query_converted} \\
-        ${reference_sbt_json}
+    rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
     """
   }
   ch_hash_sigs_in_unaligned
