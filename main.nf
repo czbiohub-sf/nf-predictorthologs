@@ -295,7 +295,7 @@ if (params.diff_hash_expression) {
     // Create metadata csv channel
     ch_csv = Channel.fromPath(params.csv)
 
-    // Create channel of all signatures
+    // Create channel of all signatures, but a list within a list
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
@@ -305,14 +305,14 @@ if (params.diff_hash_expression) {
       .map{ it -> [it] }   // Nest within a list so the next step does what I want
       .into{ ch_all_signatures_flat_list_for_diff_hash }
 
-    // Create channel of all signatures
+    // Create channel of all signatures, completely flattened
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
-      .into{ ch_all_signatures_flat_list_for_finding_matches }
+      .into{ ch_all_signatures_flattened_for_finding_matches }
 
     // Create channel of fastas per group
     Channel
