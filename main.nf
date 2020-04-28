@@ -875,7 +875,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
     hash_id = "hash-${hash_cleaned}"
-    matches = "${sample_id}__matches.txt"
+    matches = "${hash_id}__matches.txt"
     """
     rg --files-with-matches ${hash_cleaned} ${sigs} > ${matches}
     """
