@@ -836,10 +836,45 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       // ['456\n', group]
       // ['789\n', group]
       .dump(tag: 'ch_hash_to_group')
-      .into { ch_hash_to_group_for_joining_after_hash2kmer;
+      .into {
+        ch_hash_to_group_for_finding_matches
+        ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
         ch_hash_to_group_for_hash2kmer;
         ch_hash_to_group_for_hash2sig }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Filter hashes for only unaligned ones
+  */
+  process sigs_with_hash {
+    tag "${sample_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
+
+    input:
+    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+
+    output:
+    set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+
+    script:
+    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
+    hash_cleaned = hash.replaceAll('\\n', '')
+    sample_id = "${group_cleaned}_${hash_id}"
+    matches = "${sample_id}__matches.txt"
+    """
+    rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+    """
+  }
 }
 
 
