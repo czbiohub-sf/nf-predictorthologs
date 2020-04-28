@@ -37,6 +37,10 @@ test_sourmash_search:
 test_diff_hash_sourmash:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
+test_diff_hash_filter_bam_hashes:
+	${NF_RUN} -profile $@,${CONTAINER} .
+
+
 # --- Linting --- #
 
 lint: markdownlint yamllint

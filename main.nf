@@ -238,6 +238,54 @@ if (params.hashes){
 }
 
 ////////////////////////////////////////////////////
+/* --         Parse gene counting       -- */
+////////////////////////////////////////////////////
+if (params.do_featurecounts_orthology) {
+  if (params.csv) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    // Channel
+    //   .fromPath(params.csv)
+    //   .splitCsv(header:true)
+    //   .filter{ row -> row.bam }
+    //   .map{ row -> tuple(row.sample_id, row.bam) }
+    //   .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+    //   .dump( tag: 'csv__ch_sample_bams' )
+    //   .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
+    //   // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath ( params.csv )
+      .splitCsv ( header:true )
+      .branch { row ->
+        aligned: row.is_aligned == "aligned"
+        unaligned: row.is_aligned == "unaligned"
+      }
+      .set { ch_csv_is_aligned }
+
+    ch_csv_is_aligned.aligned
+      .dump( tag: 'ch_csv_is_aligned.aligned' )
+      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
+      .dump( tag: 'ch_aligned_sig_fasta_bam' )
+      .into { ch_aligned_sig_fasta_bam }
+
+    ch_aligned_sig_fasta_bam
+      // group and bams
+      .map{ it -> tuple(it[0], it[4]) }
+      .unique()
+      .dump( tag: 'ch_unique_bams' )
+      .into { ch_unique_bams }
+
+    ch_csv_is_aligned.unaligned
+      .dump( tag: 'ch_csv_is_aligned.unaligned' )
+      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
+      .dump( tag: 'ch_unaligned_sig_fasta' )
+      .into { ch_unaligned_sig_fasta }
+
+  } else {
+    exit 1, "Must provide --csv when doing gene counting"
+  }
+}
+
+////////////////////////////////////////////////////
 /* --    Parse differential hash expression    -- */
 ////////////////////////////////////////////////////
 if (params.diff_hash_expression) {
@@ -272,6 +320,7 @@ if (params.diff_hash_expression) {
     exit 1, "--csv is required for differential hash expression!"
   }
 }
+
 
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
@@ -1206,7 +1255,7 @@ if (params.do_featurecounts_orthology) {
    */
   process bioawk_filter_bam_for_reads_with_hashes {
     tag "${sample_id}"
-    label "process_low"
+    label "process_medium"
 
     publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
 
@@ -1225,7 +1274,8 @@ if (params.do_featurecounts_orthology) {
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} > header.sam
-    samtools view ${bam} \\
+    # Use -F 4 to only show aligned reads, just in case bam has unaligned
+    samtools view --threads ${task.cpus} -F 4 ${bam} \\
       | rg --file ${read_ids_with_hash} - > ${reads_in_hashes_sam}
     # Add header and convert to bam
     samtools reheader header.sam ${reads_in_hashes_sam} \\
