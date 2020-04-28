@@ -37,7 +37,7 @@ test_sourmash_search:
 test_diff_hash_sourmash:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
-test_hash_featurecounts:
+test_diff_hash_is_aligned:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
 
