@@ -313,6 +313,7 @@ if (params.diff_hash_expression) {
       .unique()
       .dump( tag: 'ch_group_to_cleaned' )
       .collect()
+      .value
     println "group_to_cleaned:"
     println group_to_cleaned
 
