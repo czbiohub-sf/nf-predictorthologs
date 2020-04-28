@@ -870,7 +870,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     file(sigs) from ch_all_signatures_flat_list_for_finding_matches.flatten()
 
     output:
-    set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+    file("*__matches.txt")
 
     script:
     group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
