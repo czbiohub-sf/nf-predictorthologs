@@ -1257,7 +1257,7 @@ if (params.protein_searcher == 'sourmash'){
     script:
     group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
     hash_cleaned = hash.replaceAll('\\n', '')
-    sample_id = "${group_cleaned}_${hash_id}"
+    sample_id = "${group_cleaned}__${hash_id}"
     matches = "${sample_id}__matches.txt"
     """
     rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
