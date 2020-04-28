@@ -876,7 +876,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     val(hash) from ch_informative_hashes_flattened
-    file(sigs) from ch_all_signatures_flat_list_for_finding_matches.flatten()
+    file(sigs) from ch_all_signatures_flattened_for_finding_matches
 
     output:
     file("*__matches.txt")
