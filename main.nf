@@ -1213,7 +1213,7 @@ if (params.protein_searcher == 'sourmash'){
     }
     .set{ ch_hashes_sigs_branched }
 
-    ch_hashes_in_group_unaligned_sigs
+    ch_hashes_sigs_branched
       .unaligned
       .map{ it -> tuple(it[0], it[1], it[2], it[3]) }
 
