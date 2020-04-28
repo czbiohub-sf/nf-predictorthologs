@@ -991,9 +991,7 @@ if ( params.csv_has_is_aligned ){
       .dump ( tag: 'ch_hashes_in_group_aligned' )
       .set { ch_hashes_in_group_aligned }
 } else {
-  println "Not csv_has_is_aligned"
   if (params.hashes) {
-    println "In params.hashes"
     // Combine the extracted hashes with the known proteins
     ch_protein_fastas
       .dump( tag: 'ch_protein_fastas' )
@@ -1013,7 +1011,6 @@ if ( params.csv_has_is_aligned ){
         // 1, 2, 3 = hashes
         // "a", "b", "c" = protein fasta files
   } else if (params.diff_hash_expression) {
-    println "In params.diff_hash_expression"
 
     ch_hash_to_group_for_hash2kmer
       .join( ch_group_to_fasta, by: [0, 1])
