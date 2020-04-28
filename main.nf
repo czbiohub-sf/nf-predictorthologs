@@ -860,7 +860,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   * STEP 7 - Find signatures containing hashes
   */
   process sigs_with_hash {
-    tag "${sample_id}"
+    tag "${hash_id}"
     label "process_low"
 
     publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
