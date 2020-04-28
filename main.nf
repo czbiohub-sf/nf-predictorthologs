@@ -303,7 +303,16 @@ if (params.diff_hash_expression) {
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
       .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .into{ ch_all_signatures_flat_list_for_diff_hash; ch_all_signatures_flat_list_for_finding_matches }
+      .into{ ch_all_signatures_flat_list_for_diff_hash }
+
+    // Create channel of all signatures
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> file(row.sig, checkIfExists: true) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .collect()
+      .into{ ch_all_signatures_flat_list_for_finding_matches }
 
     // Create channel of fastas per group
     Channel
