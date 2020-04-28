@@ -164,41 +164,41 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .set {ch_bed_bam_bai}
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
-  if (params.protein_searcher == 'diamond') {
-    log.info "Using DIAMOND for protein search and reading input fastas"
-    ////////////////////////////////////////////////////
-    /* --          Parse protein fastas            -- */
-    ////////////////////////////////////////////////////
-    if (params.protein_fastas){
-      Channel.fromPath(params.protein_fastas)
-          .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
-          .set { ch_protein_fastas }
-    } else if (params.csv) {
-      // Provided a csv file mapping sample_id to protein fasta path
-      Channel
-        .fromPath(params.csv)
-        .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
-        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-        .dump( tag: 'ch_protein_fastas__from_csv' )
+
+  // log.info "Using DIAMOND for protein search and reading input fastas"
+  ////////////////////////////////////////////////////
+  /* --          Parse protein fastas            -- */
+  ////////////////////////////////////////////////////
+  if (params.protein_fastas){
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
         .set { ch_protein_fastas }
-    } else if (params.protein_fasta_paths){
-      Channel
-        .from(params.protein_fasta_paths)
-        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
-        .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
-        .dump(tag: "protein_fasta_paths")
-        .set { ch_protein_fastas }
-    }
-    if (!(params.diff_hash_expression || params.hashes)) {
-      // No hashes - just do a diamond blastp search for each peptide fasta
-      // Not extracting the sequences containing hashes of interest
-      ch_protein_fastas
-        // add "hash" text for now
-        .map { it -> tuple(false, it[0], it[1])}
-        .set { ch_protein_seq_for_diamond }
-    }
+  } else if (params.csv) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .dump( tag: 'ch_protein_fastas__from_csv' )
+      .set { ch_protein_fastas }
+  } else if (params.protein_fasta_paths){
+    Channel
+      .from(params.protein_fasta_paths)
+      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+      .dump(tag: "protein_fasta_paths")
+      .set { ch_protein_fastas }
   }
+  if (!(params.diff_hash_expression || params.hashes)) {
+    // No hashes - just do a diamond blastp search for each peptide fasta
+    // Not extracting the sequences containing hashes of interest
+    ch_protein_fastas
+      // add "hash" text for now
+      .map { it -> tuple(false, it[0], it[1])}
+      .set { ch_protein_seq_for_diamond }
+  }
+
 } else {
   // * Create a channel for input read files
   if (params.readPaths) {
@@ -1266,20 +1266,20 @@ if (params.protein_searcher == 'sourmash'){
       .dump( tag: 'ch_hash_sigs_in_unaligned' )
       // Check that matches are nonempty
       .branch{
-        aligned: it[5].size() == 0
-        unaligned: it[5].size() > 0
+        aligned: it[4].size() == 0
+        unaligned: it[4].size() > 0
       }
       .set{ ch_hashes_sigs_branched }
 
       ch_hashes_sigs_branched
         .unaligned
-        .map { it -> tuple(it[0], it[1], it[2], it[3], it[4]) }
+        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
         .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
         .set { ch_group_hash_sigs_to_query }
 
       ch_hashes_sigs_branched
         .aligned
-        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+        .map { it -> tuple(it[0], it[1], it[2]) }
         .dump ( tag: 'ch_hashes_in_group_aligned' )
         .set { ch_hashes_in_group_aligned }
   } else {
