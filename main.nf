@@ -1170,7 +1170,7 @@ if (params.protein_searcher == 'sourmash'){
 
   ch_per_group_unaligned_sig
     .join( ch_group_to_hash_sig )
-    .dump( tag: 'ch_per_group_unaligned_sourmash_index__ch_group_to_hash_sig' )
+    .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
     .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
   ///////////////////////////////////////////////////////////////////////////////
