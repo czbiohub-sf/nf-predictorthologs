@@ -1238,7 +1238,7 @@ if (params.protein_searcher == 'sourmash'){
     tag "${sample_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
+    publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
     input:
     set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
