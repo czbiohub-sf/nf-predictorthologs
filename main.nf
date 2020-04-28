@@ -216,7 +216,7 @@ if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> tuple(row.replaceAll("\\n", ""), "hash" )}
+      .map{ row -> tuple(row.replaceAll("\\n", ""), "phantom_group" )}
       .transpose()
       .into { ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
