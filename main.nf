@@ -867,7 +867,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     val(hash) from ch_informative_hashes_flattened
-    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_groups_with_all_signatures_for_finding_matches
+    file(sigs) from ch_all_signatures_flat_list_for_finding_matches.flatten()
 
     output:
     set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
@@ -878,7 +878,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     sample_id = "${group_cleaned}_${hash_id}"
     matches = "${sample_id}__matches.txt"
     """
-    rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+    rg --files-with-matches ${hash_cleaned} ${sigs} > ${matches}
     """
   }
 }
