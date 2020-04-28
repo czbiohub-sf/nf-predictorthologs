@@ -863,7 +863,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     tag "${sample_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
+    publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
 
     input:
     val(hash) from ch_informative_hashes_flattened
