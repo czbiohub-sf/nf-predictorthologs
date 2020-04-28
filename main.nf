@@ -1190,12 +1190,13 @@ if (params.protein_searcher == 'sourmash'){
     publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
     input:
-    set val(group), val(group_cleaned), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
 
     output:
     set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
 
     script:
+    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
     hash_cleaned = hash.replaceAll('\\n', '')
     sample_id = "${group_cleaned}_${hash_id}"
     matches = "${sample_id}__matches.txt"
