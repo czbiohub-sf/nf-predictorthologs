@@ -163,39 +163,36 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .set {ch_bed_bam_bai}
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
-  if (params.protein_searcher == 'diamond') {
-    log.info "Using DIAMOND for protein search and reading input fastas"
-    ////////////////////////////////////////////////////
-    /* --          Parse protein fastas            -- */
-    ////////////////////////////////////////////////////
-    if (params.protein_fastas){
-      Channel.fromPath(params.protein_fastas)
-          .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
-          .set { ch_protein_fastas }
-    } else if (params.csv) {
-      // Provided a csv file mapping sample_id to protein fasta path
-      Channel
-        .fromPath(params.csv)
-        .splitCsv(header:true)
-        .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
-        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+  ////////////////////////////////////////////////////
+  /* --          Parse protein fastas            -- */
+  ////////////////////////////////////////////////////
+  if (params.protein_fastas){
+    Channel.fromPath(params.protein_fastas)
+        .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
         .set { ch_protein_fastas }
-    } else if (params.protein_fasta_paths){
-      Channel
-        .from(params.protein_fasta_paths)
-        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
-        .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
-        .dump(tag: "protein_fasta_paths")
-        .set { ch_protein_fastas }
-    }
-    if (!(params.diff_hash_expression || params.hashes)) {
-      // No hashes - just do a diamond blastp search for each peptide fasta
-      // Not extracting the sequences containing hashes of interest
-      ch_protein_fastas
-        // add "hash" text for now
-        .map { it -> tuple(false, it[0], it[1])}
-        .set { ch_protein_seq_for_diamond }
-    }
+  } else if (params.csv) {
+    // Provided a csv file mapping sample_id to protein fasta path
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
+      .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+      .set { ch_protein_fastas }
+  } else if (params.protein_fasta_paths){
+    Channel
+      .from(params.protein_fasta_paths)
+      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
+      .dump(tag: "protein_fasta_paths")
+      .set { ch_protein_fastas }
+  }
+  if (!(params.diff_hash_expression || params.hashes)) {
+    // No hashes - just do a diamond blastp search for each peptide fasta
+    // Not extracting the sequences containing hashes of interest
+    ch_protein_fastas
+      // add "hash" text for now
+      .map { it -> tuple(false, it[0], it[1])}
+      .set { ch_protein_seq_for_diamond }
   }
 } else {
   // * Create a channel for input read files
@@ -240,17 +237,17 @@ if (params.hashes){
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
 ////////////////////////////////////////////////////
-if (params.do_featurecounts_orthology) {
+if (params.filter_bam_hashes) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
-    // Channel
-    //   .fromPath(params.csv)
-    //   .splitCsv(header:true)
-    //   .filter{ row -> row.bam }
-    //   .map{ row -> tuple(row.sample_id, row.bam) }
-    //   .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-    //   .dump( tag: 'csv__ch_sample_bams' )
-    //   .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group, file(row.bam)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
+      .dump( tag: 'csv__ch_sample_bams' )
+      .into { ch_group_to_bams_for_filter_reads_with_hashes }
+
     //   // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath ( params.csv )
@@ -267,13 +264,6 @@ if (params.do_featurecounts_orthology) {
       .dump( tag: 'ch_aligned_sig_fasta_bam' )
       .into { ch_aligned_sig_fasta_bam }
 
-    ch_aligned_sig_fasta_bam
-      // group and bams
-      .map{ it -> tuple(it[0], it[4]) }
-      .unique()
-      .dump( tag: 'ch_unique_bams' )
-      .into { ch_unique_bams }
-
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
       .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
@@ -281,7 +271,7 @@ if (params.do_featurecounts_orthology) {
       .into { ch_unaligned_sig_fasta }
 
   } else {
-    exit 1, "Must provide --csv when doing gene counting"
+    exit 1, "Must provide --csv when filtering bams for hashes"
   }
 }
 
@@ -421,7 +411,8 @@ if (need_refseq_download) summary['Refseq release']        = params.refseq_relea
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
 if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
-summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
+summary["Filter bam hashes"]                                                 = params.filter_bam_hashes
+// summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
 summary['Output dir']       = params.outdir
@@ -794,8 +785,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         --max-group-size 100 \\
         ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
-        > '${group_cleaned}.log'
+        2> >(tee -a '${group_cleaned}.log' >&2)
     """
+    // The '2> >(tee -a ...)' stuff some unix magic cribbed from:
+    // https://stackoverflow.com/a/692407/1628971
   }
   ch_informative_hashes_files
       .dump(tag: 'ch_informative_hashes_files')
@@ -853,6 +846,82 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
+
+
+if (params.diff_hash_expression || params.hashes) {
+  // Combine the extracted hashes with the known proteins
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
+
+  ch_hashes_for_hash2kmer
+      .combine( ch_protein_fastas_flat_list )
+      .set { ch_hashes_with_fastas_for_hash2kmer }
+      // Desired output:
+      // [1, ["a", "b", "c"]]
+      // [2, ["a", "b", "c"]]
+      // [3, ["a", "b", "c"]]
+      // 1, 2, 3 = hashes
+      // "a", "b", "c" = protein fasta files
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+ */
+ do_hash2kmer = params.diff_hash_expression || params.hashes || params.filter_bam_hashes || params.input_is_protein
+ println "do_hash2kmer: ${do_hash2kmer}"
+ if (do_hash2kmer){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${hash_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+
+    output:
+    file(kmers)
+    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_with_hashes_for_filter_unaligned_reads
+
+    script:
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "hash-${hash_cleaned}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    """
+    echo ${hash_cleaned} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${sourmash_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${sourmash_molecule} \\
+        --first \\
+        hash.txt \\
+        ${peptide_fastas}
+    """
+  }
+  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+
+  ch_group_to_hashes_for_joining
+    .join(ch_seqs_from_hash2kmer)
+    .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
+    .into{ ch_protein_seq_for_diamond; ch_seqs_from_hash2kmer_for_bioawk_reads_with_hash; ch_seqs_from_hash2kmer_for_filter_unaligned_reads }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -861,78 +930,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 if (params.protein_searcher == 'diamond') {
-
-  if (params.diff_hash_expression || params.hashes) {
-    // Combine the extracted hashes with the known proteins
-    ch_protein_fastas
-      .map{ it -> it[1] }  // get only the file, not the sample id
-      .collect()           // make a single flat list
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_protein_fastas_flat_list }
-
-    ch_hashes_for_hash2kmer
-        .combine( ch_protein_fastas_flat_list )
-        .set { ch_hashes_with_fastas_for_hash2kmer }
-        // Desired output:
-        // [1, ["a", "b", "c"]]
-        // [2, ["a", "b", "c"]]
-        // [3, ["a", "b", "c"]]
-        // 1, 2, 3 = hashes
-        // "a", "b", "c" = protein fasta files
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
-   */
-   if (params.input_is_protein && (params.hashes || params.diff_hash_expression)){
-    // No protein fasta provided for searching for orthologs, need to
-    // download refseq
-    process hash2kmer {
-      tag "${hash_cleaned}"
-      label "process_low"
-
-      publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-      input:
-      tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-
-      output:
-      file(kmers)
-      set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print
-
-      script:
-      hash_cleaned = hash.replaceAll('\\n', '')
-      hash_id = "hash-${hash_cleaned}"
-      kmers = "${hash_id}__kmer.txt"
-      sequences = "${hash_id}__sequences.fasta"
-      """
-      echo ${hash_cleaned} >> hash.txt
-      hash2kmer.py \\
-          --ksize ${sourmash_ksize} \\
-          --no-dna \\
-          --input-is-protein \\
-          --output-sequences ${sequences} \\
-          --output-kmers ${kmers} \\
-          --${sourmash_molecule} \\
-          --first \\
-          hash.txt \\
-          ${peptide_fastas}
-      """
-    }
-    ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-
-    ch_group_to_hashes_for_joining
-      .join(ch_seqs_from_hash2kmer)
-      .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
-      .set{ ch_protein_seq_for_diamond }
-  }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1207,7 +1204,7 @@ if (params.protein_searcher == 'sourmash'){
 }
 
 
-if (params.do_featurecounts_orthology) {
+if (params.filter_bam_hashes) {
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -1219,22 +1216,30 @@ if (params.do_featurecounts_orthology) {
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
   process bioawk_read_ids_with_hash {
-    tag "${hash_cleaned}"
+    tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
 
     input:
-    set val(hash), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
+    // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
+    set val(hash), val(group), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bioawk_reads_with_hash
 
     output:
-    set val(hash), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(hash), file(read_headers_with_hash) into ch_read_headers_with_hash
+    // Need group first for joining with group, bam channel
+    set val(group), val(hash), file(read_ids_with_hash) into ch_read_ids_with_hash_for_aligned
+
+    // Need hash then group for joining with hash2kmer seqs
+    set val(hash), val(group),file(read_ids_with_hash) into ch_read_ids_with_hash_for_unaligned
+    set val(hash), val(group), file(read_headers_with_hash) into ch_read_headers_with_hash
 
     script:
+    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
     hash_cleaned = hash.replaceAll('\\n', '')
-    read_ids_with_hash = "${hash_cleaned}__reads_ids_with_hash__regex_pattern.txt"
-    read_headers_with_hash = "${hash_cleaned}__reads_headers_with_hash.txt"
+    hash_id = "hash-${hash_cleaned}"
+    sample_id = "${group_cleaned}__${hash_id}"
+    read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
     """
     bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
       | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
@@ -1253,36 +1258,62 @@ if (params.do_featurecounts_orthology) {
   /*
    * STEP 9 - Filter per-sample bams for aligned read ids
    */
-  process bioawk_filter_bam_for_reads_with_hashes {
+  ch_group_to_bams_for_filter_reads_with_hashes
+    .join ( ch_read_ids_with_hash_for_aligned )
+    .dump ( tag: 'ch_group_to_bams_for_filter_reads_with_hashes__ch_read_ids_with_hash' )
+    .set { ch_group_to_bams_hashes_read_ids }
+
+  process filter_bam_for_reads_with_hashes {
     tag "${sample_id}"
     label "process_medium"
 
     publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
-    set val(hash_id), file(read_ids_with_hash) from ch_read_ids_with_hash
-    set file(bam) from ch_unique_bams
+    set val(group), file(bam), val(hash), file(read_ids_with_hash) from ch_group_to_bams_hashes_read_ids
 
     output:
-    set val(sample_id), file(reads_in_hashes_bam) into ch_bam_featurecounts
-    set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
+    set val(sample_id), file(reads_in_hashes_bam) into ch_bam_filtered
+    set val(hash), val(group), file(read_ids_mapped) into ch_read_ids_mapped, ch_read_ids_mapped_for_printing
 
     script:
-    sample_id = "${hash_id}_${bam.simpleName}"
+    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "hash-${hash_cleaned}"
+    sample_id = "${bam.simpleName}__${group_cleaned}__${hash_id}"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
     reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
     """
-    samtools view -H ${bam} > header.sam
+    samtools view -H ${bam} \\
+      > header.sam
     # Use -F 4 to only show aligned reads, just in case bam has unaligned
+    # Use pipes for everything instead of writing to disk as the bams could be
+    # VERY large and want to avoid the cost of file I/O and writing to disk
     samtools view --threads ${task.cpus} -F 4 ${bam} \\
-      | rg --file ${read_ids_with_hash} - > ${reads_in_hashes_sam}
-    # Add header and convert to bam
-    samtools reheader header.sam ${reads_in_hashes_sam} \\
-      | samtools view -Sb - > ${reads_in_hashes_bam}
+      | rg --file ${read_ids_with_hash} --threads ${task.cpus} - \\
+      | cat header.sam - \\
+      | samtools view --threads ${task.cpus} -1b - \\
+      > ${reads_in_hashes_bam} \\
+        || touch ${reads_in_hashes_bam}
+    # touch a decoy file in case it fails, which means no reads were found
+    samtools view ${reads_in_hashes_bam} \\
+      | cut -f 1 \\
+      > ${read_ids_mapped} \\
+        || touch ${reads_in_hashes_bam}
+    # touch a decoy file in case it fails, which means no reads were found
     """
   }
 
+  ch_bam_filtered
+    // require at least 200 bytes in case of bam header
+    .filter { it -> it[1].size() > 200 }
+    .set { ch_bam_filtered_for_featurecounts }
+
+  ch_read_ids_mapped
+    // third item is actual file --> make sure it's nonzero
+    .filter { it -> it[2].size() > 0 }
+    .into { ch_read_ids_mapped_for_filter_unaligned_reads; ch_read_ids_mapped_for_pritning }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1294,6 +1325,18 @@ if (params.do_featurecounts_orthology) {
   /*
    * STEP 10 - Filter per-sample sequences for unaligned read ids
    */
+
+   ch_read_ids_mapped_for_printing.dump( tag: 'ch_read_ids_mapped' )
+
+  // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
+  ch_seqs_from_hash2kmer_for_filter_unaligned_reads
+    // 0 = hash
+    // 1 = group
+    // ['13825713583252246154\n', 'Mostly marrow unaligned', bam_id__mostly_marrow_unaligned__hash-13825713583252246154__aligned_read_ids.txt]
+    .join ( ch_read_ids_mapped_for_filter_unaligned_reads, by: [0, 1] )
+    .dump ( tag: 'ch_hash_seqs_and_their_aligned_read_ids' )
+    .set { ch_hash_seqs_and_their_aligned_read_ids }
+
   process filter_unaligned_reads {
     tag "${hash_id}__${sample_id}"
     label "process_medium"
@@ -1301,16 +1344,23 @@ if (params.do_featurecounts_orthology) {
     publishDir "${params.outdir}/filter_unaligned_reads/", mode: 'copy'
 
     input:
-    set val(hash), val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
-    set val(sample_id), file(read_ids_mapped) from ch_read_ids_mapped
+    set val(hash), val(group), file(seqs_fasta), file(read_ids_mapped) from ch_hash_seqs_and_their_aligned_read_ids
 
     output:
     set val(sample_id), file(fasta_unmapped) into ch_fasta_unmapped
 
     script:
+    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "hash-${hash_cleaned}"
+    sample_id = "${group_cleaned}__${hash_id}"
+    read_ids_unmapped = "${sample_id}__reads_ids_unmapped.txt"
     fasta_unmapped = "${read_ids_mapped.simpleName}__unmapped.fasta"
     """
-    fgrep --file ${read_ids_mapped} --invert-match ${seqs_fasta} > ${fasta_unmapped}
+    rg --file ${read_ids_mapped} --invert-match ${read_ids} \\
+      > ${read_ids_unmapped}
+    rg --context-separator '' --file ${read_ids_unmapped} -A 1 ${seqs_fasta} \\
+      > ${fasta_unmapped}
     """
   }
 
@@ -1336,7 +1386,7 @@ if (params.do_featurecounts_orthology) {
    //         }
    //
    //     input:
-   //     file bam from ch_bam_featurecounts
+   //     file bam from ch_bam_filtered_for_featurecounts
    //     file gtf from gtf_featureCounts.collect()
    //     file biotypes_header from ch_biotypes_header.collect()
    //

@@ -38,14 +38,25 @@ logger.setLevel(logging.INFO)
 
 
 def make_hash_df(sigs, with_abundance=False):
-    if with_abundance:
-        records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
+    # Ensure all signatures actually have tracked abundances to be able to do
+    # with_abundance
+    actually_has_abundance = all(x.minhash.track_abundance for x in sigs)
+
+    if with_abundance and actually_has_abundance:
+        records = {x.name(): x.minhash.get_mins(with_abundance=True)
                    for x in sigs}
     else:
+        if with_abundance and not actually_has_abundance:
+            logger.warning("Set --with_abundance but signatures don't actually"
+                           " have abundances, using binary presence/absence of "
+                           "hashes instead")
         # Set value of each hash abundance to 1
-        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
-                   for x in sigs}
-    return pd.DataFrame(records)
+        records = {x.name(): dict.fromkeys(x.minhash.get_mins(), 1) for x in sigs}
+    df = pd.DataFrame(records)
+    df = df.T
+    df = df.fillna(0)
+    return df
+
 
 
 def make_target_vector(n_group1, n_group2):
@@ -58,18 +69,17 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
     """Create X feature matrix and y target vector for machine learning"""
 
     # Create pandas dataframe of hash abundances
-    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
+    hash_df1 = make_hash_df(sigs1.values, with_abundance=with_abundance)
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
-    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
+    hash_df2 = make_hash_df(sigs2.values, with_abundance=with_abundance)
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f'Number of hashes in group1: {len(hash_df1.index)}')
     logger.info(f'Number of hashes in group2: {len(hash_df2.index)}')
 
     # Concatenate to make feature matrix
-    hash_df = pd.concat([hash_df1, hash_df2], axis=1)
-    X = hash_df.T
+    X = pd.concat([hash_df1, hash_df2], ignore_index=False, sort=True)
     X = X.fillna(0)
 
     # Create target vector "group1" is 1s and everything else is 0
@@ -272,6 +282,7 @@ sklearn.preprocessing.""")
 
     add_construct_moltype_args(parser)
     args = parser.parse_args()
+    logger.info(f"Args: {args}")
 
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
