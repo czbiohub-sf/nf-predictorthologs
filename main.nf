@@ -232,9 +232,13 @@ if (params.hashes){
       .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
       .transpose()
-      .into { ch_hashes_to_group_for_joining; ch_hashes_to_group_for_hash2kmer }
+      .into { ch_hash_to_group_for_joining_after_hash2kmer;
+        ch_hash_to_group_for_joining_after_hash2sig;
+        ch_hash_to_group_for_hash2kmer;
+        ch_hash_to_group_for_hash2sig
+       }
 
-  ch_hashes_to_group_for_hash2kmer
+  ch_hash_to_group_for_hash2kmer
     .map{ it -> it[0] }
     .set{ ch_hashes_for_hash2kmer }
 }
@@ -939,10 +943,6 @@ if (params.hashes) {
     .collect()           // make a single flat list
     .map{ it -> [it] }   // Nest within a list so the next step does what I want
     .set{ ch_protein_fastas_flat_list }
-
-  ch_hash_to_group_for_hash2kmer
-    .map{ it -> it[0] }
-    .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 
   ch_hashes_for_hash2kmer
       .combine( ch_protein_fastas_flat_list )
