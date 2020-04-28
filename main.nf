@@ -1280,8 +1280,9 @@ if (params.protein_searcher == 'sourmash'){
 
     ch_hashes_sigs_branched
       .aligned
-      .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-      .set { ch_hashes_in_group_unaligned_sigs }
+      .map { it -> tuple(it[0], it[1], it[2]) }
+      .dump( tag: 'ch_hashes_in_group_aligned' )
+      .set { ch_hashes_in_group_aligned }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
