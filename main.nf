@@ -1170,6 +1170,15 @@ if (params.protein_searcher == 'sourmash'){
 
   ch_per_group_unaligned_sig
     .join( ch_group_to_hash_sig )
+    // ['monocyte',
+    //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+    //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+    //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+    //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+    //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
+    // '2852067181280790833\n',
+    //  hash-2852067181280790833,
+    //  hash-2852067181280790833.sig]
     .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
     .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
