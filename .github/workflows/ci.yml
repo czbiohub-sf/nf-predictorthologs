@@ -64,11 +64,11 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_diff_hash,docker --with_abundance
-      - name: Test sourmash search
-        run: |
-          # TODO nf-core: You can customise CI pipeline run tests as required
-          # (eg. adding multiple test runs with different parameters)
-          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_sourmash_search,docker
+      # - name: Test sourmash search
+      #   run: |
+      #     # TODO nf-core: You can customise CI pipeline run tests as required
+      #     # (eg. adding multiple test runs with different parameters)
+      #     ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_sourmash_search,docker
       - name: Test sourmash search with differential hash expression
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
