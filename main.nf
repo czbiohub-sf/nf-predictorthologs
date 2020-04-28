@@ -131,20 +131,6 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 /* --          Parse input reads               -- */
 ////////////////////////////////////////////////////
 
-if (params.hashes) {
-  Channel.fromPath(params.hashes)
-      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText()
-      .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
-      .transpose()
-      .dump( tag: 'ch_hash_to_group' )
-      .into { ch_hash_to_group_for_joining; ch_hash_to_group_for_hash2kmer }
-
-  ch_hash_to_group_for_hash2kmer
-    .map{ it -> it[1] }
-    .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
-}
-
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
     print("supplied bam, not looking at any supplied --reads")
@@ -230,7 +216,7 @@ if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
+      .map{ row -> tuple(row.replaceAll("\\n", ""), "hash" )}
       .transpose()
       .into { ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
@@ -317,6 +303,17 @@ if (params.diff_hash_expression) {
       .collect()
       .into{ ch_all_signatures_flattened_for_finding_matches }
 
+    // Create channel of group name to cleaned group name (for file/folder names)
+    group_to_cleaned = Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      // Clean group name from the get go
+      .flatMap{ row -> [(row.group) : row.group.replaceAll(' ', '_').replaceAll('/', '-slash-').toLowerCase()]}
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
+      .groupTuple()
+      .dump( tag: 'ch_group_to_cleaned' )
+      .collect()
+
     // Create channel of fastas per group
     Channel
       .fromPath(params.csv)
@@ -339,10 +336,12 @@ if (params.diff_hash_expression) {
       .combine( ch_all_signatures_flat_list_for_diff_hash )
       .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
       .into { ch_groups_with_all_signatures_for_diff_hash }
-    // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
   }
+} else {
+  // No differential expression, but still need phantom groups mapping
+  group_to_cleaned = ["phantom_group": "phantom_group"]
 }
 
 ////////////////////////////////////////////////////
@@ -797,16 +796,17 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
+    group_to_cleaned
     set val(group), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
     file metadata from ch_csv.collect()
 
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files
+    set val(group), val(group_cleaned), file("*__informative_hashes.txt") into ch_informative_hashes_files
 
     script:
-    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
+    group_cleaned = group_to_cleaned[group]
     abundance_flag = diff_hash_with_abundance ? '--with-abundance' : ''
     """
     differential_hash_expression.py \\
@@ -829,16 +829,17 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_informative_hashes_files
       .dump(tag: 'ch_informative_hashes_files')
       // [group_name, text_file]
-      .map{ it -> tuple(it[1].splitText(), it[0])}
-      // [['123\n', '456\n', '789\n'], group]
+      .map{ it -> tuple(it[2].splitText(), [it[0], it[1]])}
+      // [['123\n', '456\n', '789\n'], group, group_cleaned]
       .dump(tag: 'ch_informative_hashes_files_split')
       .transpose()
-      // ['123\n', group]
-      // ['456\n', group]
-      // ['789\n', group]
+      // ['123\n', [group, group_cleaned]]
+      // ['456\n', [group, group_cleaned]]
+      // ['789\n', [group, group_cleaned]]
       .dump(tag: 'ch_hash_to_group')
       .into {
-        ch_hash_to_group_for_finding_matches
+        ch_hash_to_group_for_finding_matches;
+        ch_hash_to_group_for_finding_unaligned;
         ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
         ch_hash_to_group_for_hash2kmer;
@@ -924,34 +925,107 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
-if (params.hashes) {
-  // Combine the extracted hashes with the known proteins
-  ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
-    .collect()           // make a single flat list
-    .map{ it -> [it] }   // Nest within a list so the next step does what I want
-    .set{ ch_protein_fastas_flat_list }
 
-  ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_flat_list )
-      .set { ch_hashes_with_fastas_for_hash2kmer }
-      // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
-      // 1, 2, 3 = hashes
-      // "a", "b", "c" = protein fasta files
-} else if (params.diff_hash_expression) {
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+* STEP 7 - Filter hashes for only unaligned ones
+*/
+if ( params.csv_has_is_aligned ){
 
-  ch_hash_to_group_for_hash2kmer
-    .join( ch_group_to_fasta )
-    .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-    .into{ ch_hashes_with_fastas_for_hash2kmer }
+  ch_hash_to_group_for_finding_unaligned
+    .join( ch_hash_sigs_from_hash2sig_to_join )
+    // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
+    // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
+    .dump( tag: 'ch_hash_to_group_for_finding_unaligned__ch_hash_sigs_from_hash2sig_to_join' )
+    .map{ it -> tuple(it[1], it[0], it[2], it[3]) }
+    .dump( tag: 'ch_group_to_hash_sig' )
+    // ['monocyte', '4406535782145158631\n', hash-4406535782145158631, hash-4406535782145158631.sig]
+    .set{ ch_group_to_hash_sig }
 
-  ch_hash_to_group_for_hash2sig
-    .map{ it -> it[0] }
-    .into{ ch_hashes_for_hash2sig }
+  process is_hash_in_unaligned {
+    tag "${sample_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
+
+    input:
+    group_to_cleaned
+    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+
+    output:
+    set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+
+    script:
+    group_cleaned = group_to_cleaned[group]
+    hash_cleaned = hash.replaceAll('\\n', '')
+    sample_id = "${group_cleaned}__${hash_id}"
+    matches = "${sample_id}__matches.txt"
+    """
+    rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+    """
+  }
+  ch_hash_sigs_in_unaligned
+    .dump( tag: 'ch_hash_sigs_in_unaligned' )
+    // Check that matches are nonempty
+    .branch{
+      aligned: it[5].size() == 0
+      unaligned: it[5].size() > 0
+    }
+    .set{ ch_hashes_sigs_branched }
+
+    ch_hashes_sigs_branched
+      .unaligned
+      .map { it -> tuple(it[0], it[1], it[2], it[3], it[4]) }
+      .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
+      .set { ch_hashes_in_group_unaligned_sigs }
+
+    ch_hashes_sigs_branched
+      .aligned
+      .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+      .dump ( tag: 'ch_hashes_in_group_aligned' )
+      .set { ch_hashes_in_group_aligned }
+} else {
+  println "Not csv_has_is_aligned"
+  if (params.hashes) {
+    println "In params.hashes"
+    // Combine the extracted hashes with the known proteins
+    ch_protein_fastas
+      .dump( tag: 'ch_protein_fastas' )
+      .map{ it -> it[1] }  // get only the file, not the sample id
+      .collect()           // make a single flat list
+      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .set{ ch_protein_fastas_flat_list }
+
+    ch_hashes_for_hash2kmer
+        .combine( ch_protein_fastas_flat_list )
+        .dump( tag: 'ch_hashes_with_fastas_for_hash2kmer' )
+        .set { ch_hashes_with_fastas_for_hash2kmer }
+        // Desired output:
+        // [1, ["a", "b", "c"]]
+        // [2, ["a", "b", "c"]]
+        // [3, ["a", "b", "c"]]
+        // 1, 2, 3 = hashes
+        // "a", "b", "c" = protein fasta files
+  } else if (params.diff_hash_expression) {
+    println "In params.diff_hash_expression"
+
+    ch_hash_to_group_for_hash2kmer
+      .join( ch_group_to_fasta, by: [0, 1])
+      .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
+      .into{ ch_hashes_with_fastas_for_hash2kmer }
+
+    ch_hash_to_group_for_hash2sig
+      .map{ it -> it[0] }
+      .into{ ch_hashes_for_hash2sig }
+  }
 }
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -963,7 +1037,8 @@ if (params.hashes) {
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
+ do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.protein_searcher == 'diamond')
+ println "do_hash2kmer: ${do_hash2kmer}"
  if (do_hash2kmer) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
@@ -1105,6 +1180,7 @@ if (params.protein_searcher == 'diamond') {
     publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
 
     input:
+    group_to_cleaned
     // Basenames from dumped channel:
     // [DUMP: ch_query_protein_sequences_with_diamond_db]
     //   [ENSPPYT00000000455__molecule-dayhoff,
@@ -1117,7 +1193,7 @@ if (params.protein_searcher == 'diamond') {
     file(tsv) into ch_diamond_blastp_output
 
     script:
-    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
+    group_cleaned = group_to_cleaned[group]
     if (hash) {
       hash_cleaned = hash.replaceAll('\\n', '')
       sample_id = "${group_cleaned}__hash-${hash_cleaned}"
@@ -1194,15 +1270,6 @@ if (params.protein_searcher == 'sourmash'){
     }
     ch_hash_sigs_from_hash2sig_to_print.dump(tag: 'ch_hash_sigs_from_hash2sig_to_print')
 
-    ch_hash_to_group_for_joining_after_hash2sig
-      .join( ch_hash_sigs_from_hash2sig_to_join )
-      // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
-      // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
-      .dump( tag: 'ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join' )
-      .map{ it -> tuple(it[1], it[0], it[2], it[3]) }
-      .dump( tag: 'ch_group_to_hash_sig' )
-      // ['monocyte', '4406535782145158631\n', hash-4406535782145158631, hash-4406535782145158631.sig]
-      .set{ ch_group_to_hash_sig }
   }
 
   ch_per_group_unaligned_sig
@@ -1220,57 +1287,6 @@ if (params.protein_searcher == 'sourmash'){
     .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
     .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-  * STEP 7 - Filter hashes for only unaligned ones
-  */
-  process is_hash_in_unaligned {
-    tag "${sample_id}"
-    label "process_low"
-
-    publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
-
-    input:
-    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
-
-    output:
-    set val(group), val(group_cleaned), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
-
-    script:
-    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
-    hash_cleaned = hash.replaceAll('\\n', '')
-    sample_id = "${group_cleaned}__${hash_id}"
-    matches = "${sample_id}__matches.txt"
-    """
-    rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
-    """
-  }
-  ch_hash_sigs_in_unaligned
-    .dump( tag: 'ch_hash_sigs_in_unaligned' )
-    // Check that matches are nonempty
-    .branch{
-      aligned: it[5].size() == 0
-      unaligned: it[5].size() > 0
-    }
-    .set{ ch_hashes_sigs_branched }
-
-    ch_hashes_sigs_branched
-      .unaligned
-      .map { it -> tuple(it[0], it[1], it[2], it[3], it[4]) }
-      .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-      .set { ch_hashes_in_group_unaligned_sigs }
-
-    ch_hashes_sigs_branched
-      .aligned
-      .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-      .dump ( tag: 'ch_hashes_in_group_aligned' )
-      .set { ch_hashes_in_group_aligned }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
