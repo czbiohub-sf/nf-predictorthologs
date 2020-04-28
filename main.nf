@@ -1190,7 +1190,6 @@ if (params.protein_searcher == 'sourmash'){
     publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
     input:
-    set val(group), file(sigs) from ch_per_group_unaligned_sig
     set val(group), val(group_cleaned), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
 
     output:
