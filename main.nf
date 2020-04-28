@@ -1252,7 +1252,7 @@ if (params.protein_searcher == 'sourmash'){
     set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
 
     output:
-    set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+    set val(group), val(group_cleaned), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
 
     script:
     group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
@@ -1267,20 +1267,20 @@ if (params.protein_searcher == 'sourmash'){
     .dump( tag: 'ch_hash_sigs_in_unaligned' )
     // Check that matches are nonempty
     .branch{
-      aligned: it[4].size() == 0
-      unaligned: it[4].size() > 0
+      aligned: it[5].size() == 0
+      unaligned: it[5].size() > 0
     }
     .set{ ch_hashes_sigs_branched }
 
     ch_hashes_sigs_branched
       .unaligned
-      .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+      .map { it -> tuple(it[0], it[1], it[2], it[3], it[4]) }
       .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
       .set { ch_hashes_in_group_unaligned_sigs }
 
     ch_hashes_sigs_branched
       .aligned
-      .map { it -> tuple(it[0], it[1], it[2]) }
+      .map { it -> tuple(it[0], it[1], it[2], it[3]) }
       .dump ( tag: 'ch_hashes_in_group_aligned' )
       .set { ch_hashes_in_group_aligned }
 
@@ -1351,20 +1351,20 @@ if (params.protein_searcher == 'sourmash'){
   }
 
   process sourmash_db_search {
-   tag "${reference_sbt_json.baseName}"
+   tag "${group_cleaned}"
    label "process_low"
 
    publishDir "${params.outdir}/sourmash/search", mode: 'copy'
 
    input:
    set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
-   set val(group), val(hash), val(hash_id), file(query_sig) from ch_hashes_in_group_unaligned_sigs
+   set val(group), val(group_cleaned), val(hash), val(hash_id), file(query_sig) from ch_hashes_in_group_unaligned_sigs
 
    output:
    file("${csv_output}")
 
    script:
-   csv_output = "${group}__${hash_id}.csv"
+   csv_output = "${group_cleaned}__${hash_id}.csv"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
    sourmash search \\
