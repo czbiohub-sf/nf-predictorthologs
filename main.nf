@@ -873,7 +873,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     file("*__matches.txt")
 
     script:
-    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
     hash_cleaned = hash.replaceAll('\\n', '')
     hash_id = "hash-${hash_cleaned}"
     matches = "${sample_id}__matches.txt"
