@@ -857,7 +857,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-  * STEP 7 - Filter hashes for only unaligned ones
+  * STEP 7 - Find signatures containing hashes
   */
   process sigs_with_hash {
     tag "${sample_id}"
