@@ -1170,6 +1170,7 @@ if (params.protein_searcher == 'sourmash'){
 
   ch_per_group_unaligned_sig
     .join( ch_group_to_hash_sig )
+    // [DUMP: ch_group_to_hash_sig]
     // ['monocyte',
     //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
     //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
