@@ -5,7 +5,7 @@ endif
 # Same nextflow run command for everyone
 NF_RUN=nextflow run -resume
 
-test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_diff_hash test_diff_hash_abundance test_sourmash_search test_diff_hash_sourmash test_hash_featurecounts
+test: test_fastq test_bam test_download_refseq test_existing_database test_hash2kmer test_input_is_protein test_diff_hash test_diff_hash_abundance test_sourmash_search test_diff_hash_sourmash test_diff_hash_is_aligned
 
 test_fastq:
 	${NF_RUN} -profile $@,${CONTAINER} .
