@@ -246,7 +246,7 @@ if (params.hashes){
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
 ////////////////////////////////////////////////////
-if (params.do_featurecounts_orthology) {
+if (params.csv_has_is_aligned) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     // Channel
@@ -267,18 +267,17 @@ if (params.do_featurecounts_orthology) {
       }
       .set { ch_csv_is_aligned }
 
-    ch_csv_is_aligned.aligned
-      .dump( tag: 'ch_csv_is_aligned.aligned' )
-      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
-      .dump( tag: 'ch_aligned_sig_fasta_bam' )
-      .into { ch_aligned_sig_fasta_bam }
-
-    ch_aligned_sig_fasta_bam
-      // group and bams
-      .map{ it -> tuple(it[0], it[4]) }
-      .unique()
-      .dump( tag: 'ch_unique_bams' )
-      .into { ch_unique_bams }
+      // Create channel of signatures per group
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .filter{ row -> row.is_aligned == 'unaligned' }
+      .dump( tag: 'csv_unaligned' )
+      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .groupTuple()
+      .dump( tag: 'ch_per_group_unaligned_sig' )
+      .set{ ch_per_group_unaligned_sig }
 
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -287,7 +286,7 @@ if (params.do_featurecounts_orthology) {
       .into { ch_unaligned_sig_fasta }
 
   } else {
-    exit 1, "Must provide --csv when doing gene counting"
+    exit 1, "Must provide --csv when doing filtering for aligned/unaligned hashes"
   }
 }
 
@@ -328,17 +327,6 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
-      // Create channel of signatures per group
-    Channel
-      .fromPath(params.csv)
-      .splitCsv(header:true)
-      .filter{ row -> row.is_aligned == 'unaligned' }
-      .dump( tag: 'csv_unaligned' )
-      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple()
-      .dump( tag: 'ch_per_group_unaligned_sig' )
-      .set{ ch_per_group_unaligned_sig }
 
     // Create channel of signatures per group
     Channel
