@@ -29,21 +29,21 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_fastq,docker
-      # - name: Test downloading refseq
-      #   run: |
-      #     # TODO nf-core: You can customise CI pipeline run tests as required
-      #     # (eg. adding multiple test runs with different parameters)
-      #     ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_download_refseq,docker
-      # - name: Test using existing database
-      #   run: |
-      #     # TODO nf-core: You can customise CI pipeline run tests as required
-      #     # (eg. adding multiple test runs with different parameters)
-      #     ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_existing_database,docker
-      # - name: Test bam
-      #   run: |
-      #     # TODO nf-core: You can customise CI pipeline run tests as required
-      #     # (eg. adding multiple test runs with different parameters)
-      #     ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_bam,docker
+      - name: Test downloading refseq
+        run: |
+          # TODO nf-core: You can customise CI pipeline run tests as required
+          # (eg. adding multiple test runs with different parameters)
+          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_download_refseq,docker
+      - name: Test using existing database
+        run: |
+          # TODO nf-core: You can customise CI pipeline run tests as required
+          # (eg. adding multiple test runs with different parameters)
+          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_existing_database,docker
+      - name: Test bam
+        run: |
+          # TODO nf-core: You can customise CI pipeline run tests as required
+          # (eg. adding multiple test runs with different parameters)
+          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_bam,docker
       # - name: Test input is protein
       #   run: |
       #     # TODO nf-core: You can customise CI pipeline run tests as required
