@@ -310,9 +310,11 @@ if (params.diff_hash_expression) {
       // Clean group name from the get go
       .flatMap{ row -> [(row.group) : row.group.replaceAll(' ', '_').replaceAll('/', '-slash-').toLowerCase()]}
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
-      .groupTuple()
+      .unique()
       .dump( tag: 'ch_group_to_cleaned' )
       .collect()
+    println "group_to_cleaned:"
+    println group_to_cleaned
 
     // Create channel of fastas per group
     Channel
@@ -1035,7 +1037,6 @@ if ( params.csv_has_is_aligned ){
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
  do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.protein_searcher == 'diamond')
- println "do_hash2kmer: ${do_hash2kmer}"
  if (do_hash2kmer) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
@@ -1288,12 +1289,12 @@ if (params.protein_searcher == 'sourmash'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
-  /* --                  MAKE SOURMASH INDEX                      -- */
+  /* --        COMPUTE SOURMASH SIGNATURES FOR SEARCH DATABASE              -- */
   /* --                                                                     -- */
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 7 - make peptide search database for DIAMOND
+   * STEP 7 - compute sourmash signatures of search database
    */
   process sourmash_db_compute {
    tag "${sample_id}"
@@ -1326,8 +1327,18 @@ if (params.protein_searcher == 'sourmash'){
       ${reference_proteome} \\
       2> ${output_log}
    """
- }
+  }
 
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                      MAKE SOURMASH SEARCH INDEX                     -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Create sourmash search index
+  */
   process sourmash_db_index {
     tag "${reference_proteome_sig.baseName}"
     label "process_low"
@@ -1351,6 +1362,16 @@ if (params.protein_searcher == 'sourmash'){
     """
   }
 
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                   PERFORM SEARCH USING SOURMASH                     -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Actually search for hashes in the database using sourmash
+  */
   process sourmash_db_search {
    tag "${group_cleaned}"
    label "process_low"
