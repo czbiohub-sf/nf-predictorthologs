@@ -303,7 +303,7 @@ if (params.diff_hash_expression) {
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
       .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_all_signatures_flat_list }
+      .into{ ch_all_signatures_flat_list_for_diff_hash; ch_all_signatures_flat_list_for_finding_matches }
 
     // Create channel of fastas per group
     Channel
@@ -335,9 +335,9 @@ if (params.diff_hash_expression) {
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
       .unique()
       .dump(tag: 'csv_unique_groups')
-      .combine( ch_all_signatures_flat_list )
+      .combine( ch_all_signatures_flat_list_for_diff_hash )
       .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
-      .set { ch_groups_with_all_signatures_for_diff_hash }
+      .into { ch_groups_with_all_signatures_for_diff_hash }
     // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
@@ -843,6 +843,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         ch_hash_to_group_for_hash2kmer;
         ch_hash_to_group_for_hash2sig }
 
+  ch_hash_to_group_for_finding_matches
+    .map{ it -> it[0] }
+    .unique()
+    .into{ ch_informative_hashes_flattened }
+
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -861,7 +866,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
     input:
-    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+    val(hash) from ch_informative_hashes_flattened
+    set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_groups_with_all_signatures_for_finding_matches
 
     output:
     set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
