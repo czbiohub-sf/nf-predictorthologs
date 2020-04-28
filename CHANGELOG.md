@@ -33,5 +33,4 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Updated MultiQC to version 1.8 to avoid annoying YAML errors
 - Add ripgrep=12.0.1 ([faster than all other `grep`s](https://blog.burntsushi.net/ripgrep/)) to dependencies
 
-
 ### `Deprecated`
