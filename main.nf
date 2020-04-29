@@ -45,6 +45,8 @@ def helpMessage() {
    Differential hash expression options:
       --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
                                       This requires the --csv option and additional columns of "group" and "sig" in the csv
+      --csv_has_is_aligned            If provided, then the --csv provided has a column named "is_aligned" that can be used to
+                                      partition the signatures and differential hashes into aligned/unaligned bins
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
