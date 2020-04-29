@@ -164,8 +164,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .set {ch_bed_bam_bai}
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
-
-  // log.info "Using DIAMOND for protein search and reading input fastas"
   ////////////////////////////////////////////////////
   /* --          Parse protein fastas            -- */
   ////////////////////////////////////////////////////
@@ -194,7 +192,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // No hashes - just do a diamond blastp search for each peptide fasta
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
-      // add "hash" text for now
+      // add "hash" text for now=
       .map { it -> tuple(false, it[0], it[1])}
       .set { ch_protein_seq_for_diamond }
   }
@@ -258,16 +256,6 @@ def hashCleaner(hash) {
 ////////////////////////////////////////////////////
 if (params.csv_has_is_aligned) {
   if (params.csv) {
-    // Provided a csv file mapping sample_id to protein fasta path
-    // Channel
-    //   .fromPath(params.csv)
-    //   .splitCsv(header:true)
-    //   .filter{ row -> row.bam }
-    //   .map{ row -> tuple(row.sample_id, row.bam) }
-    //   .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
-    //   .dump( tag: 'csv__ch_sample_bams' )
-    //   .into { ch_bams_for_filter_unaligned_reads; ch_bams_for_finding_reads_with_hashes }
-    //   // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath ( params.csv )
       .splitCsv ( header:true )
@@ -315,7 +303,19 @@ if (params.diff_hash_expression) {
       .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
+      .map{ it -> [it] }   // Nest within a list so the combine() step keeps all the signatures together
+      // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
+      //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      .dump( tag: "ch_all_signatures_flat_list_for_diff_hash" )
       .into{ ch_all_signatures_flat_list_for_diff_hash }
 
     // Create channel of all signatures, completely flattened
@@ -346,8 +346,34 @@ if (params.diff_hash_expression) {
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
       .unique()
       .dump(tag: 'csv_unique_groups')
+      // [DUMP: csv_unique_groups] ['Mostly marrow unaligned']
+      // [DUMP: csv_unique_groups] ['Liver unaligned']
       .combine( ch_all_signatures_flat_list_for_diff_hash )
       .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //    ['Mostly marrow unaligned',
+      //      [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //  ['Liver unaligned',
+      //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
       .into { ch_groups_with_all_signatures_for_diff_hash }
     // exit 1, "testing"
   } else {
