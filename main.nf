@@ -351,7 +351,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['khtools translate Ref']              = params.proteome_translate_fasta
+if (!params.input_is_protein) summary['sencha translate Ref']              = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
@@ -614,25 +614,25 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 2 - khtools index
+   * STEP 2 - sencha index
    */
   process make_protein_index {
     tag "${peptides}__${bloom_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/khtools/", mode: 'copy'
+    publishDir "${params.outdir}/sencha/", mode: 'copy'
 
     input:
     file(peptides) from ch_proteome_translate_fasta
     each molecule from peptide_molecule
 
     output:
-    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_khtools_bloom_filters
+    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
     bloom_id = "molecule-${molecule}"
     """
-    khtools index \\
+    sencha index \\
       --tablesize 1e7 \\
       --molecule ${molecule} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
@@ -641,10 +641,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 
   // From Paolo - how to do translate on ALL combinations of bloom filters
-   ch_khtools_bloom_filters
+   ch_sencha_bloom_filters
     .groupTuple(by: [0, 3])
       .combine(ch_reads_trimmed_nonempty)
-    .set{ ch_khtools_bloom_filters_grouptuple }
+    .set{ ch_sencha_bloom_filters_grouptuple }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -655,7 +655,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /*
-   * STEP 3 - khtools translate
+   * STEP 3 - sencha translate
    */
   process translate {
     tag "${sample_id}"
@@ -666,7 +666,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     tuple \
       val(bloom_id), val(alphabet), file(bloom_filter), \
       val(sample_id), file(reads) \
-        from ch_khtools_bloom_filters_grouptuple
+        from ch_sencha_bloom_filters_grouptuple
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
@@ -678,7 +678,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     script:
     sample_bloom_id = "${sample_id}__${bloom_id}"
     """
-    khtools translate \\
+    sencha translate \\
       --molecule ${alphabet[0]} \\
       --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
       --csv ${sample_bloom_id}__coding_scores.csv \\
