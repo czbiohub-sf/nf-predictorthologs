@@ -1,6 +1,6 @@
 # ![nf-core/predictorthologs](docs/images/nf-core-predictorthologs_logo.png)
 
-**Predict orthologous gene mapping from bam + bed or fasta/fastq data**.
+**Predict *de novo* orthologous genes from differentially expressed translated protein sequences**.
 
 [![GitHub Actions CI Status](https://github.com/czbiohub/predictorthologs/workflows/nf-core%20CI/badge.svg)](https://github.com/czbiohub/predictorthologs/actions)
 [![GitHub Actions Linting Status](https://github.com/czbiohub/predictorthologs/workflows/nf-core%20linting/badge.svg)](https://github.com/czbiohub/predictorthologs/actions)

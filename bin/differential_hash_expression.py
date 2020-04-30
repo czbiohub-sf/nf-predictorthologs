@@ -128,15 +128,16 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                  verbose=False, with_abundance=False, **kwargs):
     rows = annotations[group_col] == group1_name
 
-    group1_annotations = annotations.loc[rows]
+    group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
 
     # Everything not in group 1
-    group2_annotations = annotations.loc[~rows]
+    group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
 
-    group1_sigs = maybe_subsample(sketch_series[group1_annotations.index],
-                                  max_group_size)
-    group2_sigs = maybe_subsample(sketch_series[group2_annotations.index],
-                                  max_group_size)
+    group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
+    group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
+    logger.info(f'Group 1 signatures: {group1_sigs}')
+    logger.info(f'Group 2 signatures: {group2_sigs}')
+
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
                                                 random_state=random_state,
@@ -148,14 +149,17 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0, use_sig_basename=False, max_group_size=MAX_GROUP_SIZE,
-         with_abundance=False):
-    metadata = pd.read_csv(metadata_csv)
+         random_state=0, use_sig_basename=False, with_abundance=False,
+          max_group_size=MAX_GROUP_SIZE):
+    metadata = pd.read_csv(metadata_csv, index_col='sample_id')
+
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
+    logger.info(f"metadata head: {metadata.head()}")
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
+    logger.info(f"Loaded {len(sketches)} sourmash signatures/sketches")
     if not sketches:
         # If sketches is empty --> something wrong happened
         sketch_filenames = '\n'.join(metadata[sig_col].head())
@@ -164,6 +168,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                          f"load:\n---\n{sketch_filenames}\n---\nMaybe the molecule or "
                          f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
+    logger.info(f"Sketch series head: {sketch_series.head()}")
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
@@ -293,9 +298,19 @@ sklearn.preprocessing.""")
 
     moltype = calculate_moltype(args)
 
-    main(args.metadata_csv, args.ksize, moltype, args.group_col, args.group1,
-         args.sig_col,
-         args.threshold, args.verbose, args.inverse_regularization_strength,
-         args.solver, args.penalty, args.n_jobs,
-         args.random_state, args.use_sig_basename, args.max_group_size,
-         args.with_abundance)
+    main(metadata_csv=args.metadata_csv,
+         ksize=args.ksize,
+         molecule=moltype,
+         group_col=args.group_col,
+         group1=args.group1,
+         sig_col=args.sig_col,
+         threshold=args.threshold,
+         verbose=args.verbose,
+         C=args.inverse_regularization_strength,
+         solver=args.solver,
+         penalty=args.penalty,
+         n_jobs=args.n_jobs,
+         random_state=args.random_state,
+         use_sig_basename=args.use_sig_basename,
+         max_group_size=args.max_group_size,
+         with_abundance=args.with_abundance)

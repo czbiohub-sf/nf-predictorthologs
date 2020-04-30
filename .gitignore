@@ -6,3 +6,5 @@ results/
 tests/
 testing/
 *.pyc
+
+scratch.nf
