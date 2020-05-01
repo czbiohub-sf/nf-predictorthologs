@@ -6,18 +6,15 @@ NOTE: for now, only implemented for DNA & for seed=42.
 """
 import sys
 import argparse
-import sourmash
-from sourmash import MinHash
-from sourmash import sourmash_args
 from sourmash._minhash import hash_murmur
 import screed
 import csv
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
-from khtools.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
+from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
-NOTIFY_EVERY_BP=1e7
+NOTIFY_EVERY_BP = 1e7
 
 
 def get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein):
@@ -57,7 +54,7 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype,
 
     for start in range(0, len(sequence) - ksize + 1):
         # Skip protein sequences with invalid input
-        # (workaround for khtools bug that wrote "Writing extract_coding
+        # (workaround for sencha bug that wrote "Writing translate
         # summary to coding_summary.json" to standard output and thus to the
         # protein fasta)
         if input_is_protein:
@@ -89,8 +86,8 @@ def main():
     )
     p.add_argument(
         '--first', action='store_true',
-        help='Return only the first instance of the found k-mer(s) and ' \
-             'sequence from each provided sequence file. Useful if you are ' \
+        help='Return only the first instance of the found k-mer(s) and '
+             'sequence from each provided sequence file. Useful if you are '
              'searching for only one k-mer'
     )
     add_construct_moltype_args(p)
@@ -139,9 +136,9 @@ def main():
     # now, iterate over the input sequences and output those that overlap
     # with hashes!
     n_seq = 0
-    n = 0 # bp loaded
-    m = 0 # bp in found sequences
-    p = 0 # number of k-mers found
+    n = 0  # bp loaded
+    m = 0  # bp in found sequences
+    p = 0  # number of k-mers found
     found_kmers = {}
     watermark = NOTIFY_EVERY_BP
     for filename in args.seqfiles:
