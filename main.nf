@@ -294,6 +294,38 @@ if (params.diff_hash_expression) {
       .map{ it -> [it] }   // Nest within a list so the next step does what I want
       .set{ ch_all_signatures_flat_list }
 
+    // Create channel of all signatures, completely flattened
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> file(row.sig, checkIfExists: true) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .collect()
+      .into{ ch_all_signatures_flattened_for_finding_matches }
+
+    // Create channel of all signatures, completely flattened
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple("${file(row.sig).fileName}", row.sample_id, file(row.fasta, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' and/or 'fasta' columns were empty" }
+      // [DUMP: ch_sig_basename_to_fasta]
+      //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA,
+      //     /czbiohub/test-datasets/predictorthologs/testdata/diff-hash/fasta/MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA__coding_reads_peptides.fasta]
+      .dump ( tag: 'ch_sig_basename_to_id_and_fasta' )
+      .into{ ch_sig_basename_to_id_and_fasta }
+
+    // Create channel of fastas per group
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group, file(row.fasta, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
+      .groupTuple()
+      .dump( tag: 'ch_group_to_fasta' )
+      .set{ ch_group_to_fasta }
+
 
     // Create channel of signatures per group
     Channel
@@ -372,6 +404,17 @@ diff_hash_with_abundance = params.diff_hash_with_abundance
 diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
+
+
+
+// Utility functions for sanitizing output
+def groupCleaner(group) {
+  return group.replaceAll(' ', '_').replaceAll('/', '-slash-').toLowerCase()
+}
+
+def hashCleaner(hash) {
+  return hash.replaceAll('\\n', '')
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -793,15 +836,98 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       .dump(tag: 'ch_informative_hashes_files')
       // [group_name, text_file]
       .map{ it -> tuple(it[1].splitText(), it[0])}
-      // [group, ['123\n', '456\n', '789\n']]
+      // [['123\n', '456\n', '789\n'], group]
       .dump(tag: 'ch_informative_hashes_files_split')
       .transpose()
-      .dump(tag: 'ch_informative_hashes_files_transposed')
-      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+      // ['123\n', group]
+      // ['456\n', group]
+      // ['789\n', group]
+      .dump(tag: 'ch_hash_to_group')
+      .into {
+        ch_hash_to_group_for_finding_matches
+        ch_hash_to_group_for_joining_after_hash2kmer;
+        ch_hash_to_group_for_joining_after_hash2sig;
+        ch_hash_to_group_for_hash2kmer;
+        ch_hash_to_group_for_hash2sig }
 
-    ch_group_to_hashes_for_hash2kmer
-      .map{ it -> it[0] }
-      .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
+  ch_hash_to_group_for_finding_matches
+    .map{ it -> it[0] }
+    .unique()
+    .into{ ch_informative_hashes_flattened }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Find signatures containing hashes
+  */
+  process sigs_with_hash {
+    tag "${hash_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
+
+    input:
+    val(hash) from ch_informative_hashes_flattened
+    file(sigs) from ch_all_signatures_flattened_for_finding_matches
+
+    output:
+    set val(hash), file("*__matches.txt") into ch_sigs_with_hash
+
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    matches = "${hash_id}__matches.txt"
+    """
+    rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} ${sigs} \\
+      > ${matches}
+    """
+  }
+
+  ch_sigs_with_hash
+    .map { it -> [it[1].splitText(), it[0]] }
+    .dump ( tag: 'sig_basenames_to_hash' )
+    .transpose()
+    // [DUMP: sig_basenames_to_hash]
+    // [ ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //    'MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //    '10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //    '10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n'],
+    //  '8035688914585273533\n']
+    .dump ( tag: 'sig_basename_to_hash_transposed' )
+    // [DUMP: sig_basename_to_hash_transposed]
+    //    ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //     '8035688914585273533\n']
+    // [DUMP: sig_basename_to_hash_transposed]
+    //    ['MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
+    //     '8035688914585273533\n']
+    .map { it -> [it[0].replaceAll('\\n', ''), it[1]]}
+    .dump ( tag: 'sig_basename_to_hash_transposed_replace_newlines' )
+    // Newlines were only removed from the signature basename
+    // [DUMP: sig_basename_to_hash_transposed_replace_newlines]
+    //   ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
+    //    '8035688914585273533\n']
+    .join ( ch_sig_basename_to_id_and_fasta )
+    // DUMP: sig_basename_to_hash_to_id_and_fasta]
+    //    ['MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
+    //      '3528776232794193794\n',
+    //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC,
+    //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__coding_reads_peptides.fasta]
+    .dump ( tag: 'sig_basename_to_hash_to_id_and_fasta' )
+    // Remove signature basename (item 0) from the channel
+    .map { it -> [it[1], it[2], it[3]] }
+    // [DUMP: ch_hash_to_id_to_fasta_for_hash2kmer]
+    //  ['3528776232794193794\n',
+    //    MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC,
+    //    MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA__coding_reads_peptides.fasta]
+    .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
+    .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 }
 
 
@@ -847,7 +973,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
 
 
-if (params.diff_hash_expression || params.hashes) {
+if (params.hashes) {
   // Combine the extracted hashes with the known proteins
   ch_protein_fastas
     .map{ it -> it[1] }  // get only the file, not the sample id
@@ -864,8 +990,16 @@ if (params.diff_hash_expression || params.hashes) {
       // [3, ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
+} else if ( params.diff_hash_expression ) {
+  // ch_hash_to_group_for_hash2kmer
+  //   .join( ch_group_to_fasta )
+  //   .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
+  //   .into{ ch_hashes_with_fastas_for_hash2kmer }
+  //
+  // ch_hash_to_group_for_hash2sig
+  //   .map{ it -> it[0] }
+  //   .into{ ch_hashes_for_hash2sig }
 }
-
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -882,23 +1016,24 @@ if (params.diff_hash_expression || params.hashes) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${hash_id}"
+    tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+    tuple val(hash), val(fasta_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
 
     output:
     file(kmers)
-    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_with_hashes_for_filter_unaligned_reads
+    set val(hash), val(fasta_id), file(sequences) into ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
 
     script:
-    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    kmers = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
+    sample_id = "${hash_id}__${fasta_id}"
+    kmers = "${sample_id}__kmer.txt"
+    sequences = "${sample_id}__sequences.fasta"
     """
     echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
@@ -908,17 +1043,47 @@ if (params.diff_hash_expression || params.hashes) {
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
         --${sourmash_molecule} \\
-        --first \\
         hash.txt \\
-        ${peptide_fastas}
+        ${fasta}
     """
   }
+
+  ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam
+    .dump( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids' )
+    // .join {  }
+    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_with_hashes_for_filter_unaligned_reads; ch_seqs_from_hash2kmer_for_bam_of_hashes }
+
   ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
 
-  ch_group_to_hashes_for_joining
-    .join(ch_seqs_from_hash2kmer)
-    .dump(tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer')
-    .into{ ch_protein_seq_for_diamond; ch_seqs_from_hash2kmer_for_bam_of_hashes }
+  ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
+    // Remove fasta id to make groupTuple easier
+    .map { it -> [it[0], it[2]] }
+    .dump ( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond__no_fasta_id' )
+    .groupTuple()
+    .join ( ch_hash_to_group_for_joining_after_hash2kmer )
+    // [DUMP: ch_protein_seq_for_diamond]
+    //    ['4122771730240801637\n',
+    //      [hash-4122771730240801637__MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC__sequences.fasta,
+    //       hash-4122771730240801637__10X_P4_2__unaligned__GACGTTACACCCATGG__sequences.fasta,
+    //       hash-4122771730240801637__MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT__sequences.fasta,
+    //       hash-4122771730240801637__10X_P5_0__unaligned__TCCACACCACATTTCT__sequences.fasta,
+    //       hash-4122771730240801637__10X_P4_2__unaligned__ATCGAGTCACCAGTTA__sequences.fasta],
+    //     'Liver unaligned']
+    .dump ( tag: 'ch_hash_to_fastas_to_group' )
+    .transpose()
+    // [DUMP: ch_protein_seq_for_diamond]
+    //    ['15007113384290734478\n',
+    //      hash-15007113384290734478__MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__sequences.fasta,
+    //      'Mostly marrow unaligned']
+    .dump ( tag: 'ch_hash_to_single_fasta_to_group' )
+    .map { it -> [it[0], it[2], it[1]] }
+    .dump ( tag: 'ch_protein_seq_for_diamond' )
+    .into { ch_protein_seq_for_diamond }
+
+  // ch_hash_to_group_for_joining_after_hash2kmer
+  //   .join( ch_seqs_from_hash2kmer )
+  //   .dump( tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer' )
+  //   .into{ ch_seqs_from_hash2kmer_for_bam_of_hashes }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
