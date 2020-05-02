@@ -990,16 +990,8 @@ if (params.hashes) {
       // [3, ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
-} else if ( params.diff_hash_expression ) {
-  // ch_hash_to_group_for_hash2kmer
-  //   .join( ch_group_to_fasta )
-  //   .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-  //   .into{ ch_hashes_with_fastas_for_hash2kmer }
-  //
-  // ch_hash_to_group_for_hash2sig
-  //   .map{ it -> it[0] }
-  //   .into{ ch_hashes_for_hash2sig }
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -1080,10 +1072,6 @@ if (params.hashes) {
     .dump ( tag: 'ch_protein_seq_for_diamond' )
     .into { ch_protein_seq_for_diamond }
 
-  // ch_hash_to_group_for_joining_after_hash2kmer
-  //   .join( ch_seqs_from_hash2kmer )
-  //   .dump( tag: 'ch_group_to_hashes_for_joining__ch_protein_seq_from_hash2kmer' )
-  //   .into{ ch_seqs_from_hash2kmer_for_bam_of_hashes }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
