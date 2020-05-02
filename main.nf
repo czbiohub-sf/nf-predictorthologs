@@ -286,6 +286,7 @@ if (params.filter_bam_hashes) {
           .dump( tag: 'ch_sample_id_to_gtf' )
           .into { ch_sample_id_to_gtf }
 
+        }
   } else {
     exit 1, "Must provide --csv when filtering bams for hashes"
   }
@@ -871,6 +872,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
     .unique()
+    .dump ( tag: 'unique_hashes' )
+    .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
     .into{ ch_hashes_for_sigs_with_hash; ch_hashes_for_hash2sig }
 
 
@@ -1289,11 +1292,11 @@ if (params.filter_bam_hashes) {
     ch_bam_filtered_for_featurecounts
       .join ( ch_sample_id_to_gtf )
       .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
-      into { ch_ }
+      .into { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
          label 'process_low'
-         tag "${bam_featurecounts.baseName - '.sorted'}"
+         tag "${featurecounts_id}"
          publishDir "${params.outdir}/featureCounts", mode: "${params.publish_dir_mode}",
              saveAs: {filename ->
                  if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
@@ -1303,8 +1306,7 @@ if (params.filter_bam_hashes) {
              }
 
          input:
-         file bam from ch_bam_filtered_for_featurecounts
-         file gtf from gtf_featureCounts.collect()
+         set val(sample_id), val(hash), file(bam), file(gtf) from ch_sample_id_to_hash_to_bam_to_gtf
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
@@ -1313,6 +1315,9 @@ if (params.filter_bam_hashes) {
          file "${bam.baseName}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
 
          script:
+         hash_cleaned = hashCleaner(hash)
+         hash_id = "hash-${hash_cleaned}"
+         featurecounts_id = "${hash_id}__${sample_id}"
          def featureCounts_direction = 0
          def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
          if (forwardStranded && !unStranded) {
@@ -1333,7 +1338,7 @@ if (params.filter_bam_hashes) {
             $extraAttributes \\
             -p \\
             -s $featureCounts_direction \\
-            $bam_featurecounts
+            $bam
          $orthology_qc
          $mod_orthology
          """
@@ -1494,45 +1499,42 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 4 - convert hashes to k-mers
    */
-   if ( params.hashes || params.diff_hash_expression ){
-    // No protein fasta provided for searching for orthologs, need to
-    // download refseq
-    process hash2sig {
-      tag "${hash_id}"
-      label "process_low"
+  process hash2sig {
+    tag "${hash_id}"
+    label "process_low"
 
-      publishDir "${params.outdir}/hash2sig/", mode: 'copy'
+    publishDir "${params.outdir}/hash2sig/", mode: 'copy'
 
-      input:
-      set val(hash) from ch_hashes_for_hash2sig
+    input:
+    set val(hash) from ch_hashes_for_hash2sig
 
-      output:
-      set val(hash), file("${sig}") into ch_hash_sigs
+    output:
+    set val(hash), file("${sig}") into ch_hash_sigs
 
-      script:
-      hash_cleaned = hashCleaner(hash)
-      hash_id = "hash-${hash_cleaned}"
-      sig = "${hash_id}.sig"
-      """
-      echo ${hash_cleaned} >> hash.txt
-      hash2sig.py \\
-          --ksize ${sourmash_ksize} \\
-          --no-dna \\
-          --scaled 1 \\
-          --input-is-protein \\
-          --${sourmash_molecule} \\
-          --output ${sig} \\
-          hash.txt
-      """
-    }
-
-    ch_hash_sigs
-      .join ( ch_hash_to_group_for_joining_after_hash2sig )
-      .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
-      .into { ch_hash_sig_to_group }
-
-
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    sig = "${hash_id}.sig"
+    """
+    echo ${hash_cleaned} >> hash.txt
+    hash2sig.py \\
+        --ksize ${sourmash_ksize} \\
+        --no-dna \\
+        --scaled 1 \\
+        --input-is-protein \\
+        --${sourmash_molecule} \\
+        --output ${sig} \\
+        hash.txt
+    """
   }
+
+  ch_hash_sigs
+    .join ( ch_hash_to_group_for_joining_after_hash2sig )
+    .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
+    .into { ch_hash_sig_to_group }
+
+
+
 
 
   ///////////////////////////////////////////////////////////////////////////////
