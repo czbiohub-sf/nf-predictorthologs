@@ -219,7 +219,8 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
-    } else if (params.readPaths){
+    }
+   } else if (params.readPaths){
     print("supplied readPaths, not looking at any supplied --reads")
     if (params.single_end) {
       Channel
