@@ -940,7 +940,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     //    '8035688914585273533\n']
   .into { ch_sig_basename_to_hash_to_join_with_fastas; ch_sig_basename_to_hash_to_join_with_bams }
 
-  // This 'cross' operator must be the small one (signature to id and fasta)
+  // To do hash2kmer on all combinations of signatures with hashes,
+  // this 'cross' operator must be the small one (signature to id and fasta)
   // times the "big one" (all signatures with hashes to hash id)
   ch_sig_basename_to_id_and_fasta
     .cross ( ch_sig_basename_to_hash_to_join_with_fastas )
