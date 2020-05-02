@@ -228,13 +228,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
-      }
-    if (params.single_end) {
-      Channel
-        .from(params.readPaths)
-        .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
-        .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-        .dump(tag: "reads_single_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
     } else {
       Channel
