@@ -243,33 +243,34 @@ if (params.filter_bam_hashes) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> file(row.bam) }
-      .unique()
+      .map{ row -> tuple("${file(row.sig).fileName}", row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
-      .dump( tag: 'csv__ch_sample_bams' )
-      .into { ch_bams_for_filter_reads_with_hashes }
+      .dump( tag: 'ch_sig_basename_to_id_and_bam' )
+      .into { ch_sig_basename_to_id_and_bam }
 
-    //   // Provided a csv file mapping sample_id to protein fasta path
-    Channel
-      .fromPath ( params.csv )
-      .splitCsv ( header:true )
-      .branch { row ->
-        aligned: row.is_aligned == "aligned"
-        unaligned: row.is_aligned == "unaligned"
+      if ( params.csv_has_is_aligned ) {
+        // Provided a csv file mapping sample_id to protein fasta path
+        Channel
+          .fromPath ( params.csv )
+          .splitCsv ( header:true )
+          .branch { row ->
+            aligned: row.is_aligned == "aligned"
+            unaligned: row.is_aligned == "unaligned"
+          }
+          .set { ch_csv_is_aligned }
+
+        ch_csv_is_aligned.aligned
+          .dump( tag: 'ch_csv_is_aligned.aligned' )
+          .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
+          .dump( tag: 'ch_aligned_sig_fasta_bam' )
+          .into { ch_aligned_sig_fasta_bam }
+
+        ch_csv_is_aligned.unaligned
+          .dump( tag: 'ch_csv_is_aligned.unaligned' )
+          .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
+          .dump( tag: 'ch_unaligned_sig_fasta' )
+          .into { ch_unaligned_sig_fasta }
       }
-      .set { ch_csv_is_aligned }
-
-    ch_csv_is_aligned.aligned
-      .dump( tag: 'ch_csv_is_aligned.aligned' )
-      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
-      .dump( tag: 'ch_aligned_sig_fasta_bam' )
-      .into { ch_aligned_sig_fasta_bam }
-
-    ch_csv_is_aligned.unaligned
-      .dump( tag: 'ch_csv_is_aligned.unaligned' )
-      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
-      .dump( tag: 'ch_unaligned_sig_fasta' )
-      .into { ch_unaligned_sig_fasta }
 
   } else {
     exit 1, "Must provide --csv when filtering bams for hashes"
@@ -913,6 +914,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     // [DUMP: sig_basename_to_hash_transposed_replace_newlines]
     //   ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
     //    '8035688914585273533\n']
+  .into { ch_sig_basename_to_hash_to_join_with_fastas; ch_sig_basename_to_hash_to_join_with_bams }
+
+  ch_sig_basename_to_hash_to_join_with_fastas
     .join ( ch_sig_basename_to_id_and_fasta )
     // DUMP: sig_basename_to_hash_to_id_and_fasta]
     //    ['MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
@@ -928,6 +932,13 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     //    MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA__coding_reads_peptides.fasta]
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
+
+  ch_sig_basename_to_hash_to_join_with_bams
+    .join ( ch_sig_basename_to_id_and_bam )
+    // Remove signature basename (item 0) from the channel
+    .map { it -> [it[1], it[2], it[3]] }
+    .dump ( tag: 'ch_hash_to_id_to_bam_for_filter_bam' )
+    .set { ch_hash_to_id_to_bam_for_filter_bam }
 }
 
 
@@ -1008,24 +1019,27 @@ if (params.hashes) {
   // No protein fasta provided for searching for orthologs, need to
   // download refseq
   process hash2kmer {
-    tag "${sample_id}"
+    tag "${tag_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), val(fasta_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
+    tuple val(hash), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
 
     output:
     file(kmers)
-    set val(hash), val(fasta_id), file(sequences) into ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
+    set val(hash), val(sample_id), file(sequences) into \
+      ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, \
+      ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond, \
+      ch_hash_to_id_to_fasta_for_filter_unaligned_reads
 
     script:
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    sample_id = "${hash_id}__${fasta_id}"
-    kmers = "${sample_id}__kmer.txt"
-    sequences = "${sample_id}__sequences.fasta"
+    tag_id = "${hash_id}__${sample_id}"
+    kmers = "${tag_id}__kmer.txt"
+    sequences = "${tag_id}__sequences.fasta"
     """
     echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
@@ -1039,11 +1053,28 @@ if (params.hashes) {
         ${fasta}
     """
   }
+  //
+  // ch_hash_to_id_to_fasta_for_filter_unaligned_reads
+  //   .map { it -> [it[0], it[2]] }
+  //   .set { ch_hash_to_seq_for_filter_unaligned_reads }
 
   ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam
     .dump( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids' )
     // .join {  }
-    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_with_hashes_for_filter_unaligned_reads; ch_seqs_from_hash2kmer_for_bam_of_hashes }
+    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
+
+  ch_hash_to_id_to_bam_for_filter_bam
+    .join ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1] )
+    .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
+    .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
+
+  ch_bams_for_map_then_bioawk
+    .map { it -> [it[0], it[1], it[3]] }
+    .into { ch_bams_for_filter_reads_with_hashes_for_bioawak }
+
+  ch_bams_for_map_then_filter_bams
+    .map { it -> [it[0], it[1], it[2]] }
+    .into { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
 
   ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
 
@@ -1378,32 +1409,42 @@ if (params.filter_bam_hashes) {
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
   process bioawk_read_ids_with_hash {
-    tag "${sample_id}"
+    tag "${tag_id}"
     label "process_low"
 
     publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
 
     input:
     // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
-    set val(hash), val(group), file(seqs_with_hash) from ch_seqs_from_hash2kmer_for_bam_of_hashes
+    set val(hash), val(sample_id), file(seqs_with_hash) from ch_bams_for_filter_reads_with_hashes_for_bioawak
 
     output:
-    set val(hash), val(group), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(hash), val(group), file(read_headers_with_hash) into ch_read_headers_with_hash
+    set val(hash), val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(hash), val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
 
     script:
-    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
     hash_cleaned = hash.replaceAll('\\n', '')
     hash_id = "hash-${hash_cleaned}"
-    sample_id = "${group_cleaned}__${hash_id}"
-    read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
-    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
+    tag_id = "${sample_id}__${hash_id}"
+    read_ids_with_hash = "${tag_id}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hash = "${tag_id}__reads_headers_with_hash.txt"
     """
     bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
       | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
     bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
     """
   }
+
+  ch_read_ids_with_hash
+    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1] )
+    // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
+    //    ['1814942943038227472\n',
+    //     'mouse_lung__aligned__AAAGATGCAGATCTGT',
+    //      mouse_lung__aligned__AAAGATGCAGATCTGT__hash-1814942943038227472__reads_ids_with_hash__regex_pattern.txt,
+    //     'mouse_lung__aligned__AAAGATGCAGATCTGT',
+    //      mouse_lung.bam]
+    .dump ( tag: 'ch_hash_sample_id_read_ids_bam_for_filter_bam' )
+    .into { ch_hash_sample_id_read_ids_bam_for_filter_bam }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1417,24 +1458,22 @@ if (params.filter_bam_hashes) {
    * STEP 9 - Filter per-sample bams for aligned read ids
    */
   process filter_bam_for_reads_with_hashes {
-    tag "${sample_id}"
+    tag "${tag_id}"
     label "process_medium"
 
     publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
-    set val(hash), val(group), file(read_ids_with_hash) from ch_read_ids_with_hash
-    file(bam) from ch_bams_for_filter_reads_with_hashes
+    set val(hash), val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
 
     output:
     set val(sample_id), file(reads_in_hashes_bam) into ch_bam_filtered
-    set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
+    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
-    group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
-    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    sample_id = "${bam.simpleName}__${group_cleaned}__${hash_id}"
+    tag_id = "${sample_id}__${hash_id}"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
     reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
     read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
@@ -1465,9 +1504,16 @@ if (params.filter_bam_hashes) {
     .set { ch_bam_filtered_for_featurecounts }
 
   ch_read_ids_mapped
-    // require at least 200 bytes in case of bam header
-    .filter { it -> it[1].size() > 0 }
-    .set { ch_read_ids_mapped_for_filter_unaligned_reads }
+    .dump ( tag: 'ch_read_ids_mapped' )
+    // Keep only cases where there were no aligned reads
+    // .filter { it -> it[2].size() == 0 }
+    // [hash, sample_id, ]
+    .map { it -> it[0] }
+    .dump ( tag: 'unaligned_hashes', )
+    .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
+    .groupTuple ()
+    .dump ( tag: 'ch_hash_to_seq_unaligned' )
+    .set { ch_hash_to_seq_unaligned }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1479,23 +1525,26 @@ if (params.filter_bam_hashes) {
   /*
    * STEP 10 - Filter per-sample sequences for unaligned read ids
    */
-  process filter_unaligned_reads {
-    tag "${hash_id}__${sample_id}"
+  process concatenate_unaligned_hashes {
+    tag "${hash_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/filter_unaligned_reads/", mode: 'copy'
+    publishDir "${params.outdir}/filter_unaligned_reads/${hash_id}", mode: 'copy'
 
     input:
-    set val(hash), val(hash_id), file(seqs_fasta) from ch_seqs_with_hashes_for_filter_unaligned_reads
-    set val(sample_id), file(read_ids_mapped) from ch_read_ids_mapped_for_filter_unaligned_reads
+    set val(hash), val(sample_ids), file(seqs_fasta) from ch_hash_to_seq_unaligned
 
     output:
-    set val(sample_id), file(fasta_unmapped) into ch_fasta_unmapped
+    set val(hash), val(hash_id), file(fasta_unmapped) into ch_fasta_unmapped
 
     script:
-    fasta_unmapped = "${read_ids_mapped.simpleName}__unmapped.fasta"
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    fasta_unmapped = "${hash_id}__unmapped.fasta"
+    samples_with_unmapped_hash = "${hash_id}__unmapped__samples_with_hash.txt"
     """
-    fgrep --file ${read_ids_mapped} --invert-match ${seqs_fasta} > ${fasta_unmapped}
+    echo '${sample_ids.join('\\n')}' > ${samples_with_unmapped_hash}
+    cat ${seqs_fasta} > ${fasta_unmapped}
     """
   }
 
