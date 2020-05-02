@@ -326,7 +326,7 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple("${file(row.sig).fileName}", row.sample_id, file(row.fasta, checkIfExists: true)) }
+      .map{ row -> [ row.sig.split(File.separator)[-1], row.sample_id, file(row.fasta, checkIfExists: true) ] }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' and/or 'fasta' columns were empty" }
       // [DUMP: ch_sig_basename_to_fasta]
       //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -940,16 +940,19 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     //    '8035688914585273533\n']
   .into { ch_sig_basename_to_hash_to_join_with_fastas; ch_sig_basename_to_hash_to_join_with_bams }
 
-  ch_sig_basename_to_hash_to_join_with_fastas
-    .join ( ch_sig_basename_to_id_and_fasta )
-    // DUMP: sig_basename_to_hash_to_id_and_fasta]
-    //    ['MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
-    //      '3528776232794193794\n',
-    //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC,
-    //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__coding_reads_peptides.fasta]
+  // This 'cross' operator must be the small one (signature to id and fasta)
+  // times the "big one" (all signatures with hashes to hash id)
+  ch_sig_basename_to_id_and_fasta
+    .cross ( ch_sig_basename_to_hash_to_join_with_fastas )
+    // [DUMP: sig_basename_to_hash_to_id_and_fasta]
+    //    [['SRR306777_GSM752631_mml_br_F_1_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+    //      'SRR306777_GSM752631_mml_br_F_1',
+    //      SRR306777_GSM752631_mml_br_F_1__coding_reads_peptides.fasta],
+    //    ['SRR306777_GSM752631_mml_br_F_1_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+    //    '17398895598152879\n']]
     .dump ( tag: 'sig_basename_to_hash_to_id_and_fasta' )
     // Remove signature basename (item 0) from the channel
-    .map { it -> [it[1], it[2], it[3]] }
+    .map { it -> [it[1][1], it[0][1], it[0][2]] }
     // [DUMP: ch_hash_to_id_to_fasta_for_hash2kmer]
     //  ['3528776232794193794\n',
     //    MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC,
@@ -1266,7 +1269,7 @@ if (params.filter_bam_hashes) {
     tag "${hash_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/filter_unaligned_reads/${hash_id}", mode: 'copy'
+    publishDir "${params.outdir}/unaligned_hashes/", mode: 'copy'
 
     input:
     set val(hash), val(sample_ids), file(seqs_fasta) from ch_hash_to_seq_unaligned
@@ -1297,7 +1300,8 @@ if (params.filter_bam_hashes) {
    */
   if (params.csv_has_gtf_col) {
     ch_bam_filtered_for_featurecounts
-      .join ( ch_sample_id_to_gtf )
+      // Use cross, not join, so there are many hash-bam pairs
+      .cross ( ch_sample_id_to_gtf )
       .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
       .into { ch_sample_id_to_hash_to_bam_to_gtf }
 
@@ -1325,6 +1329,10 @@ if (params.filter_bam_hashes) {
          hash_cleaned = hashCleaner(hash)
          hash_id = "hash-${hash_cleaned}"
          featurecounts_id = "${hash_id}__${sample_id}"
+         // Hardcode the stranddness for nwo
+         unStranded = true
+         forwardStranded = false
+         reverseStranded false
          def featureCounts_direction = 0
          def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
          if (forwardStranded && !unStranded) {
