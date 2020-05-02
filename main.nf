@@ -874,7 +874,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .unique()
     .dump ( tag: 'unique_hashes' )
     .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
-    .into{ ch_hashes_for_sigs_with_hash; ch_hashes_for_hash2sig }
+    .into{ ch_hashes_for_sigs_with_hash }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1239,7 +1239,10 @@ if (params.filter_bam_hashes) {
     // .filter { it -> it[2].size() == 0 }
     // [hash, sample_id, ]
     .map { it -> it[0] }
-    .dump ( tag: 'unaligned_hashes', )
+    .dump ( tag: 'unaligned_hashes' )
+    .into { ch_hashes_for_hash2sig; ch_unaligned_hashes_for_concatenate_seqs }
+
+  ch_unaligned_hashes_for_concatenate_seqs
     .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
     .groupTuple ()
     .dump ( tag: 'ch_hash_to_seq_unaligned' )
