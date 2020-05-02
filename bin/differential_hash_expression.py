@@ -117,9 +117,8 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
 
 def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
     """If number of signatures is larger than specified, subsample to random"""
-    if subsample_groups is not None:
-        if len(sigs) > subsample_groups:
-            sigs = sigs.sample(subsample_groups, random_state=random_state)
+    if subsample_groups is not None and len(sigs) > subsample_groups:
+        sigs = sigs.sample(subsample_groups, random_state=random_state)
     return sigs
 
 
@@ -127,11 +126,14 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                  max_group_size=MAX_GROUP_SIZE, random_state=0,
                                  verbose=False, with_abundance=False, **kwargs):
     rows = annotations[group_col] == group1_name
+    logger.info(f'Number of samples in group1 ("{group1_name}"): {rows.sum()}')
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
+    logger.info(f'Group1 Samples: {group1_samples}')
 
     # Everything not in group 1
     group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
+    logger.info(f'Group2 Samples: {group2_samples}')
 
     group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
@@ -167,7 +169,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                          f" {metadata_csv}! These are some of the files we couldn't "
                          f"load:\n---\n{sketch_filenames}\n---\nMaybe the molecule or "
                          f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
-    sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
+    sketch_series = pd.Series(sketches, index=[x.name().split('__coding_reads_peptides')[0] for x in sketches])
     logger.info(f"Sketch series head: {sketch_series.head()}")
 
     # If group1 is provided, only do one hash enrichment
