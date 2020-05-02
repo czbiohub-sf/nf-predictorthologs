@@ -853,7 +853,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
     .unique()
-    .into{ ch_informative_hashes_flattened }
+    .into{ ch_hashes_for_sigs_with_hash; ch_hashes_for_hash2sig }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -873,7 +873,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
 
     input:
-    val(hash) from ch_informative_hashes_flattened
+    val(hash) from ch_hashes_for_sigs_with_hash
     file(sigs) from ch_all_signatures_flattened_for_finding_matches
 
     output:
@@ -1226,7 +1226,7 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 4 - convert hashes to k-mers
    */
-   if (params.protein_searcher == 'sourmash' && (params.hashes || params.diff_hash_expression)){
+   if ( params.hashes || params.diff_hash_expression ){
     // No protein fasta provided for searching for orthologs, need to
     // download refseq
     process hash2sig {
@@ -1236,13 +1236,13 @@ if (params.protein_searcher == 'sourmash'){
       publishDir "${params.outdir}/hash2sig/", mode: 'copy'
 
       input:
-      val(hash) from ch_hashes_for_hash2sig
+      set val(hash) from ch_hashes_for_hash2sig
 
       output:
-      set val(hash_id), file("${sig}") into ch_hash_sigs
+      set val(hash), file("${sig}") into ch_hash_sigs
 
       script:
-      hash_cleaned = hash.replaceAll('\\n', '')
+      hash_cleaned = hashCleaner(hash)
       hash_id = "hash-${hash_cleaned}"
       sig = "${hash_id}.sig"
       """
@@ -1257,6 +1257,13 @@ if (params.protein_searcher == 'sourmash'){
           hash.txt
       """
     }
+
+    ch_hash_sigs
+      .join ( ch_hash_to_group_for_joining_after_hash2sig )
+      .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
+      .into { ch_hash_sig_to_group }
+
+
   }
 
 
@@ -1330,16 +1337,19 @@ if (params.protein_searcher == 'sourmash'){
    tag "${reference_sbt_json.baseName}"
    label "process_low"
 
-   publishDir "${params.outdir}/sourmash/search", mode: 'copy'
+   publishDir "${params.outdir}/sourmash/search/${group}", mode: 'copy'
 
    input:
    set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
-   set val(hash_id), file(query_sig) from ch_hash_sigs
+   set val(hash), file(query_sig), val(group) from ch_hash_sig_to_group
 
    output:
    file("${hash_id}.csv")
 
    script:
+   hash_cleaned = hashCleaner(hash)
+   hash_id = "hash-${hash_cleaned}"
+   group_cleaned = groupCleaner(group)
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    """
    sourmash search \\
