@@ -874,7 +874,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .unique()
     .dump ( tag: 'unique_hashes' )
     .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
-    .into{ ch_hashes_for_sigs_with_hash }
+    .into{ ch_hashes_for_sigs_with_hash; ch_unique_hashes_from_diff_hash }
+
+  if (!params.filter_bam_hashes) {
+    ch_hashes_for_hash2sig = ch_unique_hashes_from_diff_hash
+  }
 
 
   ///////////////////////////////////////////////////////////////////////////////
