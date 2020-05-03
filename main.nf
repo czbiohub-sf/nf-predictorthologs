@@ -284,6 +284,9 @@ if (params.filter_bam_hashes) {
           .map{ row -> tuple(row.sample_id, file(row.gtf, checkIfExists: true)) }
           .ifEmpty { exit 1, "params.csv (${params.csv}) 'gtf' column was empty - no input files supplied" }
           .dump( tag: 'ch_sample_id_to_gtf' )
+          // [DUMP: ch_sample_id_to_gtf]
+          //    ['SRR306827_GSM752680_ppa_br_F_2',
+          //     Pan_paniscus.panpan1.1.97.gtf]
           .into { ch_sample_id_to_gtf }
 
         }
@@ -1262,16 +1265,22 @@ if (params.filter_bam_hashes) {
     .dump ( tag: 'ch_read_ids_mapped' )
     // Keep only cases where there were no aligned reads
     .filter { it -> it[2].size() == 0 }
-    .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log }
+    .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log; ch_read_ids_unmapped_for_files }
+
+  ch_read_ids_unmapped_for_files
+    .collectFile(newline: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
+      ["hash-${hashCleaner(it[0])}.txt", it[1] ]
+    }
+
+  ch_read_ids_unmapped_for_log
+    .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
 
   ch_read_ids_unmapped_for_hashes
-    // [hash, sample_id, ]
+    // [hash, sample_id, read_ids]
     .map { it -> it[0] }
     .dump ( tag: 'unaligned_hashes' )
     .into { ch_hashes_for_hash2sig; ch_unaligned_hashes_for_concatenate_seqs }
 
-  ch_read_ids_unmapped_for_log
-    .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
 
   ch_unaligned_hashes_for_concatenate_seqs
     .collect()
