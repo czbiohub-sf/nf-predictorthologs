@@ -243,7 +243,7 @@ if (params.filter_bam_hashes) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple("${file(row.sig).fileName}", row.sample_id, file(row.bam, checkIfExists: true)) }
+      .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
       .dump( tag: 'ch_sig_basename_to_id_and_bam' )
       .into { ch_sig_basename_to_id_and_bam }
@@ -294,6 +294,10 @@ if (params.filter_bam_hashes) {
 
 ch_orthology_types_header = Channel.fromPath("$baseDir/assets/orthology_types_header.txt", checkIfExists: true)
 orthology_type = params.fc_orthology_features_type
+// Hardcode the stranddness for nwo
+forwardStranded = params.forwardStranded
+reverseStranded = params.reverseStranded
+unStranded = params.unStranded
 
 ////////////////////////////////////////////////////
 /* --    Parse differential hash expression    -- */
@@ -961,11 +965,22 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
-  ch_sig_basename_to_hash_to_join_with_bams
-    .join ( ch_sig_basename_to_id_and_bam )
-    // Remove signature basename (item 0) from the channel
-    .map { it -> [it[1], it[2], it[3]] }
+  ch_sig_basename_to_id_and_bam
+    .cross ( ch_sig_basename_to_hash_to_join_with_bams )
+    .dump ( tag: 'ch_sig_basename_to_id_and_bam__to_hashes' )
+    // [DUMP: ch_sig_basename_to_id_and_bam__to_hashes]
+    //    [['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+    //      'SRR306827_GSM752680_ppa_br_F_2',
+    //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam],
+    //    ['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+    //      '36238050090537373\n']]
+    // Remove signature basename from the channel
+    .map { it -> [it[1][1], it[0][1], it[0][2]] }
     .dump ( tag: 'ch_hash_to_id_to_bam_for_filter_bam' )
+    // [DUMP: ch_hash_to_id_to_bam_for_filter_bam]
+    //    ['118143868109172351\n',
+    //      'SRR306827_GSM752680_ppa_br_F_2',
+    //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam]
     .set { ch_hash_to_id_to_bam_for_filter_bam }
 }
 
@@ -1092,12 +1107,13 @@ if (params.hashes) {
     .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
 
   ch_hash_to_id_to_bam_for_filter_bam
-    .join ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1] )
+    .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
     .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
     .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
 
   ch_bams_for_map_then_bioawk
     .map { it -> [it[0], it[1], it[3]] }
+    .dump ( tag: 'ch_bams_for_filter_reads_with_hashes_for_bioawak' )
     .into { ch_bams_for_filter_reads_with_hashes_for_bioawak }
 
   ch_bams_for_map_then_filter_bams
@@ -1212,8 +1228,8 @@ if (params.filter_bam_hashes) {
     hash_id = "hash-${hash_cleaned}"
     tag_id = "${sample_id}__${hash_id}"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
-    reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
-    read_ids_mapped = "${sample_id}__aligned_read_ids.txt"
+    reads_in_hashes_bam = "${tag_id}__reads_in_shared_hashes.bam"
+    read_ids_mapped = "${tag_id}__aligned_read_ids.txt"
     """
     samtools view -H ${bam} \\
       > header.sam
@@ -1303,7 +1319,13 @@ if (params.filter_bam_hashes) {
     ch_bam_filtered_for_featurecounts
       // Use cross, not join, so there are many hash-bam pairs
       .cross ( ch_sample_id_to_gtf )
-      .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
+      .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf')
+      // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
+      //    ['SRR306786_GSM752640_mml_lv_F_1',
+      //      '3498037875882751\n',
+      //      /SRR306786_GSM752640_mml_lv_F_1__reads_in_shared_hashes.bam,
+      //      'SRR306786_GSM752640_mml_lv_F_1',
+      //       Macaca_mulatta.Mmul_8.0.1.97.gtf]
       .into { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
@@ -1330,10 +1352,7 @@ if (params.filter_bam_hashes) {
          hash_cleaned = hashCleaner(hash)
          hash_id = "hash-${hash_cleaned}"
          featurecounts_id = "${hash_id}__${sample_id}"
-         // Hardcode the stranddness for nwo
-         unStranded = true
-         forwardStranded = false
-         reverseStranded false
+
          def featureCounts_direction = 0
          def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
          if (forwardStranded && !unStranded) {
@@ -1342,15 +1361,15 @@ if (params.filter_bam_hashes) {
              featureCounts_direction = 2
          }
          // Try to get real sample name
-         sample_name = bam_featurecounts.baseName - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-         orthology_qc = params.skiporthologyQC ? '' : "featureCounts -a $gtf -g $orthology -o ${bam_featurecounts.baseName}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts"
-         mod_orthology = params.skiporthologyQC ? '' : "cut -f 1,7 ${bam_featurecounts.baseName}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${bam_featurecounts.baseName}_orthology_counts_mqc.txt && mqc_features_stat.py ${bam_featurecounts.baseName}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${bam_featurecounts.baseName}_orthology_counts_gs_mqc.tsv"
+         sample_name = bam.baseName - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
+         orthology_qc = params.skiporthologyQC ? '' : "featureCounts -a $gtf -g $orthology_type -o ${bam.baseName}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
+         mod_orthology = params.skiporthologyQC ? '' : "cut -f 1,7 ${bam.baseName}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${bam.baseName}_orthology_counts_mqc.txt && mqc_features_stat.py ${bam.baseName}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${bam.baseName}_orthology_counts_gs_mqc.tsv"
          """
          featureCounts \\
             -a $gtf \\
             -g ${params.fc_group_features} \\
             -t ${params.fc_count_type} \\
-            -o ${bam_featurecounts.baseName}_gene.featureCounts.txt \\
+            -o ${bam.baseName}_gene.featureCounts.txt \\
             $extraAttributes \\
             -p \\
             -s $featureCounts_direction \\
