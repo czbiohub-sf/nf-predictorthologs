@@ -1260,7 +1260,7 @@ if (params.filter_bam_hashes) {
   ch_read_ids_mapped
     .dump ( tag: 'ch_read_ids_mapped' )
     // Keep only cases where there were no aligned reads
-    // .filter { it -> it[2].size() == 0 }
+    .filter { it -> it[2].size() == 0 }
     // [hash, sample_id, ]
     .map { it -> it[0] }
     .dump ( tag: 'unaligned_hashes' )
