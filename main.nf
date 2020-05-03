@@ -1112,16 +1112,16 @@ if (params.hashes) {
   ch_hash_to_id_to_bam_for_filter_bam
     .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
     .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
-    .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
+    .set { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
 
   ch_bams_for_map_then_bioawk
     .map { it -> [it[0], it[1], it[3]] }
     .dump ( tag: 'ch_bams_for_filter_reads_with_hashes_for_bioawak' )
-    .into { ch_bams_for_filter_reads_with_hashes_for_bioawak }
+    .set { ch_bams_for_filter_reads_with_hashes_for_bioawak }
 
   ch_bams_for_map_then_filter_bams
     .map { it -> [it[0], it[1], it[2]] }
-    .into { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
+    .set { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
 
   ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
 
@@ -1148,7 +1148,7 @@ if (params.hashes) {
     .dump ( tag: 'ch_hash_to_single_fasta_to_group' )
     .map { it -> [it[0], it[2], it[1]] }
     .dump ( tag: 'ch_protein_seq_for_diamond' )
-    .into { ch_protein_seq_for_diamond }
+    .set { ch_protein_seq_for_diamond }
 
 }
 
@@ -1589,7 +1589,7 @@ if (params.protein_searcher == 'sourmash'){
   ch_hash_sigs
     .join ( ch_hash_to_group_for_joining_after_hash2sig )
     .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
-    .into { ch_hash_sig_to_group }
+    .set { ch_hash_sig_to_group }
 
 
 
