@@ -1274,6 +1274,8 @@ if (params.filter_bam_hashes) {
     .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
 
   ch_unaligned_hashes_for_concatenate_seqs
+    .collect()
+    .dump ( tag: 'ch_unaligned_hashes_for_concatenate_seqs' )
     .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
     .groupTuple ()
     .dump ( tag: 'ch_hash_to_seq_unaligned' )
