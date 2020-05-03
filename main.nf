@@ -1352,7 +1352,7 @@ if (params.filter_bam_hashes) {
       .set { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
-         label 'process_medium'
+         label 'process_high'
          tag "${featurecounts_id}"
          publishDir "${params.outdir}/featureCounts", mode: "copy",
              saveAs: {filename ->
@@ -1394,6 +1394,7 @@ if (params.filter_bam_hashes) {
             -t ${params.fc_count_type} \\
             -o ${featurecounts_id}_gene.featureCounts.txt \\
             $extraAttributes \\
+            -T ${task.cpus} \\
             -p \\
             -s $featureCounts_direction \\
             $bam
