@@ -1353,7 +1353,7 @@ if (params.filter_bam_hashes) {
      process featureCounts {
          label 'process_low'
          tag "${featurecounts_id}"
-         publishDir "${params.outdir}/featureCounts", mode: "${params.publish_dir_mode}",
+         publishDir "${params.outdir}/featureCounts", mode: "copy",
              saveAs: {filename ->
                  if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
                  else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
