@@ -1362,7 +1362,7 @@ if (params.filter_bam_hashes) {
              }
 
          input:
-         set val(sample_id), file(gtf), val(hash), file(bam), from ch_sample_id_to_hash_to_bam_to_gtf
+         set val(sample_id), file(gtf), val(hash), file(bam) from ch_sample_id_to_hash_to_bam_to_gtf
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
