@@ -1262,10 +1262,16 @@ if (params.filter_bam_hashes) {
     .dump ( tag: 'ch_read_ids_mapped' )
     // Keep only cases where there were no aligned reads
     .filter { it -> it[2].size() == 0 }
+    .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log }
+
+  ch_read_ids_unmapped_for_hashes
     // [hash, sample_id, ]
     .map { it -> it[0] }
     .dump ( tag: 'unaligned_hashes' )
     .into { ch_hashes_for_hash2sig; ch_unaligned_hashes_for_concatenate_seqs }
+
+  ch_read_ids_unmapped_for_log
+    .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
 
   ch_unaligned_hashes_for_concatenate_seqs
     .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
