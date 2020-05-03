@@ -1337,7 +1337,7 @@ if (params.filter_bam_hashes) {
   /*
    * STEP 11 - Filter per-sample bams for aligned read ids
    */
-  if (params.csv_has_gtf_col) {
+  if (params.csv_has_gtf_col && ! params.skip_orthology_qc) {
     println "In params.csv_has_gtf_col"
 
     ch_sample_id_to_gtf
