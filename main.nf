@@ -1271,6 +1271,9 @@ if (params.filter_bam_hashes) {
     .collectFile(newLine: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
       ["hash-${hashCleaner(item[0])}.txt", item[1] ]
     }
+    .subscribe {
+      println "Wrote samples with unaligned hashes to ${it.name}"
+    }
 
   ch_read_ids_unmapped_for_log
     .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
