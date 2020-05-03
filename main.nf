@@ -1352,7 +1352,7 @@ if (params.filter_bam_hashes) {
       .set { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
-         label 'process_low'
+         label 'process_medium'
          tag "${featurecounts_id}"
          publishDir "${params.outdir}/featureCounts", mode: "copy",
              saveAs: {filename ->
