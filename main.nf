@@ -1191,11 +1191,10 @@ if (params.filter_bam_hashes) {
   ch_read_ids_with_hash
     .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1], remainder: true )
     // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
-    //    ['1814942943038227472\n',
-    //     'mouse_lung__aligned__AAAGATGCAGATCTGT',
-    //      mouse_lung__aligned__AAAGATGCAGATCTGT__hash-1814942943038227472__reads_ids_with_hash__regex_pattern.txt,
-    //     'mouse_lung__aligned__AAAGATGCAGATCTGT',
-    //      mouse_lung.bam]
+    //    ['117030662087159\n',
+    //     'SRR306777_GSM752631_mml_br_F_1',
+    //     hash-117030662087159__SRR306777_GSM752631_mml_br_F_1__reads_ids_with_hash__regex_pattern.txt,
+    //     SRR306777_GSM752631_mml_br_F_1Aligned.sortedByCoord.out.bam]
     .dump ( tag: 'ch_hash_sample_id_read_ids_bam_for_filter_bam' )
     .into { ch_hash_sample_id_read_ids_bam_for_filter_bam }
 
@@ -1221,7 +1220,6 @@ if (params.filter_bam_hashes) {
 
     output:
     set val(sample_id), val(hash), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
-    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
     hash_cleaned = hashCleaner(hash)
