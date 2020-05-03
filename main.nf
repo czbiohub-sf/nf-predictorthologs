@@ -276,7 +276,7 @@ if (params.filter_bam_hashes) {
       /* --            Parse GTF info                -- */
       ////////////////////////////////////////////////////
 
-      if (!params.skiporthologyQC && params.csv_has_gtf_col) {
+      if (!params.skip_orthology_qc && params.csv_has_gtf_col) {
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
           .fromPath(params.csv)
@@ -1385,8 +1385,8 @@ if (params.filter_bam_hashes) {
          }
          // Try to get real sample name
          sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-         orthology_qc = params.skiporthologyQC ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
-         mod_orthology = params.skiporthologyQC ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
+         orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
+         mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
          """
          featureCounts \\
             -a $gtf \\
