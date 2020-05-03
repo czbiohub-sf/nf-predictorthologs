@@ -1565,7 +1565,7 @@ if (params.protein_searcher == 'sourmash'){
     publishDir "${params.outdir}/hash2sig/", mode: 'copy'
 
     input:
-    set val(hash) from ch_hashes_for_hash2sig
+    val(hash) from ch_hashes_for_hash2sig
 
     output:
     set val(hash), file("${sig}") into ch_hash_sigs
