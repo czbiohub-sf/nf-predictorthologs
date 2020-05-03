@@ -1281,13 +1281,14 @@ if (params.filter_bam_hashes) {
   ch_read_ids_unmapped_for_hashes
     // [hash, sample_id, read_ids]
     .map { it -> it[0] }
+    .unique ()
     .dump ( tag: 'unaligned_hashes' )
     .into { ch_hashes_for_hash2sig; ch_unaligned_hashes_for_concatenate_seqs }
 
 
   ch_unaligned_hashes_for_concatenate_seqs
     .collect()
-    .dump ( tag: 'ch_unaligned_hashes_for_concatenate_seqs' )
+    .dump ( tag: 'unaligned_hashes_collected' )
     .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
     .groupTuple ()
     .dump ( tag: 'ch_hash_to_seq_unaligned' )
