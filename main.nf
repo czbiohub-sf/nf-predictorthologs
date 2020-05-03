@@ -1268,7 +1268,7 @@ if (params.filter_bam_hashes) {
     .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log; ch_read_ids_unmapped_for_files }
 
   ch_read_ids_unmapped_for_files
-    .collectFile(newline: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
+    .collectFile(newLine: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
       ["hash-${hashCleaner(it[0])}.txt", it[1] ]
     }
 
