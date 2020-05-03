@@ -1344,9 +1344,9 @@ if (params.filter_bam_hashes) {
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
-         file "${bam.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-         file "${bam.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
-         file "${bam.baseName}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
+         file "${featurecounts_id}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
+         file "${featurecounts_id}_gene.featureCounts.txt.summary" into featureCounts_logs
+         file "${featurecounts_id}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
 
          script:
          hash_cleaned = hashCleaner(hash)
@@ -1361,15 +1361,15 @@ if (params.filter_bam_hashes) {
              featureCounts_direction = 2
          }
          // Try to get real sample name
-         sample_name = bam.baseName - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-         orthology_qc = params.skiporthologyQC ? '' : "featureCounts -a $gtf -g $orthology_type -o ${bam.baseName}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
-         mod_orthology = params.skiporthologyQC ? '' : "cut -f 1,7 ${bam.baseName}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${bam.baseName}_orthology_counts_mqc.txt && mqc_features_stat.py ${bam.baseName}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${bam.baseName}_orthology_counts_gs_mqc.tsv"
+         sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
+         orthology_qc = params.skiporthologyQC ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
+         mod_orthology = params.skiporthologyQC ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
          """
          featureCounts \\
             -a $gtf \\
             -g ${params.fc_group_features} \\
             -t ${params.fc_count_type} \\
-            -o ${bam.baseName}_gene.featureCounts.txt \\
+            -o ${featurecounts_id}_gene.featureCounts.txt \\
             $extraAttributes \\
             -p \\
             -s $featureCounts_direction \\
