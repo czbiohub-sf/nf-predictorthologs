@@ -1339,9 +1339,9 @@ if (params.filter_bam_hashes) {
   if (params.csv_has_gtf_col) {
     println "In params.csv_has_gtf_col"
 
-    ch_bam_filtered_for_featurecounts
+    ch_sample_id_to_gtf
       // Use cross, not join, so there are many hash-bam pairs
-      .join ( ch_sample_id_to_gtf, remainder: true)
+      .combine ( ch_bam_filtered_for_featurecounts, by: 1)
       .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
       // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
       //    ['SRR306786_GSM752640_mml_lv_F_1',
