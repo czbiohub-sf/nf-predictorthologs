@@ -1341,7 +1341,7 @@ if (params.filter_bam_hashes) {
 
     ch_sample_id_to_gtf
       // Use cross, not join, so there are many hash-bam pairs
-      .combine ( ch_bam_filtered_for_featurecounts, by: 1)
+      .combine ( ch_bam_filtered_for_featurecounts, by: 0)
       .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
       // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
       //    ['SRR306786_GSM752640_mml_lv_F_1',
