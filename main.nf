@@ -1220,6 +1220,7 @@ if (params.filter_bam_hashes) {
 
     output:
     set val(sample_id), val(hash), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
+    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
     hash_cleaned = hashCleaner(hash)
