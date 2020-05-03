@@ -1112,7 +1112,7 @@ if (params.hashes) {
   ch_hash_to_id_to_bam_for_filter_bam
     .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
     .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
-    .set { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
+    .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
 
   ch_bams_for_map_then_bioawk
     .map { it -> [it[0], it[1], it[3]] }
