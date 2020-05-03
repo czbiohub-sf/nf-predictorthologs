@@ -1199,7 +1199,7 @@ if (params.filter_bam_hashes) {
     //     hash-117030662087159__SRR306777_GSM752631_mml_br_F_1__reads_ids_with_hash__regex_pattern.txt,
     //     SRR306777_GSM752631_mml_br_F_1Aligned.sortedByCoord.out.bam]
     .dump ( tag: 'ch_hash_sample_id_read_ids_bam_for_filter_bam' )
-    .into { ch_hash_sample_id_read_ids_bam_for_filter_bam }
+    .set { ch_hash_sample_id_read_ids_bam_for_filter_bam }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1348,7 +1348,7 @@ if (params.filter_bam_hashes) {
       //       Pan_paniscus.panpan1.1.97.gtf,
       //      '2655017856511517\n',
       //      hash-2655017856511517__SRR306827_GSM752680_ppa_br_F_2__reads_in_shared_hashes.bam]
-      .into { ch_sample_id_to_hash_to_bam_to_gtf }
+      .set { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
          label 'process_low'
