@@ -1344,11 +1344,10 @@ if (params.filter_bam_hashes) {
       .combine ( ch_bam_filtered_for_featurecounts, by: 0)
       .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
       // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
-      //    ['SRR306786_GSM752640_mml_lv_F_1',
-      //      '3498037875882751\n',
-      //      /SRR306786_GSM752640_mml_lv_F_1__reads_in_shared_hashes.bam,
-      //      'SRR306786_GSM752640_mml_lv_F_1',
-      //       Macaca_mulatta.Mmul_8.0.1.97.gtf]
+      //    ['SRR306827_GSM752680_ppa_br_F_2',
+      //       Pan_paniscus.panpan1.1.97.gtf,
+      //      '2655017856511517\n',
+      //      hash-2655017856511517__SRR306827_GSM752680_ppa_br_F_2__reads_in_shared_hashes.bam]
       .into { ch_sample_id_to_hash_to_bam_to_gtf }
 
      process featureCounts {
@@ -1363,7 +1362,7 @@ if (params.filter_bam_hashes) {
              }
 
          input:
-         set val(sample_id), val(hash), file(bam), file(gtf) from ch_sample_id_to_hash_to_bam_to_gtf
+         set val(sample_id), file(bam), val(hash), file(gtf) from ch_sample_id_to_hash_to_bam_to_gtf
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
