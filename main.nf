@@ -1396,7 +1396,9 @@ if (params.filter_bam_hashes) {
             -p \\
             -s $featureCounts_direction \\
             $bam
+         # Potentially count reads in orthologous gene features
          $orthology_qc
+         # Summarize orthologous genes for multqic
          $mod_orthology
          """
      }
