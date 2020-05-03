@@ -1178,7 +1178,7 @@ if (params.filter_bam_hashes) {
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
     hash_id = "hash-${hash_cleaned}"
-    tag_id = "${sample_id}__${hash_id}"
+    tag_id = "${hash_id}__${sample_id}"
     read_ids_with_hash = "${tag_id}__reads_ids_with_hash__regex_pattern.txt"
     read_headers_with_hash = "${tag_id}__reads_headers_with_hash.txt"
     """
@@ -1189,7 +1189,7 @@ if (params.filter_bam_hashes) {
   }
 
   ch_read_ids_with_hash
-    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1] )
+    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1], remainder: true )
     // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
     //    ['1814942943038227472\n',
     //     'mouse_lung__aligned__AAAGATGCAGATCTGT',
@@ -1214,7 +1214,7 @@ if (params.filter_bam_hashes) {
     tag "${tag_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/bioawk_filter_bam_for_reads_with_hashes/", mode: 'copy'
+    publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
     set val(hash), val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
@@ -1226,7 +1226,7 @@ if (params.filter_bam_hashes) {
     script:
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    tag_id = "${sample_id}__${hash_id}"
+    tag_id = "${hash_id}__${sample_id}"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
     reads_in_hashes_bam = "${tag_id}__reads_in_shared_hashes.bam"
     read_ids_mapped = "${tag_id}__aligned_read_ids.txt"
