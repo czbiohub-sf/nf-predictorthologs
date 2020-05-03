@@ -296,7 +296,7 @@ if (params.filter_bam_hashes) {
 }
 
 ch_orthology_types_header = Channel.fromPath("$baseDir/assets/orthology_types_header.txt", checkIfExists: true)
-orthology_type = params.fc_orthology_features_type
+orthology_type = params.fc_orthology_type
 // Hardcode the stranddness for nwo
 forwardStranded = params.forwardStranded
 reverseStranded = params.reverseStranded
