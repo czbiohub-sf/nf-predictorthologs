@@ -918,7 +918,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     hash_id = "hash-${hash_cleaned}"
     matches = "${hash_id}__matches.txt"
     """
-    rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} ${sigs} \\
+    rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} . \\
       > ${matches}
     """
   }
