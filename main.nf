@@ -431,7 +431,7 @@ diff_hash_with_abundance = params.diff_hash_with_abundance
 diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
-
+diff_hash_max_group_size = params.diff_hash_max_group_size
 
 
 // Utility functions for sanitizing output
@@ -471,6 +471,7 @@ if (params.diff_hash_expression) summary['Diff Hash abundance?']            = pa
 if (params.diff_hash_expression) summary['Diff Hash C']                     = params.diff_hash_inverse_regularization_strength
 if (params.diff_hash_expression) summary['Diff Hash solver']                = params.diff_hash_solver
 if (params.diff_hash_expression) summary['Diff Hash penalty']               = params.diff_hash_penalty
+if (params.diff_hash_expression) summary['Diff Hash Max group size']        = params.diff_hash_max_group_size
 if (params.protein_fastas) summary['Input protein fastas']                  = params.protein_fastas
 // How the DIAMOND search database is created
 if (params.proteome_search_fasta) summary['Proteome search ref']            = params.proteome_search_fasta
@@ -853,7 +854,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         --use-sig-basename \\
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
-        --max-group-size 100 \\
+        --max-group-size ${diff_hash_max_group_size} \\
         ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
         > '${group_cleaned}.log'
