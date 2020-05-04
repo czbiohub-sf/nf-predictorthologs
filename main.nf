@@ -243,6 +243,7 @@ if (params.filter_bam_hashes) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
+      .dump( 'filter_bam_hashes_csv' )
       .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
       .dump( tag: 'ch_sig_basename_to_id_and_bam' )
