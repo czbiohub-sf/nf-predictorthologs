@@ -976,7 +976,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       sample_id = "${group_cleaned}__${hash_id}"
       matches = "${sample_id}__matches.txt"
       """
-      rg --files-with-matches ${hash_cleaned} . > ${matches}
+      rg --files-with-matches ${hash_cleaned} *.sig > ${matches}
       """
     }
     ch_is_hash_in_unaligned
