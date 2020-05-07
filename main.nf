@@ -991,9 +991,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
       ch_hashes_sigs_branched
         .unaligned
-        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-        .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-        .set { ch_group_hash_sigs_to_query }
+        .map { it -> it[0] }
+        .dump ( tag: 'ch_hashes_for_hash2sig__from_is_hash_in_unaligned' )
+        .set { ch_hashes_for_hash2sig }
 
       ch_hashes_sigs_branched
         .aligned
