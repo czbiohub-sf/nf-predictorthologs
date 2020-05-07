@@ -939,7 +939,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     * STEP 7 - Filter hashes for only unaligned ones
     */
     process is_hash_in_unaligned {
-      tag "${sample_id}"
+      tag "${hash_id}"
       label "process_low"
 
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
@@ -957,7 +957,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       matches = "${hash_id}__matches.txt"
       """
       rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
-        > ${matches}
+        > ${matches} \\
+        || touch ${matches}
+      # If no matches found, touch the ${matches} file to avoid an error
       """
     }
     ch_is_hash_in_unaligned
