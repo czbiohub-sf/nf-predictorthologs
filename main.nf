@@ -966,7 +966,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       set val(group), file(group_unaligned_sigs), val(hash) from ch_group_to_hash_with_group_unaligned_sigs
 
       output:
-      val(hash) into ch_hash_sigs_in_unaligned
+      set val(hash), file(matches) into ch_is_hash_in_unaligned
       file(matches)
 
       script:
@@ -978,12 +978,14 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       rg --files-with-matches ${hash_cleaned} . > ${matches}
       """
     }
-    ch_hash_sigs_in_unaligned
+    ch_is_hash_in_unaligned
       .dump( tag: 'ch_hash_sigs_in_unaligned' )
       // Check that matches are nonempty
       .branch{
-        aligned: it[4].size() == 0
-        unaligned: it[4].size() > 0
+        // Hash was not present in any unaligned reads
+        aligned: it[1].size() == 0
+        // Hash was present in one or more unaligned reads
+        unaligned: it[1].size() > 0
       }
       .set{ ch_hashes_sigs_branched }
 
@@ -999,7 +1001,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         .dump ( tag: 'ch_hashes_in_group_aligned' )
         .set { ch_hashes_in_group_aligned }
 
-        ch_hashes_for_hash2sig
+
   }  else {
         // Search all hashes
       ch_group_hash_sigs_to_query = ch_group_to_hash_sig
