@@ -984,10 +984,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         .dump ( tag: 'ch_aligned_sigs_with_hash' )
         .set { ch_aligned_sigs_with_hash }
 
+    ch_sigs_with_hash_to_convert_to_seqs = ch_aligned_sigs_with_hash
 
-  }  else {
-        // Search all hashes
-      ch_group_hash_sigs_to_query = ch_group_to_hash_sig
   }
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1023,9 +1021,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-  if (params.csv_has_is_aligned_col) {
-    ch_sigs_with_hash_to_convert_to_seqs = ch_aligned_sigs_with_hash
-  } else {
+  if (!params.csv_has_is_aligned_col) {
     ch_sigs_with_hash_to_convert_to_seqs = ch_sigs_with_hash
   }
 
