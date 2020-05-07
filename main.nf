@@ -294,11 +294,11 @@ if (params.filter_bam_hashes) {
             .splitCsv(header:true)
             .filter{ row -> row.is_aligned == 'unaligned' }
             .dump( tag: 'csv_unaligned' )
-            .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
+            .map{ row -> file(row.sig, checkIfExists: true) }
             .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-            .groupTuple()
-            .dump( tag: 'ch_per_group_unaligned_sig' )
-            .set{ ch_per_group_unaligned_sig }
+            .collect()
+            .dump( tag: 'ch_unaligned_sigs_flattened_for_finding_matches' )
+            .set{ ch_unaligned_sigs_flattened_for_finding_matches }
 
           ch_csv_is_aligned.unaligned
             .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -921,7 +921,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .unique()
     .dump ( tag: 'unique_hashes' )
     .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
-    .into{ ch_hashes_for_sigs_with_hash; ch_unique_hashes_from_diff_hash }
+    .into{ ch_hashes_for_sigs_with_hash; ch_unique_hashes_from_diff_hash; ch_hashes_for_unaligned_sigs_with_hash }
 
   if (!params.filter_bam_hashes) {
     ch_hashes_for_hash2sig = ch_unique_hashes_from_diff_hash
@@ -963,11 +963,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), val(hash) from ch_group_to_hash_with_group_unaligned_sigs
+      val(hash) from ch_hashes_for_unaligned_sigs_with_hash
+      file(sigs) from ch_unaligned_sigs_flattened_for_finding_matches
 
       output:
       set val(hash), file(matches) into ch_is_hash_in_unaligned
-      file(matches)
 
       script:
       group_cleaned = groupCleaner(group)
@@ -976,7 +976,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       sample_id = "${group_cleaned}__${hash_id}"
       matches = "${sample_id}__matches.txt"
       """
-      rg --files-with-matches ${hash_cleaned} *.sig > ${matches}
+      rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
+        > ${matches}
       """
     }
     ch_is_hash_in_unaligned
