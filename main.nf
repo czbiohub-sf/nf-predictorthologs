@@ -998,9 +998,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
       ch_hashes_sigs_branched
         .aligned
-        .map { it -> tuple(it[0], it[1], it[2]) }
-        .dump ( tag: 'ch_hashes_in_group_aligned' )
-        .set { ch_hashes_in_group_aligned }
+        .dump ( tag: 'ch_aligned_sigs_with_hash' )
+        .set { ch_aligned_sigs_with_hash }
 
 
   }  else {
@@ -1029,7 +1028,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     file(sigs) from ch_all_signatures_flattened_for_finding_matches
 
     output:
-    set val(hash), file("*__matches.txt") into ch_sigs_with_hash
+    set val(hash), file(matches) into ch_sigs_with_hash
 
     script:
     hash_cleaned = hashCleaner(hash)
@@ -1041,7 +1040,13 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-  ch_sigs_with_hash
+  if (params.csv_has_is_aligned_col) {
+    ch_sigs_with_hash_to_convert_to_seqs = ch_aligned_sigs_with_hash
+  } else {
+    ch_sigs_with_hash_to_convert_to_seqs = ch_sigs_with_hash
+  }
+
+  ch_sigs_with_hash_to_convert_to_seqs
     .map { it -> [it[1].splitText(), it[0]] }
     .dump ( tag: 'sig_basenames_to_hash' )
     .transpose()
