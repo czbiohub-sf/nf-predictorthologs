@@ -928,24 +928,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 
   if ( params.csv_has_is_aligned_col ) {
-    ch_hash_to_group_for_finding_matches_unaligned
-      // swap first and second items
-      .map{ it -> [it[1], it[0] ] }
-      .set{ ch_group_to_hash }
-
-    ch_per_group_unaligned_sig
-      .join( ch_group_to_hash )
-      // [DUMP: ch_group_to_hash_sig]
-      // ['monocyte',
-      //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
-      // '2852067181280790833\n']
-      .dump( tag: 'ch_group_to_hash_with_group_unaligned_sigs' )
-      .into{ ch_group_to_hash_with_group_unaligned_sigs }
-
     ///////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////
     /* --                                                                     -- */
