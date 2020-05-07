@@ -972,6 +972,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       script:
       group_cleaned = groupCleaner(group)
       hash_cleaned = hashCleaner(hash)
+      hash_id = "hash-${hash_cleaned}"
       sample_id = "${group_cleaned}__${hash_id}"
       matches = "${sample_id}__matches.txt"
       """
