@@ -1234,7 +1234,7 @@ if (params.hashes) {
     .map { it -> [it[0], it[2]] }
     .dump ( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond__no_fasta_id' )
     .groupTuple()
-    .join ( ch_hash_to_group_for_joining_after_hash2kmer )
+    .join ( ch_hash_to_group_for_joining_after_hash2kmer, remainder: true )
     // [DUMP: ch_protein_seq_for_diamond]
     //    ['4122771730240801637\n',
     //      [hash-4122771730240801637__MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC__sequences.fasta,
@@ -1698,7 +1698,7 @@ if (params.protein_searcher == 'sourmash'){
   }
 
   ch_hash_sigs
-    .join ( ch_hash_to_group_for_joining_after_hash2sig )
+    .join ( ch_hash_to_group_for_joining_after_hash2sig, remainder: true )
     .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
     .set { ch_hash_sig_to_group }
 
