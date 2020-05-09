@@ -1714,7 +1714,7 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  process sourmash_db_compute {
+  process sourmash_compute {
    tag "${sample_id}"
    label "process_high"
 
@@ -1747,7 +1747,7 @@ if (params.protein_searcher == 'sourmash'){
    """
  }
 
-  process sourmash_db_index {
+  process sourmash_index {
     tag "${reference_proteome_sig.baseName}"
     label "process_low"
 
@@ -1770,7 +1770,7 @@ if (params.protein_searcher == 'sourmash'){
     """
   }
 
-  process sourmash_db_search {
+  process sourmash_search {
    tag "${group}_${hash_id}"
    label "process_low"
 
