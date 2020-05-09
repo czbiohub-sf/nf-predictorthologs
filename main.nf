@@ -983,45 +983,48 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         .dump ( tag: 'ch_aligned_sigs_with_hash' )
         .set { ch_aligned_sigs_with_hash }
 
-    ch_sigs_with_hash_to_convert_to_seqs = ch_hash_to_matching_unaligned_sigs
+    ch_hash_to_matching_unaligned_sigs
+      .map { it -> it[0] }
+      .unique()
+      .set { ch_hashes_for_hash2sig }
 
-  } else {
+  }
 
-      ///////////////////////////////////////////////////////////////////////////////
-      ///////////////////////////////////////////////////////////////////////////////
-      /* --                                                                     -- */
-      /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
-      /* --                                                                     -- */
-      ///////////////////////////////////////////////////////////////////////////////
-      ///////////////////////////////////////////////////////////////////////////////
-      /*
-      * STEP 7 - Find signatures containing hashes
-      */
-      process sigs_with_hash {
-        tag "${hash_id}"
-        label "process_low"
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Find signatures containing hashes
+  */
+  process sigs_with_hash {
+    tag "${hash_id}"
+    label "process_low"
 
-        publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
+    publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
 
-        input:
-        val(hash) from ch_hashes_for_sigs_with_hash
-        file(sigs) from ch_all_signatures_flattened_for_finding_matches
+    input:
+    val(hash) from ch_hashes_for_sigs_with_hash
+    file(sigs) from ch_all_signatures_flattened_for_finding_matches
 
-        output:
-        set val(hash), file(matches) into ch_sigs_with_hash
+    output:
+    set val(hash), file(matches) into ch_sigs_with_hash
 
-        script:
-        hash_cleaned = hashCleaner(hash)
-        hash_id = "hash-${hash_cleaned}"
-        matches = "${hash_id}__matches.txt"
-        """
-        rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
-          > ${matches}
-        """
-      }
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    matches = "${hash_id}__matches.txt"
+    """
+    rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
+      > ${matches}
+    """
+  }
 
-      ch_sigs_with_hash_to_convert_to_seqs = ch_sigs_with_hash
-
+  if (!params.csv_has_is_aligned_col) {
+    ch_sigs_with_hash_to_convert_to_seqs = ch_sigs_with_hash
   }
 
   ch_sigs_with_hash_to_convert_to_seqs
@@ -1388,8 +1391,12 @@ if (params.filter_bam_hashes) {
     .map { it -> it[0] }
     .unique ()
     .dump ( tag: 'unaligned_hashes' )
-    .into { ch_hashes_for_hash2sig; ch_unaligned_hashes_for_concatenate_seqs }
+    .into { ch_hashes_for_hash2sig_maybe ; ch_unaligned_hashes_for_concatenate_seqs }
 
+  if ( !params.csv_has_is_aligned_col ) {
+    ch_hashes_for_hash2sig_maybe
+      .set { ch_hashes_for_hash2sig }
+  }
 
   ch_unaligned_hashes_for_concatenate_seqs
     .collect()
