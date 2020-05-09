@@ -1771,7 +1771,7 @@ if (params.protein_searcher == 'sourmash'){
   }
 
   process sourmash_db_search {
-   tag "${reference_sbt_json.baseName}"
+   tag "${group}_${hash_id}"
    label "process_low"
 
    publishDir "${params.outdir}/sourmash/search/${group}", mode: 'copy'
