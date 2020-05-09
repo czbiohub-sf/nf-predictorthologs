@@ -1023,11 +1023,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-  if (!params.csv_has_is_aligned_col) {
-    ch_sigs_with_hash_to_convert_to_seqs = ch_sigs_with_hash
-  }
-
-  ch_sigs_with_hash_to_convert_to_seqs
+  ch_sigs_with_hash
     .map { it -> [it[1].splitText(), it[0]] }
     .dump ( tag: 'sig_basenames_to_hash' )
     .transpose()
