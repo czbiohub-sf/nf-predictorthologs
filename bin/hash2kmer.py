@@ -15,7 +15,7 @@ import csv
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args
 from sourmash.sourmash_args import calculate_moltype
-from khtools.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
+from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
 NOTIFY_EVERY_BP=1e7
 
