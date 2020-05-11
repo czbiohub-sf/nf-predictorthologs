@@ -1070,25 +1070,25 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
-  ch_sig_basename_to_id_and_bam
-    .cross ( ch_sig_basename_to_hash_to_join_with_bams )
-    .dump ( tag: 'ch_sig_basename_to_id_and_bam__to_hashes' )
-    // [DUMP: ch_sig_basename_to_id_and_bam__to_hashes]
-    //    [['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-    //      'SRR306827_GSM752680_ppa_br_F_2',
-    //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam],
-    //    ['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-    //      '36238050090537373\n']]
-    // Remove signature basename from the channel
-    .map { it -> [it[1][1], it[0][1], it[0][2]] }
-    .dump ( tag: 'ch_hash_to_id_to_bam_for_filter_bam' )
-    // [DUMP: ch_hash_to_id_to_bam_for_filter_bam]
-    //    ['118143868109172351\n',
-    //      'SRR306827_GSM752680_ppa_br_F_2',
-    //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam]
-    .set { ch_hash_to_id_to_bam_for_filter_bam }
-
-
+  if (params.filter_bam_hashes) {
+    ch_sig_basename_to_id_and_bam
+      .cross ( ch_sig_basename_to_hash_to_join_with_bams )
+      .dump ( tag: 'ch_sig_basename_to_id_and_bam__to_hashes' )
+      // [DUMP: ch_sig_basename_to_id_and_bam__to_hashes]
+      //    [['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+      //      'SRR306827_GSM752680_ppa_br_F_2',
+      //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam],
+      //    ['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
+      //      '36238050090537373\n']]
+      // Remove signature basename from the channel
+      .map { it -> [it[1][1], it[0][1], it[0][2]] }
+      .dump ( tag: 'ch_hash_to_id_to_bam_for_filter_bam' )
+      // [DUMP: ch_hash_to_id_to_bam_for_filter_bam]
+      //    ['118143868109172351\n',
+      //      'SRR306827_GSM752680_ppa_br_F_2',
+      //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam]
+      .set { ch_hash_to_id_to_bam_for_filter_bam }
+  }
 }
 
 
