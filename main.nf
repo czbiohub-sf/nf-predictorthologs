@@ -273,43 +273,6 @@ if (params.filter_bam_hashes) {
           .into { ch_unaligned_sig_fasta }
       }
 
-
-      ////////////////////////////////////////////////////
-      /* --         Parse gene counting       -- */
-      ////////////////////////////////////////////////////
-      if (params.csv_has_is_aligned_col) {
-        if (params.csv) {
-          Channel
-            .fromPath ( params.csv )
-            .splitCsv ( header:true )
-            .branch { row ->
-              aligned: row.is_aligned == "aligned"
-              unaligned: row.is_aligned == "unaligned"
-            }
-            .set { ch_csv_is_aligned }
-
-            // Create channel of signatures per group
-          Channel
-            .fromPath(params.csv)
-            .splitCsv(header:true)
-            .filter{ row -> row.is_aligned == 'unaligned' }
-            .dump( tag: 'csv_unaligned' )
-            .map{ row -> file(row.sig, checkIfExists: true) }
-            .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-            .collect()
-            .dump( tag: 'ch_unaligned_sigs_flattened_for_finding_matches' )
-            .set{ ch_unaligned_sigs_flattened_for_finding_matches }
-
-          ch_csv_is_aligned.unaligned
-            .dump( tag: 'ch_csv_is_aligned.unaligned' )
-            .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
-            .dump( tag: 'ch_unaligned_sig_fasta' )
-            .into { ch_unaligned_sig_fasta }
-
-        } else {
-          exit 1, "Must provide --csv when doing filtering for aligned/unaligned hashes"
-        }
-      }
       ////////////////////////////////////////////////////
       /* --            Parse GTF info                -- */
       ////////////////////////////////////////////////////
@@ -330,6 +293,43 @@ if (params.filter_bam_hashes) {
         }
   } else {
     exit 1, "Must provide --csv when filtering bams for hashes"
+  }
+}
+
+////////////////////////////////////////////////////
+/* --         Parse gene counting       -- */
+////////////////////////////////////////////////////
+if (params.csv_has_is_aligned_col) {
+  if (params.csv) {
+    Channel
+      .fromPath ( params.csv )
+      .splitCsv ( header:true )
+      .branch { row ->
+        aligned: row.is_aligned == "aligned"
+        unaligned: row.is_aligned == "unaligned"
+      }
+      .set { ch_csv_is_aligned }
+
+      // Create channel of signatures per group
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .filter{ row -> row.is_aligned == 'unaligned' }
+      .dump( tag: 'csv_unaligned' )
+      .map{ row -> file(row.sig, checkIfExists: true) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .collect()
+      .dump( tag: 'ch_unaligned_sigs_flattened_for_finding_matches' )
+      .set{ ch_unaligned_sigs_flattened_for_finding_matches }
+
+    ch_csv_is_aligned.unaligned
+      .dump( tag: 'ch_csv_is_aligned.unaligned' )
+      .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
+      .dump( tag: 'ch_unaligned_sig_fasta' )
+      .into { ch_unaligned_sig_fasta }
+
+  } else {
+    exit 1, "Must provide --csv when doing filtering for aligned/unaligned hashes"
   }
 }
 
