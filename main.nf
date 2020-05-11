@@ -1521,139 +1521,6 @@ if (params.filter_bam_hashes) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
-/* --       PREPARE PROTEIN SEQUENCES FOR SEARCHING WITH DIAMOND          -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'diamond') {
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                      PREPARE TAXA FOR DIAMOND                       -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 6 - unzip taxonomy information files for input to DIAMOND
-   */
-  if (!params.diamond_database ){
-    process diamond_prepare_taxa {
-      tag "${taxondmp_zip.baseName}"
-      label "process_low"
-
-      publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
-
-      input:
-      file(taxondmp_zip) from ch_diamond_taxdmp_zip
-
-      output:
-      file("nodes.dmp") into ch_diamond_taxonnodes
-      file("names.dmp") into ch_diamond_taxonnames
-
-      script:
-      """
-      7z x ${taxondmp_zip}
-      """
-    }
-  }
-
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 7 - make peptide search database for DIAMOND
-   */
-  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
-    process diamond_makedb {
-     tag "${reference_proteome.baseName}"
-     label "process_low"
-
-     publishDir "${params.outdir}/diamond/", mode: 'copy'
-
-     input:
-     file(reference_proteome) from ch_diamond_reference_fasta
-     file(taxonnodes) from ch_diamond_taxonnodes
-     file(taxonnames) from ch_diamond_taxonnames
-     file(taxonmap_gz) from ch_diamond_taxonmap_gz
-
-     output:
-     file("${reference_proteome.simpleName}_db.dmnd") into ch_diamond_db
-
-     script:
-     """
-     diamond makedb \\
-         -d ${reference_proteome.simpleName}_db \\
-         --taxonmap ${taxonmap_gz} \\
-         --taxonnodes ${taxonnodes} \\
-         --taxonnames ${taxonnames} \\
-         --in ${reference_proteome}
-     """
-   }
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 8 - Search DIAMOND database for closest match to
-   */
-  process diamond_blastp {
-    tag "${sample_id}"
-    label "process_medium"
-
-    publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
-
-    input:
-    // Basenames from dumped channel:
-    // [DUMP: ch_query_protein_sequences_with_diamond_db]
-    //   [ENSPPYT00000000455__molecule-dayhoff,
-    //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
-    //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
-    file(diamond_db) from ch_diamond_db.collect()
-    set val(hash), val(group), file(coding_peptides) from ch_protein_seq_for_diamond
-
-    output:
-    file(tsv) into ch_diamond_blastp_output
-
-    script:
-    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
-    if (hash) {
-      hash_cleaned = hash.replaceAll('\\n', '')
-      sample_id = "${group_cleaned}__hash-${hash_cleaned}"
-      subdir = "${group_cleaned}"
-    }
-    else {
-      sample_id = "${group_cleaned}"
-      subdir = ""
-    }
-    tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
-    output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
-    """
-    diamond blastp \\
-        ${output_format} \\
-        --threads ${task.cpus} \\
-        --max-target-seqs 3 \\
-        --db ${diamond_db} \\
-        --evalue 0.00001  \\
-        --query ${coding_peptides} \\
-        > ${tsv}
-    """
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
 /* --            PREPARE HASHES FOR SEARCHING WITH SOURMASH               -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
@@ -1803,6 +1670,141 @@ if (params.protein_searcher == 'sourmash'){
  }
 
 }
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --       PREPARE PROTEIN SEQUENCES FOR SEARCHING WITH DIAMOND          -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+if (params.protein_searcher == 'diamond') {
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                      PREPARE TAXA FOR DIAMOND                       -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (!params.diamond_database ){
+    process diamond_prepare_taxa {
+      tag "${taxondmp_zip.baseName}"
+      label "process_low"
+
+      publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+      input:
+      file(taxondmp_zip) from ch_diamond_taxdmp_zip
+
+      output:
+      file("nodes.dmp") into ch_diamond_taxonnodes
+      file("names.dmp") into ch_diamond_taxonnames
+
+      script:
+      """
+      7z x ${taxondmp_zip}
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 7 - make peptide search database for DIAMOND
+   */
+  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
+    process diamond_makedb {
+     tag "${reference_proteome.baseName}"
+     label "process_low"
+
+     publishDir "${params.outdir}/diamond/", mode: 'copy'
+
+     input:
+     file(reference_proteome) from ch_diamond_reference_fasta
+     file(taxonnodes) from ch_diamond_taxonnodes
+     file(taxonnames) from ch_diamond_taxonnames
+     file(taxonmap_gz) from ch_diamond_taxonmap_gz
+
+     output:
+     file("${reference_proteome.simpleName}_db.dmnd") into ch_diamond_db
+
+     script:
+     """
+     diamond makedb \\
+         -d ${reference_proteome.simpleName}_db \\
+         --taxonmap ${taxonmap_gz} \\
+         --taxonnodes ${taxonnodes} \\
+         --taxonnames ${taxonnames} \\
+         --in ${reference_proteome}
+     """
+   }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 8 - Search DIAMOND database for closest match to
+   */
+  process diamond_blastp {
+    tag "${sample_id}"
+    label "process_medium"
+
+    publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
+
+    input:
+    // Basenames from dumped channel:
+    // [DUMP: ch_query_protein_sequences_with_diamond_db]
+    //   [ENSPPYT00000000455__molecule-dayhoff,
+    //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
+    //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
+    file(diamond_db) from ch_diamond_db.collect()
+    set val(hash), val(group), file(coding_peptides) from ch_protein_seq_for_diamond
+
+    output:
+    file(tsv) into ch_diamond_blastp_output
+
+    script:
+    group_cleaned = group.replaceAll(' ', '_').replaceAll('/', '-').toLowerCase()
+    if (hash) {
+      hash_cleaned = hash.replaceAll('\\n', '')
+      sample_id = "${group_cleaned}__hash-${hash_cleaned}"
+      subdir = "${group_cleaned}"
+    }
+    else {
+      sample_id = "${group_cleaned}"
+      subdir = ""
+    }
+    tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
+    output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
+    """
+    diamond blastp \\
+        ${output_format} \\
+        --threads ${task.cpus} \\
+        --max-target-seqs 3 \\
+        --db ${diamond_db} \\
+        --evalue 0.00001  \\
+        --query ${coding_peptides} \\
+        > ${tsv}
+    """
+  }
+}
+
 
 
 
