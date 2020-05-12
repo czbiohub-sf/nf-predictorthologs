@@ -135,12 +135,12 @@ if (params.hashes) {
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
-      .map{ row -> tuple("hash", row.replaceAll("\\s+", "") )}
+      .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash")}
       .transpose()
-      .into { ch_group_to_hashes_for_joining; ch_group_to_hashes_for_hash2kmer }
+      .into { ch_hash_to_group_for_joining_after_hash2kmer; ch_group_to_hashes_for_hash2kmer }
 
   ch_group_to_hashes_for_hash2kmer
-    .map{ it -> it[1] }
+    .map{ it -> it[0] }
     .into{ ch_hashes_for_hash2kmer; ch_hashes_for_hash2sig }
 }
 
@@ -221,18 +221,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 }
 
-if (params.hashes){
-  Channel.fromPath(params.hashes)
-      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText()
-      .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
-      .transpose()
-      .into { ch_hashes_to_group_for_joining; ch_hashes_to_group_for_hash2kmer }
 
-  ch_hashes_to_group_for_hash2kmer
-    .map{ it -> it[0] }
-    .set{ ch_hashes_for_hash2kmer }
-}
 
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
@@ -1137,18 +1126,43 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 if (params.hashes) {
   // Combine the extracted hashes with the known proteins
   ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
+    // Get just the fasta file
+    .map { it -> it[1] }
     .collect()           // make a single flat list
-    .map{ it -> [it] }   // Nest within a list so the next step does what I want
-    .set{ ch_protein_fastas_flat_list }
+    .dump ( tag: 'ch_protein_fastas_collected' )
+    // [DUMP: ch_protein_fastas_collected]
+    //    ['10X_P4_2__unaligned__TCAGCTCGTATGCTTG',
+    //        [10X_P4_2__unaligned__TCAGCTCGTATGCTTG__coding_reads_peptides.fasta],
+    //    '10X_P4_2__unaligned__AGTAGTCGTGCACCAC',
+    //        [10X_P4_2__unaligned__AGTAGTCGTGCACCAC__coding_reads_peptides.fasta],
+    //    '10X_P4_2__unaligned__TAAGTGCGTGTGAATA',
+    //        [10X_P4_2__unaligned__TAAGTGCGTGTGAATA__coding_reads_peptides.fasta],
+    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__ATCTGCCCATAGAAAC',
+    //        [MACA_24m_M_HEPATOCYTES_58__unaligned__ATCTGCCCATAGAAAC__coding_reads_peptides.fasta],
+    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__AACGTTGCAATAAGCA',
+    //        [MACA_24m_M_HEPATOCYTES_58__unaligned__AACGTTGCAATAAGCA__coding_reads_peptides.fasta],
+    //    '10X_P4_2__unaligned__GGTATTGAGCAGCGTA',
+    //        [10X_P4_2__unaligned__GGTATTGAGCAGCGTA__coding_reads_peptides.fasta],
+    //    '10X_P4_2__unaligned__ACACCAACAGGCAGTA',
+    //         [10X_P4_2__unaligned__ACACCAACAGGCAGTA__coding_reads_peptides.fasta],
+    //    '10X_P7_0__unaligned__GTGAAGGCAAACAACA',
+    //        [10X_P7_0__unaligned__GTGAAGGCAAACAACA__coding_reads_peptides.fasta],
+    //    '10X_P4_2__unaligned__GAAACTCAGCGTTCCG',
+    //        [10X_P4_2__unaligned__GAAACTCAGCGTTCCG__coding_reads_peptides.fasta]]
+    .map{ it -> [it] }   // Nest within a list so the join/combine does it on all
+    .dump ( tag: 'ch_protein_fastas_collected_transposed_nested' )
+    .set{ ch_protein_fastas_nested_list }
 
   ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_flat_list )
-      .set { ch_hashes_with_fastas_for_hash2kmer }
+      .combine( ch_protein_fastas_nested_list )
+      .dump ( tag: 'hashes_combined_with_fastas' )
+      .map { it -> tuple(it[0], 'allfastas', it[1])}
+      .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
+      .set { ch_hash_to_id_to_fasta_for_hash2kmer }
       // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
+      // [1, "sample_id1", ["a", "b", "c"]]
+      // [2, "sample_id2", ["a", "b", "c"]]
+      // [3, "sample_id3", ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
 }
@@ -1650,7 +1664,7 @@ if (params.protein_searcher == 'sourmash'){
    set val(hash), file(query_sig), val(group) from ch_hash_sig_to_group
 
    output:
-   file("${hash_id}.csv")
+   set val(hash), file("${hash_id}.csv") into ch_hash_to_sourmash_search_results
 
    script:
    hash_cleaned = hashCleaner(hash)
@@ -1668,6 +1682,12 @@ if (params.protein_searcher == 'sourmash'){
        ${reference_sbt_json} \\
    """
  }
+
+ ch_hash_to_sourmash_search_results
+ // Empty results files just contain a header, which is 30 bytes
+  .filter { it -> it[1].size() > 30 }
+  .map { it -> it[0] }
+  .set { ch_hashes_not_found_by_sourmash }
 
 }
 
