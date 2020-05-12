@@ -11,8 +11,9 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 
 - Updated infrastructure files to nf-core/tools version 1.9
 - Added option for `--input_is_protein`
-- Added option for `--differential_hash_expression` performed by scikit-learn's Logistic Regression
-- Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--differential_hash_expression`) directly into a sourmash sequence bloom tree index database
+- Added option for `--diff_hash_expression` performed by scikit-learn's Logistic Regression, if `--csv` is provided with at least columns `sample_id`, `sig` and `group`
+- Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--diff_hash_expression`) directly into a sourmash sequence bloom tree index database
+- Added ability to filter `bam` file for reads containing hashes, if the `--csv` contains a column named `bam` and the option `--filter-bam-hashes` is provided
 
 ### `Fixed`
 
