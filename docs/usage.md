@@ -17,6 +17,8 @@
     - [`--csv`](#-csv)
       - [Simple fasta input](#simple-fasta-input)
     - [Differential hash expression](#differential-hash-expression)
+      - [Filter bam with hashes](#filter-bam-with-hashes)
+      - [Count reads with hashes with `featureCounts`](#count-reads-with-hashes-with-featurecounts)
   - [Reference proteomes](#reference-proteomes)
     - [Proteomes for translating](#proteomes-for-translating)
       - [`--proteome_translate_fasta`](#-proteometranslatefasta)
@@ -41,7 +43,6 @@
     - [`-c`](#-c)
     - [`--custom_config_version`](#-customconfigversion)
     - [`--custom_config_base`](#-customconfigbase)
-  - [Download and unzip the config files](#download-and-unzip-the-config-files)
   - [Run the pipeline](#run-the-pipeline)
     - [`--max_memory`](#-maxmemory)
     - [`--max_time`](#-maxtime)
@@ -209,7 +210,6 @@ If you have an alignment file you want to filter for the reads containing hashes
 - `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
 - `bam`: bam file for the sample
 
-
 #### Count reads with hashes with `featureCounts`
 
 If you have an alignment file you want to filter for the reads containing hashes, add the paths to the `.bam` file to the `--csv`, as a column `bam`, and specify `--csv_has_gtf_col` to turn this on.
@@ -220,7 +220,6 @@ If you have an alignment file you want to filter for the reads containing hashes
 - `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
 - `bam`: bam file for the sample
 - `gtf`: A [GTF](https://uswest.ensembl.org/info/website/upload/gff.html)-formatted file of genes and regions in the genome to count features
-
 
 ## Reference proteomes
 
