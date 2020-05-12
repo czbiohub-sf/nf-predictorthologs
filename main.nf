@@ -1160,9 +1160,9 @@ if (params.hashes) {
       .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
       .set { ch_hash_to_id_to_fasta_for_hash2kmer }
       // Desired output:
-      // [1, "sample_id1", ["a", "b", "c"]]
-      // [2, "sample_id2", ["a", "b", "c"]]
-      // [3, "sample_id3", ["a", "b", "c"]]
+      // [1, "allfastas", ["a", "b", "c"]]
+      // [2, "allfastas", ["a", "b", "c"]]
+      // [3, "allfastas", ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
 }
@@ -1177,7 +1177,7 @@ if (params.hashes) {
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- do_hash2kmer = params.diff_hash_expression || params.hashes || params.filter_bam_hashes || params.input_is_protein
+ do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.filter_bam_hashes || params.protein_searcher == "diamond")
  println "do_hash2kmer: ${do_hash2kmer}"
  if (do_hash2kmer){
   // No protein fasta provided for searching for orthologs, need to
