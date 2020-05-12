@@ -27,10 +27,11 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added rsync to download NCBI RefSeq releases
 - Actually installed `rsync` via apt in `Dockerfile`, not just `unzip` ([#16](https://github.com/czbiohub/nf-predictorthologs/pull/16))
 - Added bedtools=2.29.2 to dependencies
-- Added sourmash Rust (required for compiling sourmash from GitHub) ([#24](https://github.com/czbiohub/nf-predictorthologs/pull/24))
+- Added Rust (required for compiling sourmash from GitHub) ([#24](https://github.com/czbiohub/nf-predictorthologs/pull/24))
 - Added pandas=1.0.3, scikit-learn=0.22.1, and sourmash=3.2.2 to dependencies
 - Added subread=1.6.4 (featurecounts) and bioawk=1.0
 - Updated MultiQC to version 1.8 to avoid annoying YAML errors
 - Add ripgrep=12.0.1 ([faster than all other `grep`s](https://blog.burntsushi.net/ripgrep/)) to dependencies
+- Updated sourmash=3.3.0 ([#46](https://github.com/czbiohub/nf-predictorthologs/pull/46)) to support zip files as indices
 
 ### `Deprecated`
