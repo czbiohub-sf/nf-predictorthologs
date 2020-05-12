@@ -137,7 +137,10 @@ if (params.hashes) {
       .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash")}
       .transpose()
-      .into { ch_hash_to_group_for_joining_after_hash2kmer; ch_group_to_hashes_for_hash2kmer }
+      .into {
+        ch_hash_to_group_for_joining_after_hash2kmer; 
+        ch_hash_to_group_for_joining_after_hash2sig ;
+        ch_group_to_hashes_for_hash2kmer }
 
   ch_group_to_hashes_for_hash2kmer
     .map{ it -> it[0] }
