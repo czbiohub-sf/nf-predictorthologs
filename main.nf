@@ -28,7 +28,6 @@ def helpMessage() {
         --reads [file]                Path to input data (must be surrounded with quotes)
         --csv                         Comma-separated variable file containing the columns "sample_id" and "fasta" at minimum
                                       For differential hash expression, the columns "sig" and "group" are also required
-
       Protein input:
         --protein_fastas              Path to protein fastas
 
@@ -199,22 +198,43 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 } else {
   // * Create a channel for input read files
-  if (params.readPaths) {
-  	if (params.single_end) {
+  if (params.csv) {
+    // Provided a csv file mapping sample_id to read(s) fastq path
+    print("supplied csv, not looking at any supplied --reads or readPaths")
+    if (params.single_end) {
+      Channel
+        .fromPath(params.csv)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+        .dump(tag: "reads_single_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+    } else {
+      Channel
+        .fromPath(params.csv)
+        .splitCsv(header:true)
+        .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2)))}
+        .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
+        .dump(tag: "reads_paired_end")
+        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+    }
+   } else if (params.readPaths){
+    print("supplied readPaths, not looking at any supplied --reads")
+    if (params.single_end) {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
-  	} else {
+    } else {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
-  	}
+    }
   } else {
     Channel
       .fromFilePairs(params.reads, size: params.single_end ? 1 : 2)
@@ -490,7 +510,8 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (!params.input_is_protein) summary['sencha translate Ref']              = params.proteome_translate_fasta
+if (params.csv) summary['CSV of input reads']                               = params.csv
+if (!params.input_is_protein) summary['sencha translate Ref']               = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
@@ -613,28 +634,28 @@ process get_software_versions {
 
 if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
-  	tag "$interval_name"
-  	label "process_low"
-  	publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+    tag "$interval_name"
+    label "process_low"
+    publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
-  	input:
+    input:
     set val(interval_name), val(chrom), val(chromStart), val(chromEnd), file(bam), file(bai) from ch_bed_bam_bai
 
-  	output:
-  	set val(interval_name), file(fastq) into ch_intersected
+    output:
+    set val(interval_name), file(fastq) into ch_intersected
 
-  	script:
-  	fastq = "${interval_name}.fastq.gz"
-  	"""
+    script:
+    fastq = "${interval_name}.fastq.gz"
+    """
     samtools view -hu $bam '${chrom}:${chromStart}-${chromEnd}' \\
-  		| samtools fastq -N - \\
-  		| gzip -c > ${fastq}
+      | samtools fastq -N - \\
+      | gzip -c > ${fastq}
     """
     }
   ch_intersected
     // gzipped files are 20 bytes when empty
-  	.filter{ it[1].size() > 20 }
-  	.into { ch_read_files_fastqc; ch_read_files_trimming }
+    .filter{ it[1].size() > 20 }
+    .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
 

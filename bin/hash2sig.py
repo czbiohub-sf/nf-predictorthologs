@@ -8,11 +8,9 @@ CTB: recommend people use scaled=1; make default?
 import sys
 import argparse
 import sourmash
-from sourmash import MinHash, SourmashSignature
-from sourmash import sourmash_args
+from sourmash import MinHash
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args
-from sourmash.sourmash_args import calculate_moltype
 
 
 def main():
@@ -63,7 +61,6 @@ def main():
             error('bad ksizes: {}', ", ".join(args.ksize))
             sys.exit(-1)
 
-
     notify('loaded {} distinct hashes from {}', len(hashes), args.hashfile)
 
     # now, create the MinHash object that we'll use.
@@ -78,8 +75,9 @@ def main():
         num = len(hashes)
 
     # construct empty MinHash object according to args
-    minhash = MinHash(n=num, ksize=args.ksize, scaled=scaled, dayhoff=args.dayhoff,
-                      is_protein=args.input_is_protein, hp=args.hp)
+    minhash = MinHash(
+        n=num, ksize=args.ksize, scaled=scaled, dayhoff=args.dayhoff,
+        is_protein=args.input_is_protein, hp=args.hp)
 
     # add hashes into!
     minhash.add_many(hashes)
