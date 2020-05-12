@@ -177,13 +177,13 @@ sample2,sample2.fasta
 To do differential hash expression and then search for the enriched hashes in a database, the csv needs to contain the following columns:
 
 - `sample_id`: a uniquely identifying name
-- `fasta`: path to (translated protein) fasta file for the sample
+- `fasta`: path to (translated protein) fasta file for the sample (optional, if you want to search with `diamond`)
 - `sig`: path to a sourmash signature file for the sample
 - `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
 
 Additionally, the parameters `--sourmash_ksize` and `--sourmash_molecule` must be provided.
 
-Here is an example signature:
+Here is an example csv:
 
 ```bash
 sample_id,fasta,group,sig
@@ -198,6 +198,29 @@ sample8,sample8__coding_reads_peptides.fasta,Liver unaligned,sample8_molecule-da
 sample9,sample9__coding_reads_peptides.fasta,Liver unaligned,sample9_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig
 sample10,sample10__coding_reads_peptides.fasta,Liver unaligned,sample10_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig
 ```
+
+#### Filter bam with hashes
+
+If you have an alignment file you want to filter for the reads containing hashes, add the paths to the `.bam` file to the `--csv`, as a column `bam`, and then also specify `--filter-bam-hashes` on the command line.
+
+- `sample_id`: a uniquely identifying name
+- `fasta`: path to (translated protein) fasta file for the sample
+- `sig`: path to a sourmash signature file for the sample
+- `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
+- `bam`: bam file for the sample
+
+
+#### Count reads with hashes with `featureCounts`
+
+If you have an alignment file you want to filter for the reads containing hashes, add the paths to the `.bam` file to the `--csv`, as a column `bam`, and specify `--csv_has_gtf_col` to turn this on.
+
+- `sample_id`: a uniquely identifying name
+- `fasta`: path to (translated protein) fasta file for the sample
+- `sig`: path to a sourmash signature file for the sample
+- `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
+- `bam`: bam file for the sample
+- `gtf`: A [GTF](https://uswest.ensembl.org/info/website/upload/gff.html)-formatted file of genes and regions in the genome to count features
+
 
 ## Reference proteomes
 
