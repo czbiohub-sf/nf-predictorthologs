@@ -1161,7 +1161,7 @@ if (params.protein_searcher == 'diamond') {
    */
   process diamond_blastp {
     tag "${sample_id}"
-    label "process_medium"
+    label "process_low"
 
     publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
 
