@@ -439,7 +439,7 @@ if (params.sourmash_index){
 }
 
 if (params.infernal_db) {
-  if (hasExtension(infernal_db, 'gz')) {
+  if (hasExtension(params.infernal_db, 'gz')) {
     Channel.fromPath(params.infernal_db, checkIfExists: true)
          .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
          .set{ ch_infernal_db_gz }
