@@ -438,6 +438,18 @@ if (params.sourmash_index){
        .set{ ch_sourmash_index }
 }
 
+if (params.infernal_db) {
+  if (hasExtension(infernal_db, 'gz')) {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db_gz }
+  } else {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db }
+  }
+}
+
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
@@ -1444,6 +1456,62 @@ if (params.protein_searcher == 'sourmash'){
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --             SEARCH NONCODING RNAS WITH INFERNAL                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 10 - Download/prepare Rfam databse
+ */
+if (params.search_noncoding && params.infernal_db) {
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (hasExtension(params.infernal_db, "gz") ){
+    process gunzip_genome_fasta {
+        tag "$gz"
+        publishDir path: { params.saveReference ? "${params.outdir}/infernal/database" : params.outdir },
+                   saveAs: { params.saveReference ? it : null }, mode: "${params.publish_dir_mode}"
+
+        input:
+        file gz from ch_infernal_db_gz
+
+        output:
+        file "${gz.baseName}" into ch_infernal_db
+
+        script:
+        """
+        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        """
+    }
+  }
+
+  process infernal_cmsearch {
+      tag "${sample_id}"
+      label "process_low"
+      label "cpus_2"
+      publishDir "${params.outdir}/infernal/cmmsearch", mode: "${params.publish_dir_mode}"
+
+      input:
+      file db from ch_infernal_db.collect()
+      set val(sample_id), file (fasta) from ch_noncoding_nucleotides
+
+      output:
+      file "${gz.baseName}" into ch_infernal_db
+
+      script:
+      txt = "${sample_id}.txt"
+      """
+      cmsearch --tblout ${txt} ${db} ${fasta}
+      """
+  }
+
+}
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1616,6 +1684,10 @@ workflow.onComplete {
 
 }
 
+// Check file extension
+def hasExtension(it, extension) {
+    it.toString().toLowerCase().endsWith(extension.toLowerCase())
+}
 
 def nfcoreHeader() {
     // Log colors ANSI codes
