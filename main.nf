@@ -1471,7 +1471,7 @@ if (params.search_noncoding && params.infernal_db) {
    * STEP 6 - unzip taxonomy information files for input to DIAMOND
    */
   if (hasExtension(params.infernal_db, "gz") ){
-    process gunzip_genome_fasta {
+    process gunzip_infernal_db {
         tag "$gz"
         publishDir path: { params.saveReference ? "${params.outdir}/infernal/database" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: "${params.publish_dir_mode}"
@@ -1500,7 +1500,7 @@ if (params.search_noncoding && params.infernal_db) {
       set val(sample_id), file (fasta) from ch_noncoding_nucleotides
 
       output:
-      file "${gz.baseName}" into ch_infernal_db
+      file txt into ch_infernal_results
 
       script:
       txt = "${sample_id}.txt"
