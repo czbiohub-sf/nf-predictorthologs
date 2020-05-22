@@ -856,7 +856,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // Remove empty files
   // it[0] = sample bloom id
-  // it[2] = sequence fasta file
+  // it[1] = sequence fasta file
   ch_noncoding_nucleotides_potentially_empty
     .filter { it[1].size() > 0 }
     .set { ch_noncoding_nucleotides }
