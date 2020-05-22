@@ -807,11 +807,15 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
+    // set val(sample_id), val(bloom_id), file("${sample_bloom_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides
+    // Set first value to "false" so it's not treated as a differential hash, and only the sample_bloom_id is considered
+    set val(false), val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
 
+    // Line to add for nucleotides:
+    // --noncoding-nucleotide-fasta ${sample_bloom_id}__noncoding_reads_nucleotides.fasta \\
     script:
     sample_bloom_id = "${sample_id}__${bloom_id}"
     """
@@ -833,6 +837,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_translated_proteins_potentially_empty
     .filter{ it[2].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
+    // [DUMP: ch_translated_proteins_potentially_empty]
+    //    ['NC-033660.1-74563649-74570299-+-516-0',
+    //      molecule-protein,
+    //      NC-033660.1-74563649-74570299-+-516-0__molecule-protein__coding_reads_peptides.fasta]
     .set{ ch_protein_seq_for_diamond }
 }
 
