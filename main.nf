@@ -819,7 +819,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides
+    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
     // Set first value to "false" so it's not treated as a differential hash, and only the sample_bloom_id is considered
     set val(false), val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
@@ -853,6 +853,13 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     //      molecule-protein,
     //      NC-033660.1-74563649-74570299-+-516-0__molecule-protein__coding_reads_peptides.fasta]
     .set{ ch_protein_seq_for_diamond }
+
+  // Remove empty files
+  // it[0] = sample bloom id
+  // it[2] = sequence fasta file
+  ch_noncoding_nucleotides_potentially_empty
+    .filter { it[1].size() > 0 }
+    .set { ch_noncoding_nucleotides }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
