@@ -34,5 +34,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Add ripgrep=12.0.1 ([faster than all other `grep`s](https://blog.burntsushi.net/ripgrep/)) to dependencies
 - Updated sourmash=3.3.0 ([#46](https://github.com/czbiohub/nf-predictorthologs/pull/46)) to support zip files as indices
 - Added csvtk=0.20.0 to dependencies
+- Addeed infernal=1.1.2 to dependencies
 
 ### `Deprecated`
