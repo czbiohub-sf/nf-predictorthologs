@@ -1473,8 +1473,8 @@ if (params.search_noncoding && params.infernal_db) {
   if (hasExtension(params.infernal_db, "gz") ){
     process gunzip_infernal_db {
         tag "$gz"
-        publishDir path: { params.saveReference ? "${params.outdir}/infernal/database" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: "${params.publish_dir_mode}"
+        publishDir path: { params.save_reference ? "${params.outdir}/infernal/database" : params.outdir },
+                   saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
 
         input:
         file gz from ch_infernal_db_gz
