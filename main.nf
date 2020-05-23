@@ -821,7 +821,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
     set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
-    // Set first value to "false" so it's not treated as a differential hash, and only the sample_bloom_id is considered
+    // Set first value to "false" so it's not treated as a differential hash, and only the sample_id is considered
     set val(false), val(sample_id), file("${sample_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
     set val(sample_id), file("${sample_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
     set val(sample_id), file("${sample_id}__coding_scores.csv") into ch_coding_scores_csv
@@ -835,7 +835,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       --jaccard_threshold ${jaccard_threshold} \\
       --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
       --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
-      --csv ${sample_bloom_id}__coding_scores.csv \\
+      --csv ${sample_id}__coding_scores.csv \\
       --json-summary ${sample_id}__coding_summary.json \\
       --peptides-are-bloom-filter \\
       ${bloom_filter} \\
