@@ -832,7 +832,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     sencha translate \\
       --molecule ${alphabet[0]} \\
       --peptide-ksize ${peptide_ksize} \\
-      --jaccard_threshold ${jaccard_threshold} \\
+      --jaccard-threshold ${jaccard_threshold} \\
       --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
       --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
       --csv ${sample_id}__coding_scores.csv \\
