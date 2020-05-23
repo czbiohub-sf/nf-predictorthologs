@@ -1500,8 +1500,7 @@ if (params.search_noncoding && params.infernal_db) {
 
   process infernal_cmsearch {
       tag "${sample_id}"
-      label "process_low"
-      label "cpus_2"
+      label "process_medium"
       publishDir "${params.outdir}/infernal/cmmsearch", mode: "${params.publish_dir_mode}"
 
       input:
