@@ -457,6 +457,7 @@ peptide_ksize = params.translate_peptide_ksize
 peptide_molecule = params.translate_peptide_molecule
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
+tablesize = params.translate_tablesize
 
 //////////////////////////////////////////////////////////////////
 /* -        Parse sourmash/hash2kmer parameters              -- */
@@ -782,7 +783,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     bloom_id = "molecule-${molecule}_ksize-${peptide_ksize}"
     """
     sencha index \\
-      --tablesize 1e8 \\
+      --tablesize ${tablesize} \\
       --molecule ${molecule} \\
       --peptide-ksize ${peptide_ksize} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
