@@ -1501,9 +1501,9 @@ if (params.search_noncoding && params.infernal_db) {
 
   process infernal_cmsearch {
       tag "${sample_id}"
-      label "process_medium"
+      label "procss_high"
       label "process_long"
-      publishDir "${params.outdir}/infernal/cmmsearch", mode: "${params.publish_dir_mode}"
+      publishDir "${params.outdir}/infernal/cmsearch", mode: "${params.publish_dir_mode}"
 
       input:
       file db from ch_infernal_db.collect()
