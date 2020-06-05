@@ -44,6 +44,11 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_bam,docker
+      - name: Test bam, search noncoding
+        run: |
+          # TODO nf-core: You can customise CI pipeline run tests as required
+          # (eg. adding multiple test runs with different parameters)
+          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_bam,docker --search_noncoding
       - name: Test input is protein
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
