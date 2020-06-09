@@ -1515,7 +1515,7 @@ if (params.search_noncoding && params.infernal_db) {
       script:
       txt = "${sample_id}.txt"
       """
-      cmsearch --tblout ${txt} ${db} ${fasta}
+      cmsearch --tblout --rfam --cpu ${task.cpus} ${txt} ${db} ${fasta}
       """
   }
 
