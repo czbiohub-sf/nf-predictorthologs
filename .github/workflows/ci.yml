@@ -2,10 +2,10 @@ name: nf-core CI
 # This workflow is triggered on pushes and PRs to the repository.
 # It runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
 on: [push, pull_request]
-continue-on-error: ${{ matrix.allow_failure }}
 
 jobs:
   test:
+    continue-on-error: ${{ matrix.allow_failure }}
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
