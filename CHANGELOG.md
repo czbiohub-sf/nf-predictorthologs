@@ -35,5 +35,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Updated sourmash=3.3.0 ([#46](https://github.com/czbiohub/nf-predictorthologs/pull/46)) to support zip files as indices
 - Added csvtk=0.20.0 to dependencies
 - Addeed infernal=1.1.2 to dependencies
+- Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
 
 ### `Deprecated`
