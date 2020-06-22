@@ -2,6 +2,7 @@ name: nf-core CI
 # This workflow is triggered on pushes and PRs to the repository.
 # It runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
 on: [push, pull_request]
+continue-on-error: ${{ matrix.experimental }}
 
 jobs:
   test:
@@ -14,6 +15,7 @@ jobs:
       matrix:
         # Nextflow versions: check pipeline minimum and current latest
         nxf_ver: ['19.10.0', '']
+        experimental: [false]
     steps:
       - uses: actions/checkout@v2
       - name: Install Nextflow
@@ -34,6 +36,7 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           ${NXF_RUN} ${GITHUB_WORKSPACE} -profile test_download_refseq,docker
+        experimental: true
       - name: Test using existing database
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
