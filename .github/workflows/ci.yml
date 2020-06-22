@@ -30,7 +30,7 @@ jobs:
       - name: Pull docker image
         run: |
           docker pull czbiohub/predictorthologs:dev && docker tag czbiohub/predictorthologs:dev czbiohub/predictorthologs:dev
-      - name: Run pipeline with test data (single-end fastq input)
+      - name: Run pipeline with ${{ matrix.profile_flags }}
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
