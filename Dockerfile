@@ -11,3 +11,8 @@ ENV PATH /opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH
 
 # Dump the details of the installed packages to a file for posterity
 RUN conda env export --name nf-core-predictorthologs-1.0dev > nf-core-predictorthologs-1.0dev.yml
+
+# Avoid this error:
+# WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+# https://stackoverflow.com/a/48690137/1628971
+COPY docker/sysctl.conf /etc/sysctl.conf

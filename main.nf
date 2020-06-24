@@ -438,6 +438,18 @@ if (params.sourmash_index){
        .set{ ch_sourmash_index }
 }
 
+if (params.infernal_db) {
+  if (hasExtension(params.infernal_db, 'gz')) {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db_gz }
+  } else {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db }
+  }
+}
+
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
@@ -445,6 +457,7 @@ peptide_ksize = params.translate_peptide_ksize
 peptide_molecule = params.translate_peptide_molecule
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
+tablesize = params.translate_tablesize
 
 //////////////////////////////////////////////////////////////////
 /* -        Parse sourmash/hash2kmer parameters              -- */
@@ -767,11 +780,12 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
-    bloom_id = "molecule-${molecule}"
+    bloom_id = "molecule-${molecule}_ksize-${peptide_ksize}"
     """
     sencha index \\
-      --tablesize 1e7 \\
+      --tablesize ${tablesize} \\
       --molecule ${molecule} \\
+      --peptide-ksize ${peptide_ksize} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
       ${peptides}
     """
@@ -807,22 +821,26 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
+    set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
+    // Set first value to "false" so it's not treated as a differential hash, and only the sample_id is considered
+    set val(false), val(sample_id), file("${sample_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
+    set val(sample_id), file("${sample_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
+    set val(sample_id), file("${sample_id}__coding_scores.csv") into ch_coding_scores_csv
+    set val(sample_id), file("${sample_id}__coding_summary.json") into ch_coding_scores_json
 
     script:
-    sample_bloom_id = "${sample_id}__${bloom_id}"
     """
     sencha translate \\
       --molecule ${alphabet[0]} \\
-      --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
-      --csv ${sample_bloom_id}__coding_scores.csv \\
-      --json-summary ${sample_bloom_id}__coding_summary.json \\
+      --peptide-ksize ${peptide_ksize} \\
+      --jaccard-threshold ${jaccard_threshold} \\
+      --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
+      --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
+      --csv ${sample_id}__coding_scores.csv \\
+      --json-summary ${sample_id}__coding_summary.json \\
       --peptides-are-bloom-filter \\
       ${bloom_filter} \\
-      ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
+      ${reads} > ${sample_id}__coding_reads_peptides.fasta
     """
   }
 
@@ -833,7 +851,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_translated_proteins_potentially_empty
     .filter{ it[2].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
+    // [DUMP: ch_translated_proteins_potentially_empty]
+    //    ['NC-033660.1-74563649-74570299-+-516-0',
+    //      molecule-protein,
+    //      NC-033660.1-74563649-74570299-+-516-0__molecule-protein__coding_reads_peptides.fasta]
     .set{ ch_protein_seq_for_diamond }
+
+  // Remove empty files
+  // it[0] = sample bloom id
+  // it[1] = sequence fasta file
+  ch_noncoding_nucleotides_potentially_empty
+    .filter { it[1].size() > 0 }
+    .set { ch_noncoding_nucleotides }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1123,7 +1152,7 @@ if (params.protein_searcher == 'diamond') {
   if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
-     label "process_low"
+     label "process_medium"
 
      publishDir "${params.outdir}/diamond/", mode: 'copy'
 
@@ -1139,6 +1168,7 @@ if (params.protein_searcher == 'diamond') {
      script:
      """
      diamond makedb \\
+         --threads ${task.cpus} \\
          -d ${reference_proteome.simpleName}_db \\
          --taxonmap ${taxonmap_gz} \\
          --taxonnodes ${taxonnodes} \\
@@ -1160,7 +1190,7 @@ if (params.protein_searcher == 'diamond') {
    */
   process diamond_blastp {
     tag "${sample_id}"
-    label "process_medium"
+    label "process_low"
 
     publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
 
@@ -1436,6 +1466,67 @@ if (params.protein_searcher == 'sourmash'){
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --             SEARCH NONCODING RNAS WITH INFERNAL                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 10 - Download/prepare Rfam databse
+ */
+if (params.search_noncoding && params.infernal_db) {
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (hasExtension(params.infernal_db, "gz") ){
+    process gunzip_infernal_db {
+        tag "$gz"
+        publishDir path: { params.save_reference ? "${params.outdir}/infernal/database" : params.outdir },
+                   saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
+
+        input:
+        file gz from ch_infernal_db_gz
+
+        output:
+        file "${gz.baseName}" into ch_infernal_db
+
+        script:
+        """
+        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        """
+    }
+  }
+
+  process infernal_cmsearch {
+      tag "${sample_id}"
+      label "process_high"
+      label "process_long"
+      publishDir "${params.outdir}/infernal/cmsearch", mode: "${params.publish_dir_mode}"
+
+      input:
+      file db from ch_infernal_db.collect()
+      set val(sample_id), file (fasta) from ch_noncoding_nucleotides
+
+      output:
+      file txt into ch_infernal_results
+
+      script:
+      txt = "${sample_id}.txt"
+      """
+      cmsearch  \\
+          --rfam \\
+          --cpu ${task.cpus} \\
+          --tblout ${txt} \\
+          ${db} \\
+          ${fasta}
+      """
+  }
+
+}
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1608,6 +1699,10 @@ workflow.onComplete {
 
 }
 
+// Check file extension
+def hasExtension(it, extension) {
+    it.toString().toLowerCase().endsWith(extension.toLowerCase())
+}
 
 def nfcoreHeader() {
     // Log colors ANSI codes
