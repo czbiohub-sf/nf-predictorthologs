@@ -718,6 +718,7 @@ if (!params.skip_trimming && !params.input_is_protein){
       if (reads[1] == null) {
           """
           fastp \\
+              --low_complexity_filter \\
               --in1 ${reads} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
               --json ${name}_fastp.json \\
@@ -727,6 +728,7 @@ if (!params.skip_trimming && !params.input_is_protein){
         // More than one set of reads --> paired end
           """
           fastp \\
+              --low_complexity_filter \\
               --in1 ${reads[0]} \\
               --in2 ${reads[1]} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
