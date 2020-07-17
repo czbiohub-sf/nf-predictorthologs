@@ -881,7 +881,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
-    set val(group), val(sourmash_molecule), val(sourmash_ksize), val(scaled), val(num_hashes), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
+    set val(group), val(molecule), val(ksize), val(scaled), val(num_hashes), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
     file metadata from ch_csv.collect()
 
     output:
@@ -894,11 +894,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     abundance_flag = diff_hash_with_abundance ? '--with-abundance' : ''
     """
     differential_hash_expression.py \\
-        --ksize ${sourmash_ksize} \\
+        --ksize ${ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
         --group1 '${group}' \\
-        --${sourmash_molecule} \\
+        --${molecule} \\
         --no-dna \\
         --metadata-csv ${metadata} \\
         --use-sig-basename \\
