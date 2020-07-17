@@ -320,10 +320,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> file(row.sig, checkIfExists: true) }
+      .map{ row -> file(row.group, row.molecule, row.ksize, row.scaled, row.num_hashes, row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .collect()
-      .map{ it -> [it] }   // Nest within a list so the combine() step keeps all the signatures together
+      .groupTuple([0,1,2,3,4])
+      .map{ it -> [it] }    // Nest within a list so the combine() step keeps all the signatures together
       // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
       //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -872,7 +872,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
-    set val(group), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
+    set val(group), val(sourmash_molecule), val(sourmash_ksize), val(scaled), val(num_hashes), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
     file metadata from ch_csv.collect()
 
     output:
