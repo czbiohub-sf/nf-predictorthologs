@@ -322,10 +322,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> file(row.group, row.molecule, row.ksize, row.scaled, row.num_hashes, row.sig, checkIfExists: true) }
+      .map{ row -> tuple(row.group, row.molecule, row.ksize, row.scaled, row.num_hashes, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple([0,1,2,3,4])
-      .map{ it -> [it] }    // Nest within a list so the combine() step keeps all the signatures together
+      .groupTuple(by: [0,1,2,3,4])
+      .map{ it -> tuple(it[0], it[1], it[2], it[3], it[4], it[5]) } // Nest within list so the combine() step keeps all the signatures together
       // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
       //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -1490,7 +1490,7 @@ if (params.search_noncoding && params.infernal_db) {
 
         script:
         """
-        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        gunzip -c --verbose --stdout --force ${gz} > ${gz.baseName}
         """
     }
   }
