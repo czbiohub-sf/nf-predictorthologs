@@ -183,6 +183,7 @@ To do differential hash expression and then search for the enriched hashes in a 
 - `molecule`:
 - `ksize`:
 
+Additionally, the parameters `--sourmash_ksize` and `--sourmash_molecule` must be provided.
 
 Here is an example signature:
 
