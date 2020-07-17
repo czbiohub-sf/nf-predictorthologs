@@ -38,8 +38,6 @@ def helpMessage() {
 
     hash2kmer options:
       --hashes                        Path to file of hashes whose sequence to find in the protein fastas, default None
-      --sourmash_ksize               K-mer size to use to find matching k-mers in sequence, default 21
-      --sourmash_molecule            Molecule type to use to find matching k-mers in sequence, default "protein"
 
    Differential hash expression options:
       --diff_hash_expression          If provided, compute enriched hashes in groups using logistic regression, by default don't do it
@@ -460,13 +458,6 @@ refseq_release = params.refseq_release
 tablesize = params.translate_tablesize
 
 //////////////////////////////////////////////////////////////////
-/* -        Parse sourmash/hash2kmer parameters              -- */
-//////////////////////////////////////////////////////////////////
-sourmash_ksize = params.sourmash_ksize
-sourmash_molecule = params.sourmash_molecule
-sourmash_log2_sketch_size = params.sourmash_log2_sketch_size
-
-//////////////////////////////////////////////////////////////////
 /* -        Summarize reference proteome parameters          -- */
 //////////////////////////////////////////////////////////////////
 provided_reference_proteome = params.proteome_search_fasta || params.refseq_release
@@ -505,8 +496,6 @@ if (!params.input_is_protein) summary['sencha translate Ref']              = par
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
 if (params.hashes) summary['Hashes']                                        = params.hashes
-if (using_hashes) summary['sourmash ksize']                                 = params.sourmash_ksize
-if (using_hashes) summary['sourmash molecule']                              = params.sourmash_molecule
 if (params.diff_hash_expression) summary['Diff Hash abundance?']            = params.diff_hash_with_abundance
 if (params.diff_hash_expression) summary['Diff Hash C']                     = params.diff_hash_inverse_regularization_strength
 if (params.diff_hash_expression) summary['Diff Hash solver']                = params.diff_hash_solver
@@ -516,8 +505,6 @@ if (params.protein_fastas) summary['Input protein fastas']                  = pa
 if (params.proteome_search_fasta) summary['Proteome search ref']            = params.proteome_search_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
-if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
-if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
 if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz

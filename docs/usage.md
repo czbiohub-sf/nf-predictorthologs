@@ -180,8 +180,9 @@ To do differential hash expression and then search for the enriched hashes in a 
 - `fasta`: path to (translated protein) fasta file for the sample
 - `sig`: path to a sourmash signature file for the sample
 - `group`: a filepath-friendly name (no weird characters like `/` or `|`) of the group, to subset the data on
+- `molecule`:
+- `ksize`:
 
-Additionally, the parameters `--sourmash_ksize` and `--sourmash_molecule` must be provided.
 
 Here is an example signature:
 
