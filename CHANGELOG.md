@@ -13,6 +13,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added option for `--input_is_protein`
 - Added option for `--differential_hash_expression` performed by scikit-learn's Logistic Regression
 - Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--differential_hash_expression`) directly into a sourmash sequence bloom tree index database
+- Added option for bam deduplication, if you wish to skip deduplication step add the `-skip_remove_duplicates_bam` flag
 
 ### `Fixed`
 
@@ -36,5 +37,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added csvtk=0.20.0 to dependencies
 - Addeed infernal=1.1.2 to dependencies
 - Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
+- Added sambamba=0.7.1 using bioconda channel
 
 ### `Deprecated`

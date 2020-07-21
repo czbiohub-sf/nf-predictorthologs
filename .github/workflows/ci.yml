@@ -16,6 +16,7 @@ jobs:
         nxf_ver: ['19.10.0', '']
         profile_flags: [
         'test_bam',
+        'test_sambamba',
         'test_bam --search_noncoding',
         'test_diff_hash',
         'test_diff_hash --with_abundance',
