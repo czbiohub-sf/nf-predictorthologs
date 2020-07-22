@@ -49,6 +49,7 @@ def helpMessage() {
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
+      --skip_remove_duplicates_bam    If provided, skip removal of duplicates from bam file
 
     BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
       --refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
@@ -163,6 +164,12 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
+} else if (params.bam && !params.skip_remove_duplicates_bam && !params.bai) {
+    // deciding if sambamba steps are needed
+    log.info "supplied bam and no skip_remove_duplicates flag specified"
+    Channel.fromPath(params.bam)
+        .ifEmpty { exit 1, "params.bam was empty, no input file supplied" }
+        .set { ch_bam_for_dedup }
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   ////////////////////////////////////////////////////
@@ -611,6 +618,54 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
+/* --               PREPROCESSING SAMBAMBA DEDUPLICATION                  -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_dedup {
+        label "sambamba_dedup"
+        publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
+
+        input:
+        set file(bam) from ch_bam_for_dedup
+
+        output:
+        set val(bam_name_dedup), file(bam_name_full) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
+
+        script:
+        buffer_size = task.memory.toMega()
+        prefix = "${bam.getBaseName()}_dedup"
+        bam_dedup = "${prefix}.bam"
+        """
+        sambamba markdup --remove-duplicates --sort-buffer-size ${buffer_size} --nthreads $task.cpus ${bam} ${bam_name_full}
+        """
+    }
+}
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_index {
+        label "sambamba_index"
+        publishDir "${params.outdir}/sambamba_index", mode: 'copy'
+
+        input:
+        set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_index
+
+        output:
+        set file(bai_dedup) into ch_dedup_bai
+
+        script:
+        bai_dedup = "${bam_name}.bai"
+        """
+        sambamba index  --nthreads $task.cpus ${bam_dedup} ${bai_dedup}
+        """
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
 /* --               SAMTOOLS VIEW GENOMIC REGION TO FASTA                 -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
@@ -620,7 +675,30 @@ process get_software_versions {
  * STEP 0 - samtools view
  */
 
-if (params.bam && params.bed && params.bai) {
+if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_bam) {
+    process samtools_fastq_no_intersect {
+    tag "$interval_name"
+    label "process_low"
+    publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+
+    input:
+    set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_samtools_fastq
+
+    output:
+    set val(bam_name), file(fastq) into ch_intersected
+
+    script:
+    fastq = "${bam_name}.fastq.gz"
+    """
+      | samtools fastq -N - \\
+      | gzip -c > ${fastq}
+    """
+    }
+    ch_intersected
+      // gzipped files are 20 bytes when empty
+      .filter{ it[1].size() > 20 }
+      .into { ch_read_files_fastqc; ch_read_files_trimming }
+} else if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
     tag "$interval_name"
     label "process_low"
@@ -644,6 +722,10 @@ if (params.bam && params.bed && params.bai) {
     // gzipped files are 20 bytes when empty
     .filter{ it[1].size() > 20 }
     .into { ch_read_files_fastqc; ch_read_files_trimming }
+}
+
+else {
+    log.info "samtools view skipped"
 }
 
 
