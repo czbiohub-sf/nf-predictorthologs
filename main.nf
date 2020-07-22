@@ -812,7 +812,7 @@ if (!params.skip_trimming && !params.input_is_protein){
           """
           fastp \\
               --low_complexity_filter \\
-              --polyX \\
+              --trim_poly_x \\
               --in1 ${reads[0]} \\
               --in2 ${reads[1]} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
