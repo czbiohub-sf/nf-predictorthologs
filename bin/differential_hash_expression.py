@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 # Local file
 import sourmash_utils
+import METADATA_CSV_SCHEMA
 
 MAX_GROUP_SIZE = 100
 GROUP = 'group'
@@ -37,14 +38,23 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
+def validate_csv(metadata_csv):
+    test_data = pd.read_csv(metadata_csv)
+    errors = schema.validate(test_data)
+    assert len(errors) == 0, (
+        "Errors in metadata csv column types {}".format(errors))
+    return errors
+
+
 def make_hash_df(sigs, with_abundance=False):
     if with_abundance:
         records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
     else:
         # Set value of each hash abundance to 1
-        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
-                   for x in sigs}
+        records = {x.name(): dict.fromkeys(
+            x.minhash.get_mins(with_abundance=with_abundance), 1)
+            for x in sigs}
     return pd.DataFrame(records)
 
 
@@ -141,6 +151,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
          random_state=0, use_sig_basename=False, with_abundance=False,
           max_group_size=MAX_GROUP_SIZE):
+    validate_csv(metadata_csv)
     metadata = pd.read_csv(metadata_csv, index_col='sample_id')
 
     if use_sig_basename:

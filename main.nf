@@ -26,8 +26,8 @@ def helpMessage() {
     Input Options:
       Sequencing reads (FASTQ format):
         --reads [file]                Path to input data (must be surrounded with quotes)
-        --csv                         Comma-separated variable file containing the columns "sample_id" and "fasta" at minimum
-                                      For differential hash expression, the columns "sig" and "group" are also required
+        --csv                         Comma-separated variable file containing the columns
+                                      sample_id,fasta,group,sig,molecule,ksize,scaled,num_hashes,is_aligned are required
       Protein input:
         --protein_fastas              Path to protein fastas
 
@@ -44,7 +44,6 @@ def helpMessage() {
                                       This requires the --csv option and additional columns of "group" and "sig" in the csv
       --csv_has_is_aligned            If provided, then the --csv provided has a column named "is_aligned" that can be used to
                                       partition the signatures and differential hashes into aligned/unaligned bins
-
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
 
@@ -872,7 +871,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
-    set val(group), val(sourmash_molecule), val(sourmash_ksize), val(scaled), val(num_hashes), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
+    set val(group), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
     file metadata from ch_csv.collect()
 
     output:
@@ -885,11 +884,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     abundance_flag = diff_hash_with_abundance ? '--with-abundance' : ''
     """
     differential_hash_expression.py \\
-        --ksize ${sourmash_ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
         --group1 '${group}' \\
-        --${sourmash_molecule} \\
         --no-dna \\
         --metadata-csv ${metadata} \\
         --use-sig-basename \\
