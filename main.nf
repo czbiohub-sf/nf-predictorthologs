@@ -632,7 +632,7 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
         set file(bam) from ch_bam_for_dedup
 
         output:
-        set val(bam_name_dedup), file(bam_dedup) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
+        set val(prefix), file(bam_dedup) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
 
         script:
         buffer_size = task.memory.toMega()
