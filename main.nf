@@ -946,7 +946,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_hash_to_group_for_finding_ksize_molecule
     .map{ it -> tuple(it[2], it[3]) }
     .unique()
-    .set{ ch_diff_hash_ksize_molecule }
+    .into { ch_diff_hash_ksize_molecule_hash2kmer, ch_diff_hash_ksize_molecule_hash2sig}
 
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
@@ -1046,7 +1046,9 @@ if (params.hashes) {
       // [3, ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
-  ch_diff_hash_ksize_molecule = Channel.from( [sourmash_ksize, sourmash_molecule])
+  Channel
+    .from( [sourmash_ksize, sourmash_molecule])
+    .into {ch_diff_hash_ksize_molecule_hash2sig, ch_diff_hash_ksize_molecule_hash2kmer}
 } else if (params.diff_hash_expression) {
 
   ch_hash_to_group_for_hash2kmer
@@ -1081,11 +1083,10 @@ if (params.hashes) {
 
     input:
     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-    set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule
+    set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule_hash2kmer
 
     output:
     file(kmers)
-    set val(ksize), val(molecule) into hash2kmer_ksize_molecule
     set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
