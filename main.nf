@@ -1083,7 +1083,7 @@ if (params.hashes) {
 
     input:
     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-    set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule_hash2kmer
+    set val(molecule), val(ksize) from ch_diff_hash_ksize_molecule_hash2kmer
 
     output:
     file(kmers)
@@ -1282,7 +1282,7 @@ if (params.protein_searcher == 'sourmash'){
 
       input:
       val(hash) from ch_hashes_for_hash2sig
-      set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule_hash2sig
+      set val(molecule), val(ksize) from ch_diff_hash_ksize_molecule_hash2sig
 
       output:
       set val(hash), val(hash_id), file("${sig}") into ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
