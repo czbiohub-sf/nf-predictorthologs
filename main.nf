@@ -1052,7 +1052,7 @@ if (params.hashes) {
   ch_hash_to_group_for_hash2kmer
     .join( ch_group_to_fasta )
     .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-    .into{ ch_hashes_with_fastas_for_hash2kmer }
+    .set{ ch_hashes_with_fastas_for_hash2kmer }
 
   ch_hash_to_group_for_hash2sig
     .map{ it -> it[0] }
