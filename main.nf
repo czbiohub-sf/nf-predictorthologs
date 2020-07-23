@@ -946,7 +946,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_hash_to_group_for_finding_ksize_molecule
     .map{ it -> tuple(it[2], it[3]) }
     .unique()
-    .into { ch_diff_hash_ksize_molecule_hash2kmer, ch_diff_hash_ksize_molecule_hash2sig}
+    .into { ch_diff_hash_ksize_molecule_hash2kmer; ch_diff_hash_ksize_molecule_hash2sig}
 
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
