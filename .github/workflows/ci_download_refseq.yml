@@ -1,10 +1,13 @@
-name: nf-core CI
+name: nf-core CI - download refseq (allowed to fail)
 # This workflow is triggered on pushes and PRs to the repository.
-# It runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
+# This workflow runs a test of downloading the proteome database "other" from
+# NCBI RefSeq but this often fails due to connection errors so this test is
+# separated out from the rest of ci.yml
 on: [push, pull_request]
 
 jobs:
   test:
+    continue-on-error: true
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
@@ -15,20 +18,7 @@ jobs:
         # Nextflow versions: check pipeline minimum and current latest
         nxf_ver: ['19.10.0', '']
         profile_flags: [
-        'test_bam',
-        'test_sambamba',
-        'test_bam --search_noncoding',
-        'test_diff_hash',
-        'test_diff_hash --with_abundance',
-        'test_diff_hash_sourmash',
-        'test_diff_hash_is_aligned',
-        'test_download_refseq',
-        'test_existing_database',
-        'test_fastq',
-        'test_fastq_paired',
-        'test_hash2kmer',
-        'test_input_is_protein',
-        'test_sourmash_search',
+        'test_download_refseq'
         ]
     steps:
       - uses: actions/checkout@v2
