@@ -461,7 +461,7 @@ if (params.infernal_db) {
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
 peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
-peptide_molecule = params.translate_peptide_molecule
+peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
 tablesize = params.translate_tablesize
