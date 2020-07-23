@@ -1282,7 +1282,7 @@ if (params.protein_searcher == 'sourmash'){
 
       input:
       val(hash) from ch_hashes_for_hash2sig
-      set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule
+      set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule_hash2sig
 
       output:
       set val(hash), val(hash_id), file("${sig}") into ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
