@@ -299,6 +299,19 @@ if (params.csv_has_is_aligned) {
       .dump( tag: 'ch_per_group_unaligned_sig' )
       .set{ ch_per_group_unaligned_sig }
 
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .filter{ row -> row.is_aligned == 'unaligned' }
+      .dump( tag: 'csv_unaligned' )
+      .map{ row -> tuple(row.group, row.ksize, row.molecule, file(row.sig, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
+      .groupTuple(by: 0)
+      .dump( tag: 'ch_per_group_unaligned_sig' )
+      .set{ ch_per_group_unaligned_sig_with_ksize_molecule }
+
+    ch_per_group_unaligned_sig_with_ksize_molecule
+
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
       .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
@@ -322,10 +335,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(row.group, row.molecule, row.ksize, row.scaled, row.num_hashes, file(row.sig, checkIfExists: true)) }
+      .map{ row -> tuple(row.group, row.molecule, row.ksize, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple(by: [0,1,2,3,4])
-      .map{ it -> tuple(it[0], it[1], it[2], it[3], it[4], it[5]) } // Nest within list so the combine() step keeps all the signatures together
+      .groupTuple(by: [0, 1, 2])
+      .map{ it -> tuple(it[0], it[1], it[2], it[3]) } // Nest within list so the combine() step keeps all the signatures together
       // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
       //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -337,8 +350,8 @@ if (params.diff_hash_expression) {
       //      MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
-      .dump( tag: "ch_all_signatures_flat_list_for_diff_hash" )
-      .into{ ch_all_signatures_flat_list_for_diff_hash }
+      .dump( tag: "ch_group_molecule_ksize_with_all_signatures_for_diff_hash" )
+      .into{ ch_group_molecule_ksize_with_all_signatures_for_diff_hash }
 
     // Create channel of all signatures, completely flattened
     Channel
@@ -359,44 +372,6 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
-
-    // Create channel of signatures per group
-    Channel
-      .fromPath(params.csv)
-      .splitCsv(header:true)
-      .map{ row -> tuple(row.group) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
-      .unique()
-      .dump(tag: 'csv_unique_groups')
-      // [DUMP: csv_unique_groups] ['Mostly marrow unaligned']
-      // [DUMP: csv_unique_groups] ['Liver unaligned']
-      .combine( ch_all_signatures_flat_list_for_diff_hash )
-      .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
-      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
-      //    ['Mostly marrow unaligned',
-      //      [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //       10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
-      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
-      //  ['Liver unaligned',
-      //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //     10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
-      .into { ch_groups_with_all_signatures_for_diff_hash }
     // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
@@ -881,13 +856,13 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/diff_hash/${group}", mode: 'copy'
 
     input:
-    set val(group), val(molecule), val(ksize), val(scaled), val(num_hashes), file(all_signatures) from ch_groups_with_all_signatures_for_diff_hash
+    set val(group), val(molecule), val(ksize), file(all_signatures) from ch_group_molecule_ksize_with_all_signatures_for_diff_hash
     file metadata from ch_csv.collect()
 
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files
+    set val(group), val(molecule), val(ksize), file("*__informative_hashes.txt") into ch_informative_hashes_files, ch_informative_hashes_files_diff_hash
 
     script:
     group_cleaned = groupCleaner(group)
@@ -913,8 +888,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_informative_hashes_files
       .dump(tag: 'ch_informative_hashes_files')
       // [group_name, text_file]
-      .map{ it -> tuple(it[1].splitText(), it[0])}
-      // [['123\n', '456\n', '789\n'], group]
+      .map{ it -> tuple(it[3].splitText(), it[0])}
+      // [['123\n', '456\n', '789\n'], group, ksize, molecule]
       .dump(tag: 'ch_informative_hashes_files_split')
       .transpose()
       // ['123\n', group]
@@ -922,11 +897,31 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       // ['789\n', group]
       .dump(tag: 'ch_hash_to_group')
       .into {
-        ch_hash_to_group_for_finding_matches
+        ch_hash_to_group_for_finding_matches;
         ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
         ch_hash_to_group_for_hash2kmer;
-        ch_hash_to_group_for_hash2sig }
+        ch_hash_to_group_for_hash2sig;
+        ch_hash_to_group_for_finding_matches }
+
+  ch_informative_hashes_files_diff_hash
+      .dump(tag: 'ch_informative_hashes_files_diff_hash')
+      // [group_name, text_file]
+      .map{ it -> tuple(it[3].splitText(), it[0], it[1], it[2])}
+      // [['123\n', '456\n', '789\n'], group, ksize, molecule]
+      .dump(tag: 'ch_informative_hashes_files_split_with_ksizes')
+      .transpose()
+      // ['123\n', group, ksize, molecule]
+      // ['456\n', group, ksize, molecule]
+      // ['789\n', group, ksize, molecule]
+      .dump(tag: 'ch_hash_to_group_ksize_molecule')
+      .into {
+        ch_hash_to_group_for_finding_ksize_molecule}
+
+  ch_hash_to_group_for_finding_ksize_molecule
+    .map{ it -> tuple(it[2], it[3]) }
+    .unique()
+    .into{ ch_diff_hash_ksize_molecule }
 
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
@@ -1026,6 +1021,7 @@ if (params.hashes) {
       // [3, ["a", "b", "c"]]
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
+  ch_diff_hash_ksize_molecule = Channel.from( [sourmash_ksize, sourmash_molecule])
 } else if (params.diff_hash_expression) {
 
   ch_hash_to_group_for_hash2kmer
@@ -1060,9 +1056,11 @@ if (params.hashes) {
 
     input:
     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+    set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule
 
     output:
     file(kmers)
+    set val(ksize), val(molecule) into hash2kmer_ksize_molecule
     set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
@@ -1075,12 +1073,12 @@ if (params.hashes) {
     """
     echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
+        --ksize ${ksize} \\
         --no-dna \\
         --input-is-protein \\
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
-        --${sourmash_molecule} \\
+        --${molecule} \\
         ${first_flag} \\
         hash.txt \\
         ${peptide_fastas}
@@ -1258,6 +1256,7 @@ if (params.protein_searcher == 'sourmash'){
 
       input:
       val(hash) from ch_hashes_for_hash2sig
+      set val(ksize), val(molecule) from ch_diff_hash_ksize_molecule
 
       output:
       set val(hash), val(hash_id), file("${sig}") into ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
@@ -1269,11 +1268,11 @@ if (params.protein_searcher == 'sourmash'){
       """
       echo ${hash_cleaned} >> hash.txt
       hash2sig.py \\
-          --ksize ${sourmash_ksize} \\
+          --ksize ${ksize} \\
           --no-dna \\
           --scaled 1 \\
           --input-is-protein \\
-          --${sourmash_molecule} \\
+          --${molecule} \\
           --output ${sig} \\
           hash.txt
       """
