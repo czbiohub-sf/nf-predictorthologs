@@ -169,7 +169,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     log.info "supplied bam and no skip_remove_duplicates flag specified"
     Channel.fromPath(params.bam)
         .ifEmpty { exit 1, "params.bam was empty, no input file supplied" }
-        .set { ch_bam_for_dedup }
+        .into { ch_bam_for_dedup }
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   ////////////////////////////////////////////////////
@@ -629,7 +629,7 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
         publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
 
         input:
-        set file(bam) from ch_bam_for_dedup
+        file(bam) from ch_bam_for_dedup
 
         output:
         set val(prefix), file(bam_dedup) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
@@ -653,7 +653,7 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
         set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_index
 
         output:
-        set file(bai_dedup) into ch_dedup_bai
+        file(bai_dedup) into ch_dedup_bai
 
         script:
         bai_dedup = "${bam_name}.bai"
