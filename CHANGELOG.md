@@ -21,6 +21,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
   - Output differential hash expression hashes and DIAMOND blastp search results into a per-group subfolder
   - Add `--with-abundance` flag to allow for differential expression with tracked abundances
 - `hash2kmer.py` ignores empty lines
+- Fixed polyX trimming for paired-end fastqs ([#66](https://github.com/czbiohub/nf-predictorthologs/pull/66))
 
 ### `Dependencies`
 
