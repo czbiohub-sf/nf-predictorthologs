@@ -1349,7 +1349,7 @@ if (params.protein_searcher == 'sourmash'){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+      set val(group), val(ksize), val(molecule), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
 
       output:
       set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
