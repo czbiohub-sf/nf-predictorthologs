@@ -460,7 +460,7 @@ if (params.infernal_db) {
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.translate_peptide_ksize
+peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
 peptide_molecule = params.translate_peptide_molecule
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
@@ -861,17 +861,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     input:
     file(peptides) from ch_proteome_translate_fasta
     each molecule from peptide_molecule
+    each ksize from peptide_ksize
 
     output:
-    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
+        set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter"), val(ksize) into ch_sencha_bloom_filters
 
     script:
-    bloom_id = "molecule-${molecule}_ksize-${peptide_ksize}"
+    bloom_id = "molecule-${molecule}_ksize-${ksize}"
     """
     sencha index \\
       --tablesize ${tablesize} \\
       --molecule ${molecule} \\
-      --peptide-ksize ${peptide_ksize} \\
+      --peptide-ksize ${ksize} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
       ${peptides}
     """
@@ -879,7 +880,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
-    .groupTuple(by: [0, 3])
+        .groupTuple(by: [0, 3])
       .combine(ch_reads_trimmed_nonempty)
     .set{ ch_sencha_bloom_filters_grouptuple }
 
@@ -901,10 +902,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     tuple \
-      val(bloom_id), val(alphabet), file(bloom_filter), \
-      val(sample_id), file(reads) \
+        val(bloom_id), val(alphabet), file(bloom_filter), val(ksize), \
+        val(sample_id), file(reads) \
         from ch_sencha_bloom_filters_grouptuple
-
+    
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
     set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
@@ -918,7 +919,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
     sencha translate \\
       --molecule ${alphabet[0]} \\
-      --peptide-ksize ${peptide_ksize} \\
+      --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
       --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
       --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
