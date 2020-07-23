@@ -324,10 +324,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(row.group, row.molecule, row.ksize, file(row.sig, checkIfExists: true)) }
+      .map{ row -> tuple(row.molecule, row.ksize, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple(by: [0, 1, 2])
-      .map{ it -> tuple(it[0], it[1], it[2], it[3]) } // Nest within list so the combine() step keeps all the signatures together
+      .groupTuple(by: [0, 1])
+      .map{ it -> tuple(it[0], it[1], it[2]) } // Nest within list so the combine() step keeps all the signatures together
       // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
       //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -339,8 +339,8 @@ if (params.diff_hash_expression) {
       //      MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
-      .dump( tag: "ch_group_molecule_ksize_with_all_signatures_for_diff_hash" )
-      .into{ ch_group_molecule_ksize_with_all_signatures_for_diff_hash }
+      .dump( tag: "ch_molecule_ksize_with_all_signatures_for_diff_hash" )
+      .into{ ch_molecule_ksize_with_all_signatures_for_diff_hash }
 
     // Create channel of all signatures, completely flattened
     Channel
@@ -360,6 +360,43 @@ if (params.diff_hash_expression) {
       .groupTuple()
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
+
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
+      .unique()
+      .dump(tag: 'csv_unique_groups')
+      // [DUMP: csv_unique_groups] ['Mostly marrow unaligned']
+      // [DUMP: csv_unique_groups] ['Liver unaligned']
+      .combine( ch_molecule_ksize_with_all_signatures_for_diff_hash )
+      .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //    ['Mostly marrow unaligned',
+      //      [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //  ['Liver unaligned',
+      //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      .into { ch_group_molecule_ksize_with_all_signatures_for_diff_hash }
 
     // exit 1, "testing"
   } else {
@@ -903,18 +940,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       // ['456\n', group, ksize, molecule]
       // ['789\n', group, ksize, molecule]
       .dump(tag: 'ch_hash_to_group_ksize_molecule')
-      .into {
+      .set {
         ch_hash_to_group_for_finding_ksize_molecule}
 
   ch_hash_to_group_for_finding_ksize_molecule
     .map{ it -> tuple(it[2], it[3]) }
     .unique()
-    .into{ ch_diff_hash_ksize_molecule }
+    .set{ ch_diff_hash_ksize_molecule }
 
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
     .unique()
-    .into{ ch_informative_hashes_flattened }
+    .set{ ch_informative_hashes_flattened }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1019,7 +1056,7 @@ if (params.hashes) {
 
   ch_hash_to_group_for_hash2sig
     .map{ it -> it[0] }
-    .into{ ch_hashes_for_hash2sig }
+    .set{ ch_hashes_for_hash2sig }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
