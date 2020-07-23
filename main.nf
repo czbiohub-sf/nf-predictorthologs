@@ -944,7 +944,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         ch_hash_to_group_for_finding_ksize_molecule}
 
   ch_hash_to_group_for_finding_ksize_molecule
-    .map{ it -> tuple(it[1], it[2]) }
+    .map{ it -> tuple(it[2], it[3]) }
     .unique()
     .into { ch_diff_hash_ksize_molecule_hash2kmer; ch_diff_hash_ksize_molecule_hash2sig}
 
@@ -1330,7 +1330,7 @@ if (params.protein_searcher == 'sourmash'){
       //  hash-2852067181280790833,
       //  hash-2852067181280790833.sig]
       .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
-      .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
+      .set{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
     ///////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////
