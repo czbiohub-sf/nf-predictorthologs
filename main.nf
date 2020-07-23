@@ -287,17 +287,7 @@ if (params.csv_has_is_aligned) {
       }
       .set { ch_csv_is_aligned }
 
-      // Create channel of signatures per group
-    Channel
-      .fromPath(params.csv)
-      .splitCsv(header:true)
-      .filter{ row -> row.is_aligned == 'unaligned' }
-      .dump( tag: 'csv_unaligned' )
-      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple()
-      .dump( tag: 'ch_per_group_unaligned_sig' )
-      .set{ ch_per_group_unaligned_sig }
+      // Create channel of signatures per group, ksize, molecule
 
     Channel
       .fromPath(params.csv)
@@ -306,11 +296,10 @@ if (params.csv_has_is_aligned) {
       .dump( tag: 'csv_unaligned' )
       .map{ row -> tuple(row.group, row.ksize, row.molecule, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .groupTuple(by: 0)
+      .groupTuple(by: [0, 1, 2])
       .dump( tag: 'ch_per_group_unaligned_sig' )
       .set{ ch_per_group_unaligned_sig_with_ksize_molecule }
 
-    ch_per_group_unaligned_sig_with_ksize_molecule
 
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -901,8 +890,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         ch_hash_to_group_for_joining_after_hash2kmer;
         ch_hash_to_group_for_joining_after_hash2sig;
         ch_hash_to_group_for_hash2kmer;
-        ch_hash_to_group_for_hash2sig;
-        ch_hash_to_group_for_finding_matches }
+        ch_hash_to_group_for_hash2sig}
 
   ch_informative_hashes_files_diff_hash
       .dump(tag: 'ch_informative_hashes_files_diff_hash')
@@ -1291,7 +1279,7 @@ if (params.protein_searcher == 'sourmash'){
   }
 
   if ( params.csv_has_is_aligned ) {
-    ch_per_group_unaligned_sig
+    ch_per_group_unaligned_sig_with_ksize_molecule
       .join( ch_group_to_hash_sig )
       // [DUMP: ch_group_to_hash_sig]
       // ['monocyte',
