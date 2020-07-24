@@ -49,6 +49,7 @@ def helpMessage() {
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
+      --skip_remove_duplicates_bam    If provided, skip removal of duplicates from bam file
 
     BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
       --refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
@@ -163,6 +164,12 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
+} else if (params.bam && !params.skip_remove_duplicates_bam && !params.bai) {
+    // deciding if sambamba steps are needed
+    log.info "supplied bam and no skip_remove_duplicates flag specified"
+    Channel.fromPath(params.bam)
+        .ifEmpty { exit 1, "params.bam was empty, no input file supplied" }
+        .into { ch_bam_for_dedup }
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   ////////////////////////////////////////////////////
@@ -454,8 +461,8 @@ if (params.infernal_db) {
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.translate_peptide_ksize
-peptide_molecule = params.translate_peptide_molecule
+peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
+peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
 tablesize = params.translate_tablesize
@@ -608,6 +615,54 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
+/* --               PREPROCESSING SAMBAMBA DEDUPLICATION                  -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_dedup {
+        label "sambamba_dedup"
+        publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
+
+        input:
+        file(bam) from ch_bam_for_dedup
+
+        output:
+        set val(prefix), file(bam_dedup) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
+
+        script:
+        buffer_size = task.memory.toMega()
+        prefix = "${bam.getBaseName()}_dedup"
+        bam_dedup = "${prefix}.bam"
+        """
+        sambamba markdup --remove-duplicates --sort-buffer-size ${buffer_size} --nthreads $task.cpus ${bam} ${bam_dedup}
+        """
+    }
+}
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_index {
+        label "sambamba_index"
+        publishDir "${params.outdir}/sambamba_index", mode: 'copy'
+
+        input:
+        set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_index
+
+        output:
+        file(bai_dedup) into ch_dedup_bai
+
+        script:
+        bai_dedup = "${bam_name}.bai"
+        """
+        sambamba index  --nthreads $task.cpus ${bam_dedup} ${bai_dedup}
+        """
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
 /* --               SAMTOOLS VIEW GENOMIC REGION TO FASTA                 -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
@@ -617,7 +672,30 @@ process get_software_versions {
  * STEP 0 - samtools view
  */
 
-if (params.bam && params.bed && params.bai) {
+if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_bam) {
+    process samtools_fastq_no_intersect {
+    tag "$interval_name"
+    label "process_low"
+    publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+
+    input:
+    set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_samtools_fastq
+
+    output:
+    set val(bam_name), file(fastq) into ch_intersected
+
+    script:
+    fastq = "${bam_name}.fastq.gz"
+    """
+      samtools fastq -N ${bam_dedup} \\
+      | gzip -c > ${fastq}
+    """
+    }
+    ch_intersected
+      // gzipped files are 20 bytes when empty
+      .filter{ it[1].size() > 20 }
+      .into { ch_read_files_fastqc; ch_read_files_trimming }
+} else if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
     tag "$interval_name"
     label "process_low"
@@ -641,6 +719,10 @@ if (params.bam && params.bed && params.bai) {
     // gzipped files are 20 bytes when empty
     .filter{ it[1].size() > 20 }
     .into { ch_read_files_fastqc; ch_read_files_trimming }
+}
+
+else {
+    log.info "samtools view skipped"
 }
 
 
@@ -715,6 +797,8 @@ if (!params.skip_trimming && !params.input_is_protein){
       if (reads[1] == null) {
           """
           fastp \\
+              --low_complexity_filter \\
+              --trim_poly_x \\
               --in1 ${reads} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
               --json ${name}_fastp.json \\
@@ -724,6 +808,8 @@ if (!params.skip_trimming && !params.input_is_protein){
         // More than one set of reads --> paired end
           """
           fastp \\
+              --low_complexity_filter \\
+              --trim_poly_x \\
               --in1 ${reads[0]} \\
               --in2 ${reads[1]} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
@@ -772,17 +858,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     input:
     file(peptides) from ch_proteome_translate_fasta
     each molecule from peptide_molecule
+    each ksize from peptide_ksize
 
     output:
-    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
+        set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter"), val(ksize) into ch_sencha_bloom_filters
 
     script:
-    bloom_id = "molecule-${molecule}_ksize-${peptide_ksize}"
+    bloom_id = "molecule-${molecule}_ksize-${ksize}"
     """
     sencha index \\
       --tablesize ${tablesize} \\
       --molecule ${molecule} \\
-      --peptide-ksize ${peptide_ksize} \\
+      --peptide-ksize ${ksize} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
       ${peptides}
     """
@@ -790,7 +877,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
-    .groupTuple(by: [0, 3])
+        .groupTuple(by: [0, 3])
       .combine(ch_reads_trimmed_nonempty)
     .set{ ch_sencha_bloom_filters_grouptuple }
 
@@ -812,10 +899,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     tuple \
-      val(bloom_id), val(alphabet), file(bloom_filter), \
-      val(sample_id), file(reads) \
+        val(bloom_id), val(alphabet), file(bloom_filter), val(ksize), \
+        val(sample_id), file(reads) \
         from ch_sencha_bloom_filters_grouptuple
-
+    
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
     set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
@@ -829,7 +916,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
     sencha translate \\
       --molecule ${alphabet[0]} \\
-      --peptide-ksize ${peptide_ksize} \\
+      --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
       --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
       --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\

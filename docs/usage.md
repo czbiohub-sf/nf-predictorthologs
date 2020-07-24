@@ -16,6 +16,7 @@
     - [`--single_end`](#-singleend)
     - [`--csv`](#-csv)
       - [Simple fasta input](#simple-fasta-input)
+      - [Bam input](#bam-input)
     - [Differential hash expression](#differential-hash-expression)
   - [Reference proteomes](#reference-proteomes)
     - [Proteomes for translating](#proteomes-for-translating)
@@ -171,6 +172,10 @@ sample_id,fasta
 sample1,sample1.fasta
 sample2,sample2.fasta
 ```
+
+#### Bam input
+
+Pipeline expects data in `.fastq` format. If using a bam instead you need to specify the `-bam` parameter. Bam deduplication is run by default with sambamba, if you wish to skip deduplication supply the `-skip_remove_duplicates_bam` flag. Deduplication is also skipped if `-bai` flag is specified with index file
 
 ### Differential hash expression
 
