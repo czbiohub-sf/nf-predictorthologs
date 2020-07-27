@@ -1134,7 +1134,7 @@ if (params.hashes) {
       // 1, 2, 3 = hashes
       // "a", "b", "c" = protein fasta files
   Channel
-    .from( [sourmash_molecule, sourmash_ksize])
+    .from( tuple(sourmash_molecule, sourmash_ksize))
     .into {ch_diff_hash_ksize_molecule_hash2sig; ch_diff_hash_ksize_molecule_hash2kmer}
 } else if (params.diff_hash_expression) {
 
