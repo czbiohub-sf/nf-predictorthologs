@@ -864,7 +864,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     each ksize from peptide_ksize
 
     output:
-        set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter"), val(ksize) into ch_sencha_bloom_filters
+        set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
     bloom_id = "molecule-${molecule}_ksize-${ksize}"
@@ -880,8 +880,16 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
-        .groupTuple(by: [0, 3])
+      .groupTuple(by: [0, 1, 2])
       .combine(ch_reads_trimmed_nonempty)
+      .dump( tag: 'ch_sencha_bloom_filters_grouptuple' )
+      // [DUMP: ch_sencha_bloom_filters_grouptuple]
+      //    [molecule-protein_ksize-12,
+      //     'protein',
+      //      '12',
+      //      [ncbi_refseq_vertebrate_mammalian_ptprc_plus__np_only__molecule-protein_ksize-12.bloomfilter],
+      //    'bonobo_liver_ptprc',
+      //    bonobo_liver_ptprc_R1_trimmed.fastq.gz]
     .set{ ch_sencha_bloom_filters_grouptuple }
 
 
@@ -902,10 +910,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     tuple \
-        val(bloom_id), val(alphabet), file(bloom_filter), val(ksize), \
+        val(bloom_id), val(alphabet), val(ksize), file(bloom_filter),  \
         val(sample_id), file(reads) \
         from ch_sencha_bloom_filters_grouptuple
-    
+
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
     set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
@@ -918,7 +926,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     script:
     """
     sencha translate \\
-      --molecule ${alphabet[0]} \\
+      --molecule ${alphabet} \\
       --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
       --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
