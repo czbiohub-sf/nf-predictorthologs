@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Nextflow versions: check pipeline minimum and current latest
-        nxf_ver: ['']
         profile_flags: [
         'test_download_refseq'
         ]
