@@ -29,6 +29,8 @@ jobs:
         'test_hash2kmer',
         'test_input_is_protein',
         'test_sourmash_search',
+        'test_sencha',
+        'test_sencha_sambamba'
         ]
     steps:
       - uses: actions/checkout@v2
