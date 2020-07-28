@@ -149,7 +149,7 @@ if (params.hashes) {
 
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
-    print("supplied bam, not looking at any supplied --reads")
+    log.info "supplied bam, not looking at any supplied --reads"
     Channel.fromPath(params.bai)
         .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
         .set { ch_bai }
@@ -209,7 +209,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   // * Create a channel for input read files
   if (params.csv) {
     // Provided a csv file mapping sample_id to read(s) fastq path
-    print("supplied csv, not looking at any supplied --reads or readPaths")
+    log.info "supplied csv, not looking at any supplied --reads or readPaths"
     if (params.single_end) {
       Channel
         .fromPath(params.csv)
@@ -228,7 +228,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
     }
    } else if (params.readPaths){
-    print("supplied readPaths, not looking at any supplied --reads")
+    log.info "supplied readPaths, not looking at any supplied --reads"
     if (params.single_end) {
       Channel
         .from(params.readPaths)
@@ -677,7 +677,7 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
 
 if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_bam) {
     process samtools_fastq_no_intersect {
-    tag "$interval_name"
+    tag "$bam_name"
     label "process_low"
     publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
 
@@ -723,11 +723,6 @@ if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_b
     .filter{ it[1].size() > 20 }
     .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
-
-else {
-    log.info "samtools view skipped"
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
