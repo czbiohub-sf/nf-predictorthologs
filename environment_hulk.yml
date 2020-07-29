@@ -1,3 +1,5 @@
+# After installing environment using the below file by conda env create --file environment_hulk.yml
+# Install sencha from master by cloning the repo and ~/miniconda3/envs/czbiohub-predictorthologs/bin/python setup.py install
 name: czbiohub-predictorthologs
 channels:
   - file://apps/conda-BioHPDA
