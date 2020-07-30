@@ -826,7 +826,7 @@ if (!params.skip_trimming && !params.input_is_protein){
   // filter out empty fastq files
   ch_reads_trimmed
       // gzipped files are 20 bytes when empty
-      .filter{ it[1].size() > 20 }
+      // .filter{ it[1].size() > 20 }
       .set { ch_reads_trimmed_nonempty }
 } else if (!params.input_is_protein) {
   ch_reads_trimmed_nonempty = ch_read_files_trimming
@@ -859,7 +859,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     each ksize from peptide_ksize
 
     output:
-        set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
+    set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
     bloom_id = "molecule-${molecule}_ksize-${ksize}"
