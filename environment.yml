@@ -38,4 +38,4 @@ dependencies:
   - csvtk=0.20.0
   - infernal=1.1.2
   - pip:
-    - git+https://github.com/czbiohub/sencha.git@master#egg=sencha
+    - git+https://github.com/czbiohub/sencha.git@pranathi-translate#egg=sencha
