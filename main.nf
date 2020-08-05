@@ -289,8 +289,8 @@ if (params.csv_has_is_aligned) {
       .fromPath ( params.csv )
       .splitCsv ( header:true )
       .branch { row ->
-        aligned: row.is_aligned == "aligned"
-        unaligned: row.is_aligned == "unaligned"
+        aligned: (row.is_aligned == "aligned") || (row.is_aligned == true)
+        unaligned: (row.is_aligned == "unaligned") || (row.is_aligned == false)
       }
       .set { ch_csv_is_aligned }
 
