@@ -207,7 +207,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 
 } else {
   // * Create a channel for input read files
-  if (params.csv) {
+  if (params.csv && params.csv_has_reads) {
     // Provided a csv file mapping sample_id to read(s) fastq path
     log.info "supplied csv, not looking at any supplied --reads or readPaths"
     if (params.single_end) {
