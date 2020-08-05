@@ -425,14 +425,14 @@ Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.proteome_search_fasta}" }
      .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
-if (params.diamond_taxonmap_gz) {
+if (params.taxonmap_gz) {
 Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_gz}" }
+     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.taxonmap_gz}" }
      .set{ ch_diamond_taxonmap_gz }
 }
-if (params.diamond_taxdmp_zip) {
+if (params.taxdmp_zip) {
 Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.diamond_taxdmp_zip}" }
+     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
 if (params.diamond_database){
@@ -528,8 +528,8 @@ if (params.hashes) summary['sourmash ksize']                                = pa
 if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
 if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
-if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
-if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
+if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.taxonmap_gz
+if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.taxdmp_zip
 summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
@@ -1240,7 +1240,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  if (!params.diamond_database && (params.proteome_search_fasta || params.diamond_refseq_release)){
+  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_medium"
