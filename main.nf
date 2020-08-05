@@ -289,8 +289,8 @@ if (params.csv_has_is_aligned) {
       .fromPath ( params.csv )
       .splitCsv ( header:true )
       .branch { row ->
-        aligned: (row.is_aligned == "aligned") || (row.is_aligned == true)
-        unaligned: (row.is_aligned == "unaligned") || (row.is_aligned == false)
+        aligned: row.is_aligned == "aligned"
+        unaligned: row.is_aligned == "unaligned"
       }
       .set { ch_csv_is_aligned }
 
@@ -298,8 +298,8 @@ if (params.csv_has_is_aligned) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .filter{ row -> (row.is_aligned == 'unaligned') || (row.is_aligned == false) }
-      .ifEmpty { exit 1, "is_aligned column can contain only True/False or aligned/unaligned values"}
+      .filter{ row -> row.is_aligned == 'unaligned' }
+      .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
       .dump( tag: 'csv_unaligned' )
       .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
