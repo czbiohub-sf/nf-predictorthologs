@@ -426,12 +426,12 @@ Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
      .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
 if (params.taxonmap_gz) {
-Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
+Channel.fromPath(params.taxonmap_gz, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.taxonmap_gz}" }
      .set{ ch_diamond_taxonmap_gz }
 }
 if (params.taxdmp_zip) {
-Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
+Channel.fromPath(params.taxdmp_zip, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
