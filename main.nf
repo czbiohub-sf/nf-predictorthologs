@@ -1240,7 +1240,7 @@ if (params.protein_searcher == 'diamond') {
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
+  if (!params.diamond_database && (params.proteome_search_fasta || params.diamond_refseq_release)){
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_medium"
