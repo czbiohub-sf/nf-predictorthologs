@@ -22,6 +22,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
   - Add `--with-abundance` flag to allow for differential expression with tracked abundances
 - `hash2kmer.py` ignores empty lines
 - Fixed polyX trimming for paired-end fastqs ([#66](https://github.com/czbiohub/nf-predictorthologs/pull/66))
+- Fixed number of cpus, memory, time requirements for sambamba processes ([#76](https://github.com/czbiohub/nf-predictorthologs/pull/76))
 
 ### `Dependencies`
 

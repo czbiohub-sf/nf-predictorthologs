@@ -625,7 +625,8 @@ process get_software_versions {
 
 if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
     process sambamba_dedup {
-        label "sambamba_dedup"
+        tag "${prefix}"
+        label "process_high"
         publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
 
         input:
@@ -646,7 +647,8 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
 
 if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
     process sambamba_index {
-        label "sambamba_index"
+        tag "${bam_name}"
+        label "process_medium"
         publishDir "${params.outdir}/sambamba_index", mode: 'copy'
 
         input:
