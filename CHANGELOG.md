@@ -22,6 +22,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
   - Add `--with-abundance` flag to allow for differential expression with tracked abundances
 - `hash2kmer.py` ignores empty lines
 - Fixed polyX trimming for paired-end fastqs ([#66](https://github.com/czbiohub/nf-predictorthologs/pull/66))
+- Fixed noncoding search to use `cmscan` instead of `cmsearch` from INFERNAL ([#74](https://github.com/czbiohub/nf-predictorthologs/pull/74))
 
 ### `Dependencies`
 
