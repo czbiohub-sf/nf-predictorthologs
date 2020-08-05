@@ -16,3 +16,5 @@ COPY docker/sysctl.conf /etc/sysctl.conf
 
 # Add conda installation dir to PATH (instead of doing 'conda activate')
 ENV PATH /opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH
+
+echo 'export "PATH=/opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH"' >> ~/.bashrc
