@@ -445,7 +445,7 @@ if (params.sourmash_index){
        .set{ ch_sourmash_index }
 }
 
-if (params.infernal_db) {
+if (params.search_noncoding && params.infernal_db) {
   if (hasExtension(params.infernal_db, 'gz')) {
     Channel.fromPath(params.infernal_db, checkIfExists: true)
          .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
@@ -455,6 +455,12 @@ if (params.infernal_db) {
          .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
          .set{ ch_infernal_db }
   }
+}
+
+if (params.search_noncoding && params.rfam_clan_info){
+  Channel.fromPath(params.rfam_clan_info, checkIfExists: true)
+       .ifEmpty { exit 1, "Rfam Clan Information file not found: ${params.rfam_clan_info}" }
+       .set{ ch_rfam_clan_info }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1240,8 +1246,8 @@ if (params.protein_searcher == 'diamond') {
     process diamond_makedb {
      tag "${reference_proteome.baseName}"
      label "process_medium"
-
-     publishDir "${params.outdir}/diamond/", mode: 'copy'
+     publishDir path: { params.save_reference ? "${params.outdir}/reference/diamond/" : params.outdir },
+                saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
 
      input:
      file(reference_proteome) from ch_diamond_reference_fasta
@@ -1279,7 +1285,7 @@ if (params.protein_searcher == 'diamond') {
     tag "${sample_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
+    publishDir "${params.outdir}/blastp/${subdir}", mode: 'copy'
 
     input:
     // Basenames from dumped channel:
@@ -1568,16 +1574,16 @@ if (params.search_noncoding && params.infernal_db) {
    * STEP 6 - unzip taxonomy information files for input to DIAMOND
    */
   if (hasExtension(params.infernal_db, "gz") ){
-    process gunzip_infernal_db {
+    process gunzip_infernal_cm {
         tag "$gz"
-        publishDir path: { params.save_reference ? "${params.outdir}/infernal/database" : params.outdir },
+        publishDir path: { params.save_reference ? "${params.outdir}/reference/infernal" : params.outdir },
                    saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
 
         input:
         file gz from ch_infernal_db_gz
 
         output:
-        file "${gz.baseName}" into ch_infernal_db
+        file "${gz.baseName}" into ch_infernal_cm
 
         script:
         """
@@ -1586,14 +1592,32 @@ if (params.search_noncoding && params.infernal_db) {
     }
   }
 
-  process infernal_cmsearch {
+  process prepare_infernal_db {
+      tag "${infernal_cm}"
+      publishDir path: { params.save_reference ? "${params.outdir}/reference/infernal" : params.outdir },
+                 saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
+
+      input:
+      file infernal_cm from ch_infernal_cm.collect()
+
+      output:
+      set val("${infernal_cm}"), file("${infernal_cm}*") into ch_infernal_db
+
+      script:
+      """
+      cmpress ${infernal_cm}
+      """
+  }
+
+  process search_noncoding {
       tag "${sample_id}"
       label "process_high"
       label "process_long"
-      publishDir "${params.outdir}/infernal/cmsearch", mode: "${params.publish_dir_mode}"
+      publishDir "${params.outdir}/infernal", mode: "${params.publish_dir_mode}"
 
       input:
-      file db from ch_infernal_db.collect()
+      set val(db_name), file(db_index) from ch_infernal_db.collect()
+      file rfam_clan_info from ch_rfam_clan_info.collect()
       set val(sample_id), file (fasta) from ch_noncoding_nucleotides
 
       output:
@@ -1602,11 +1626,15 @@ if (params.search_noncoding && params.infernal_db) {
       script:
       txt = "${sample_id}.txt"
       """
-      cmsearch  \\
+      cmscan  \\
+          --cut_ga \\
+          --nohmmonly \\
+          --clanin ${rfam_clan_info} \\
+          --fmt 2 \\
           --rfam \\
           --cpu ${task.cpus} \\
           --tblout ${txt} \\
-          ${db} \\
+          ${db_name} \\
           ${fasta}
       """
   }

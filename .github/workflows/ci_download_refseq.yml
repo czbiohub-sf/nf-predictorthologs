@@ -6,8 +6,9 @@ name: nf-core CI - download refseq (allowed to fail)
 on: [push, pull_request]
 
 jobs:
-  test:
+  refseq:
     continue-on-error: true
+    timeout-minutes: 60
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
