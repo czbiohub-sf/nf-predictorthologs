@@ -1588,7 +1588,7 @@ if (params.search_noncoding && params.infernal_db) {
 
         script:
         """
-        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        gunzip -c --verbose --stdout --force ${gz} > ${gz.baseName}
         """
     }
   }
