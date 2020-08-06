@@ -366,6 +366,15 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
+    // Create channel of fastas for each signature name
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(file(row.sig).getBaseName(), file(row.fasta, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
+      .groupTuple()
+      .dump( tag: ' ch_sig_filename_to_fasta' )
+      .set{  ch_sig_filename_to_fasta }
 
     // Create channel of signatures per group
     Channel
@@ -1422,7 +1431,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     }
 
     ch_sample_sigs_with_unassigned
-      .map ( it -> tuple(it[1].splitText(), it[0]) )
+      .map { it -> tuple(it[1].splitText(), it[0]) }
       .join ( ch_sig_filename_to_fasta )
       .set { ch_sig }
 
@@ -1436,7 +1445,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
  /*
  * STEP 7 - Find signatures containing hashes
  */
-  process unassigned_seqs {
+  process unassigned_seqs_sig2kmer {
     tag "${group_cleaned}"
     label "process_low"
 
