@@ -119,11 +119,11 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     rows = annotations[group_col] == group1_name
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
-    logger.info(f"\nNumber of samples in {group1}: {len(group1_samples)}")
+    logger.info(f"\nNumber of samples in {group1_name}: {len(group1_samples)}")
 
     # Everything not in group 1
     group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
-    logger.info(f"\nNumber of samples in the rest {group1}: {len(group1_samples)}")
+    logger.info(f"\nNumber of samples in the rest -- aka NOT {group1_name}: {len(group1_samples)}")
 
     group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
