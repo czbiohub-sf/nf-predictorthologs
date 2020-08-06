@@ -631,7 +631,8 @@ process get_software_versions {
 
 if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
     process sambamba_dedup {
-        label "sambamba_dedup"
+        tag "${prefix}"
+        label "process_high"
         publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
 
         input:
@@ -652,7 +653,8 @@ if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
 
 if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
     process sambamba_index {
-        label "sambamba_index"
+        tag "${bam_name}"
+        label "process_medium"
         publishDir "${params.outdir}/sambamba_index", mode: 'copy'
 
         input:
@@ -829,13 +831,8 @@ if (!params.skip_trimming && !params.input_is_protein){
         """
       }
   }
-  // filter out empty fastq files
-  ch_reads_trimmed
-      // gzipped files are 20 bytes when empty
-      .filter{ it[1].size() > 20 }
-      .set { ch_reads_trimmed_nonempty }
 } else if (!params.input_is_protein) {
-  ch_reads_trimmed_nonempty = ch_read_files_trimming
+  ch_reads_trimmed = ch_read_files_trimming
 } else {
   ch_fastp_results = Channel.empty()
 }
@@ -865,7 +862,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     each ksize from peptide_ksize
 
     output:
-        set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
+    set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
     bloom_id = "molecule-${molecule}_ksize-${ksize}"
@@ -882,7 +879,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
       .groupTuple(by: [0, 1, 2])
-      .combine(ch_reads_trimmed_nonempty)
+      .combine(ch_reads_trimmed)
       .dump( tag: 'ch_sencha_bloom_filters_grouptuple' )
       // [DUMP: ch_sencha_bloom_filters_grouptuple]
       //    [molecule-protein_ksize-12,
