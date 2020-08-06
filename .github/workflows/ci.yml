@@ -23,7 +23,7 @@ jobs:
         'test_diff_hash_sourmash',
         'test_diff_hash_is_aligned',
         'test_download_refseq',
-        'test_existing_database',
+        'test_make_diamond_db',
         'test_fastq',
         'test_fastq_paired',
         'test_hash2kmer',
