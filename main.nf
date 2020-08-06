@@ -919,8 +919,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     set val(sample_id), file("${sample_id}__coding_summary.json") into ch_coding_scores_json
 
     script:
+    processes = "--processes ${task.cpus}"
     """
     sencha translate \\
+      $processes \\
       --molecule ${alphabet} \\
       --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
