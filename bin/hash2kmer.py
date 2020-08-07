@@ -10,7 +10,7 @@ from sourmash._minhash import hash_murmur
 import screed
 import csv
 from sourmash.logging import notify, error
-from sourmash.cli.utils import add_construct_moltype_args
+from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash.sourmash_args import calculate_moltype
 from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
