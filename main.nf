@@ -256,7 +256,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText()
+      .splitText(strip=true)
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
       .transpose()
       .into { ch_hash_to_group_for_joining_after_hash2kmer;
@@ -370,10 +370,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(file(row.sig).getBaseName(), file(row.fasta, checkIfExists: true)) }
+      .map{ row -> tuple(file(row.sig).getBaseName(), file(row.fasta, checkIfExists: true) ) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
       .groupTuple()
-      .dump( tag: ' ch_sig_filename_to_fasta' )
+      .dump( tag: 'ch_sig_filename_to_fasta' )
       .set{  ch_sig_filename_to_fasta }
 
     // Create channel of signatures per group
@@ -1039,7 +1039,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_hash_to_group_for_finding_matches
     .map{ it -> it[0] }
     .unique()
-    .into{ ch_informative_hashes_flattened }
+    .set { ch_informative_hashes_flattened }
 
 
 }
@@ -1107,11 +1107,11 @@ if (params.hashes) {
   ch_hash_to_group_for_hash2kmer
     .join( ch_group_to_fasta )
     .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-    .into{ ch_hashes_with_fastas_for_hash2kmer }
+    .set { ch_hashes_with_fastas_for_hash2kmer }
 
   ch_hash_to_group_for_hash2sig
     .map{ it -> it[0] }
-    .into{ ch_hashes_for_hash2sig }
+    .set{ ch_hashes_for_hash2sig }
 }
 
 
@@ -1392,7 +1392,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
    ch_unassigned_hashes_for_ripgrep
       .join( ch_group_to_signatures )
-      .set { ch_group_to_unassigned_hashes_and_sigs }
+      .into { ch_group_to_unassigned_hashes_and_sigs }
 
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -1415,11 +1415,11 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
      set val(group), file(hashes), file(sigs) from ch_group_to_unassigned_hashes_and_sigs
 
      output:
-     set val(group), file(matches) into ch_sample_sigs_with_unassigned
+     set val(group), file(matches), file(hashes) into ch_sample_sigs_with_unassigned
 
      script:
      group_cleaned = groupCleaner(group)
-     matches = "${group_cleaned}__matches.txt"
+     matches = "${group_cleaned}__samples_with_unassigned_hashes.txt"
      """
      rg \\
         --threads ${task.cpus} \\
@@ -1431,9 +1431,30 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     }
 
     ch_sample_sigs_with_unassigned
-      .map { it -> tuple(it[1].splitText(), it[0]) }
-      .join ( ch_sig_filename_to_fasta )
-      .set { ch_sig }
+      .dump ( tag: 'ch_sample_sigs_with_unassigned' )
+      .map { it -> tuple(it[1].splitText(), it[0], it[2]) }
+      // [ [sample1.sig, sample2, sample3.sig], group1]
+      // [ [sample4.sig, sample5, sample6.sig], group2]
+      .transpose()
+      // [ sample1.sig, group1]
+      // [ sample2.sig, group1]
+      // [ sample3.sig, group1]
+      // [ sample4.sig, group2]
+      // [ sample5.sig, group2]
+      // [ sample6.sig, group2]
+      // Relies on sourmash signatures ending in .sig, which is currently true..
+      .map { it -> tuple(it[0].replaceAll('.sig\\s+', ''), it[1], it[2])}
+      .dump ( tag: 'ch_sample_sigs_with_unassigned__tuple_splittext')
+      .join ( ch_sig_filename_to_fasta, by: 0 )
+      .dump ( tag: 'ch_sample_sigs_with_unassigned__tuple_splittext__join_fastas' )
+      .groupTuple ( by: 1 )
+      // it[0] --> sample ids, skip this
+      // it[1] --> group name
+      // it[2][0] --> hahes.txt (same for everyone so take the first one)
+      // it[3] --> fastas (want all as one so flatten)
+      .map { it -> tuple(it[1], it[2][0], it[3].flatten())}
+      .dump ( tag: 'ch_sig_to_group_to_fastas' )
+      .set { ch_sig_to_group_to_fastas }
 
  ///////////////////////////////////////////////////////////////////////////////
  ///////////////////////////////////////////////////////////////////////////////
@@ -1445,30 +1466,30 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
  /*
  * STEP 7 - Find signatures containing hashes
  */
-  process unassigned_seqs_sig2kmer {
+  process unassigned_hash2kmer {
     tag "${group_cleaned}"
     label "process_low"
 
     publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
 
     input:
-    set val(group), file(hashes) from ch_unassigned_hashes_for_hash2kmer
+    set val(group), file(hashes), file(peptide_fastas) from ch_sig_to_group_to_fastas
 
     output:
     file(unassigned_kmers)
-    set val(group), file(unassigned_seqs) into ch_protein_seq_for_diamond
+    set val(group), file(unassigned_sequences) into ch_protein_seq_for_diamond
 
     script:
     group_cleaned = groupCleaner(group)
-    sequences = "${group}__unassigned.fasta"
-    sequences = "${group}__unassigned_kmers.csv"
+    unassigned_sequences = "${group_cleaned}__unassigned.fasta"
+    unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
     """
-    sig2kmer.py \\
+    hash2kmer.py \\
         --ksize ${sourmash_ksize} \\
         --no-dna \\
         --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
+        --output-sequences ${unassigned_sequences} \\
+        --output-kmers ${unassigned_kmers} \\
         --${sourmash_molecule} \\
         ${hashes} \\
         ${peptide_fastas}
@@ -1509,14 +1530,14 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
 
     output:
-    file(kmers)
+    file(kmers_from_hashes)
     set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
     script:
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    kmers = "${hash_id}__kmer.txt"
+    kmers_from_hashes = "${hash_id}__kmer.txt"
     sequences = "${hash_id}__sequences.fasta"
     first_flag = params.do_featurecounts_orthology ? '' : '--first'
     """
@@ -1526,7 +1547,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
         --no-dna \\
         --input-is-protein \\
         --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
+        --output-kmers ${kmers_from_hashes} \\
         --${sourmash_molecule} \\
         ${first_flag} \\
         hash.txt \\
