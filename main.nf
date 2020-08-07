@@ -903,6 +903,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
    */
   process translate {
     tag "${sample_id}"
+    label "process_high"
     label "process_long"
     publishDir "${params.outdir}/translate/", mode: 'copy'
 
