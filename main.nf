@@ -1294,8 +1294,8 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
  }
 
   process sourmash_db_index {
-    tag "${reference_proteome_sig.baseName}"
-    label "process_low"
+    tag "${prefix}"
+    label "process_medium"
 
     publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
 
@@ -1303,15 +1303,17 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
 
     output:
-    set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
+    file(sbt_zip) into ch_sourmash_index
 
     script:
     sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+    prefix = "${reference_proteome_sig.simpleName}__${sketch_id}"
+    sbt_zip = "${prefix}.sbt.zip"
     """
     sourmash index \\
         --ksize ${sourmash_ksize} \\
         --${sourmash_molecule} \\
-        ${reference_proteome_sig.simpleName} \\
+        ${sbt_zip} \\
         ${reference_proteome_sig}
     """
   }
@@ -1333,7 +1335,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    publishDir "${params.outdir}/sourmash/", mode: 'copy'
 
    input:
-   set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
+   file(sourmash_sbt_index) from ch_sourmash_index.collect()
    set val(group), file(query_sig) from ch_group_hash_sigs_to_query
 
    output:
@@ -1353,7 +1355,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
        --${sourmash_molecule} \\
        --output-unassigned ${unassigned} \\
        ${query_sig} \\
-       ${reference_sbt_json}
+       ${sourmash_sbt_index}
    """
  }
 
@@ -1516,51 +1518,51 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
- if (do_hash2kmer) {
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${hash_cleaned}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-    input:
-    tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-
-    output:
-    file(kmers_from_hashes)
-    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
-    set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
-
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    kmers_from_hashes = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
-    first_flag = params.do_featurecounts_orthology ? '' : '--first'
-    """
-    echo ${hash_cleaned} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers_from_hashes} \\
-        --${sourmash_molecule} \\
-        ${first_flag} \\
-        hash.txt \\
-        ${peptide_fastas}
-    """
-  }
-  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-
-  ch_hash_to_group_for_joining_after_hash2kmer
-    .join(ch_seqs_from_hash2kmer)
-    .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-    .set{ ch_protein_seq_for_diamond }
-}
+//  do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
+//  if (do_hash2kmer) {
+//   // No protein fasta provided for searching for orthologs, need to
+//   // download refseq
+//   process hash2kmer {
+//     tag "${hash_cleaned}"
+//     label "process_low"
+//
+//     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+//
+//     input:
+//     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+//
+//     output:
+//     file(kmers_from_hashes)
+//     set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
+//     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
+//
+//     script:
+//     hash_cleaned = hashCleaner(hash)
+//     hash_id = "hash-${hash_cleaned}"
+//     kmers_from_hashes = "${hash_id}__kmer.txt"
+//     sequences = "${hash_id}__sequences.fasta"
+//     first_flag = params.do_featurecounts_orthology ? '' : '--first'
+//     """
+//     echo ${hash_cleaned} >> hash.txt
+//     hash2kmer.py \\
+//         --ksize ${sourmash_ksize} \\
+//         --no-dna \\
+//         --input-is-protein \\
+//         --output-sequences ${sequences} \\
+//         --output-kmers ${kmers_from_hashes} \\
+//         --${sourmash_molecule} \\
+//         ${first_flag} \\
+//         hash.txt \\
+//         ${peptide_fastas}
+//     """
+//   }
+//   ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+//
+//   ch_hash_to_group_for_joining_after_hash2kmer
+//     .join(ch_seqs_from_hash2kmer)
+//     .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
+//     .set{ ch_protein_seq_for_diamond }
+// }
 
 
 
@@ -1620,7 +1622,7 @@ if (params.protein_searcher == 'diamond' || params.diff_hash_expression) {
      tag "${reference_proteome.baseName}"
      label "process_medium"
 
-     publishDir "${params.outdir}/diamond/", mode: 'copy'
+     publishDir "${params.outdir}/reference/diamond/", mode: 'copy'
 
      input:
      file(reference_proteome) from ch_diamond_reference_fasta
@@ -1658,7 +1660,7 @@ if (params.protein_searcher == 'diamond' || params.diff_hash_expression) {
     tag "${sample_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/diamond/blastp/${subdir}", mode: 'copy'
+    publishDir "${params.outdir}/diamond/", mode: 'copy'
 
     input:
     // Basenames from dumped channel:
@@ -1674,15 +1676,7 @@ if (params.protein_searcher == 'diamond' || params.diff_hash_expression) {
 
     script:
     group_cleaned = groupCleaner(group)
-    if (hash) {
-      hash_cleaned = hashCleaner(hash)
-      sample_id = "${group_cleaned}__hash-${hash_cleaned}"
-      subdir = "${group_cleaned}"
-    }
-    else {
-      sample_id = "${group_cleaned}"
-      subdir = ""
-    }
+    sample_id = "${group_cleaned}"
     tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
     output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
