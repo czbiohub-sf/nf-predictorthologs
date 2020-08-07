@@ -14,7 +14,7 @@ from sourmash._minhash import hash_murmur
 import screed
 import csv
 from sourmash.logging import notify, error
-from sourmash.cli.utils import add_construct_moltype_args
+from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash.sourmash_args import calculate_moltype
 from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
@@ -94,6 +94,12 @@ def main():
         default=None,
         help="save matching kmers to this file.",
     )
+    p.add_argument(
+        "--input-is-protein",
+        action="store_true",
+        help="Consume protein sequences - no translation needed.",
+    )
+    add_ksize_arg(p)
     add_construct_moltype_args(p)
     args = p.parse_args()
 
@@ -121,7 +127,7 @@ def main():
 
     # first, load the signature and extract the hashvals
     moltype = calculate_moltype(args)
-    sigobj = sourmash.load_one_signature(args.query, ksize=ksize, select_moltype=moltype)
+    sigobj = sourmash.load_one_signature(args.query, ksize=args.ksize, select_moltype=moltype)
     query_hashvals = set(sigobj.minhash.get_mins())
     query_ksize = sigobj.minhash.ksize
 
