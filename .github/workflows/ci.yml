@@ -28,6 +28,7 @@ jobs:
         'test_fastq_paired',
         'test_hash2kmer',
         'test_input_is_protein',
+        'test_noncoding',
         'test_sourmash_search',
         'test_sencha',
         'test_sencha_sambamba'
