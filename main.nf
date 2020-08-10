@@ -506,6 +506,18 @@ sourmash_molecule = params.sourmash_molecule
 sourmash_log2_sketch_size = params.sourmash_log2_sketch_size
 sourmash_scaled = params.sourmash_scaled
 
+if (params.diff_hash_expression || params.protein_searcher == "sourmash") {
+  if (!sourmash_scaled) {
+    exit 1, "--sourmash_scaled must be set if --diff_hash_expression or --protein_searcher sourmash"
+  }
+  if (!sourmash_ksize) {
+    exit 1, "--sourmash_ksize must be set if --diff_hash_expression or --protein_searcher sourmash"
+  }
+  if (!sourmash_molecule) {
+    exit 1, "--sourmash_molecule must be set if --diff_hash_expression or --protein_searcher sourmash"
+  }
+}
+
 //////////////////////////////////////////////////////////////////
 /* -        Summarize reference proteome parameters          -- */
 //////////////////////////////////////////////////////////////////
