@@ -1305,7 +1305,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
      file(sig) into ch_proteome_sig_for_sourmash_index
 
      script:
-     sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+     sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-${sourmash_scaled}__track_abundance-true"
      sample_id = "${reference_proteome.simpleName}__${sketch_id}"
      sig = "${sample_id}.sig"
      output_log = "${sample_id}.log"
