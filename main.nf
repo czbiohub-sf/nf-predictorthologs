@@ -256,7 +256,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
-      .splitText(strip=true)
+      .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
       .transpose()
       .into { ch_hash_to_group_for_joining_after_hash2kmer;
