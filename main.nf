@@ -183,6 +183,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -213,6 +214,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     if (params.single_end) {
       Channel
         .fromPath(params.csv)
+        .ifEmpty { exit 1, "params.csv was empty" }
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -221,6 +223,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     } else {
       Channel
         .fromPath(params.csv)
+        .ifEmpty { exit 1, "params.csv was empty" }
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -293,6 +296,7 @@ if (params.csv_has_is_aligned) {
   if (params.csv) {
     Channel
       .fromPath ( params.csv )
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv ( header:true )
       .branch { row ->
         aligned: row.is_aligned == "aligned"
@@ -303,6 +307,7 @@ if (params.csv_has_is_aligned) {
       // Create channel of signatures per group
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .filter{ row -> row.is_aligned == 'unaligned' }
       .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
@@ -330,7 +335,11 @@ if (params.csv_has_is_aligned) {
 if (params.diff_hash_expression) {
   if (params.csv) {
     // Create metadata csv channel
-    ch_csv = Channel.fromPath(params.csv)
+    Channel
+      .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
+      .set { ch_csv }
+
 
     // Create channel of all signatures, but a list within a list
     Channel
