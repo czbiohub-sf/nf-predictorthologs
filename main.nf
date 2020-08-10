@@ -1256,73 +1256,75 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
   }
 
 
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE SOURMASH INDEX                      -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 7 - make peptide search database for DIAMOND
-   */
-  process sourmash_db_compute {
-   tag "${sample_id}"
-   label "process_low"
+  if (!params.sourmash_index) {
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /* --                                                                     -- */
+    /* --                  MAKE SOURMASH INDEX                      -- */
+    /* --                                                                     -- */
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /*
+     * STEP 7 - make peptide search database for DIAMOND
+     */
+    process sourmash_db_compute {
+     tag "${sample_id}"
+     label "process_low"
 
-   // publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
+     // publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
 
-   input:
-   file(reference_proteome) from ch_sourmash_reference_fasta
+     input:
+     file(reference_proteome) from ch_sourmash_reference_fasta
 
-   output:
-   file(output_log)
-   file(sig) into ch_proteome_sig_for_sourmash_index
+     output:
+     file(output_log)
+     file(sig) into ch_proteome_sig_for_sourmash_index
 
-   script:
-   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-   sample_id = "${reference_proteome.simpleName}__${sketch_id}"
-   sig = "${sample_id}.sig"
-   output_log = "${sample_id}.log"
-   """
-   sourmash compute \\
-      --ksizes ${sourmash_ksize} \\
-      --input-is-protein \\
-      --track-abundance \\
-      --singleton \\
-      --scaled 1 \\
-      --no-dna \\
-      --${sourmash_molecule} \\
-      --output ${sig}\\
-      ${reference_proteome} \\
-      2> ${output_log}
-   """
- }
-
-  process sourmash_db_index {
-    tag "${prefix}"
-    label "process_medium"
-
-    publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
-
-    input:
-    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
-
-    output:
-    file(sbt_zip) into ch_sourmash_index
-
-    script:
-    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-    prefix = "${reference_proteome_sig.simpleName}__${sketch_id}"
-    sbt_zip = "${prefix}.sbt.zip"
-    """
-    sourmash index \\
-        --ksize ${sourmash_ksize} \\
+     script:
+     sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+     sample_id = "${reference_proteome.simpleName}__${sketch_id}"
+     sig = "${sample_id}.sig"
+     output_log = "${sample_id}.log"
+     """
+     sourmash compute \\
+        --ksizes ${sourmash_ksize} \\
+        --input-is-protein \\
+        --track-abundance \\
+        --singleton \\
+        --scaled ${sourmash_scaled} \\
+        --no-dna \\
         --${sourmash_molecule} \\
-        ${sbt_zip} \\
-        ${reference_proteome_sig}
-    """
+        --output ${sig}\\
+        ${reference_proteome} \\
+        2> ${output_log}
+     """
+   }
+
+    process sourmash_db_index {
+      tag "${prefix}"
+      label "process_medium"
+
+      publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
+
+      input:
+      file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
+
+      output:
+      file(sbt_zip) into ch_sourmash_index
+
+      script:
+      prefix = "${reference_proteome_sig.simpleName}"
+      sbt_zip = "${prefix}.sbt.zip"
+      """
+      sourmash index \\
+          --ksize ${sourmash_ksize} \\
+          --${sourmash_molecule} \\
+          ${sbt_zip} \\
+          ${reference_proteome_sig}
+      """
+    }
   }
+
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
