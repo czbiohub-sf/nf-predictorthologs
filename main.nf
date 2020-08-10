@@ -256,6 +256,12 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 if (params.hashes){
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .map { it -> tuple(it.getBaseName(), file(it)) }
+      .set { ch_informative_hashes_files_for_grouped_search }
+
+
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
       .transpose()
@@ -1359,11 +1365,12 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    """
  }
 
+ if ( params.diff_hash_expression ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
    /* --                                                                     -- */
-   /* --     EXTRACT HASHES FROM SIGNATURES INTO PLAIN TEXT                  -- */
+   /* --     CONVERT SIGNATURE TO PLAIN TEXT HASHES                 -- */
    /* --                                                                     -- */
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
@@ -1503,7 +1510,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
   //   .join(ch_seqs_from_hash2kmer)
   //   .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
   //   .set{ ch_protein_seq_for_diamond }
-
+ }
 }
 
 
