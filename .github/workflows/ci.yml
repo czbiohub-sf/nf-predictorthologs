@@ -32,7 +32,7 @@ jobs:
         'test_noncoding',
         'test_sambamba',
         'test_sencha',
-        'test_sencha_sambamba'
+        'test_sencha_sambamba',
         'test_sourmash_search',
         'test_sourmash_makedb',
         ]
