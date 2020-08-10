@@ -119,14 +119,16 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
     rows = annotations[group_col] == group1_name
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
+    logger.info(f"\nNumber of samples in {group1_name}: {len(group1_samples)}")
 
     # Everything not in group 1
     group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
+    logger.info(f"\nNumber of samples in the rest -- aka NOT {group1_name}: {len(group1_samples)}")
 
     group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
-    logger.info(f'Group 1 signatures: {group1_sigs}')
-    logger.info(f'Group 2 signatures: {group2_sigs}')
+    logger.info(f'\nGroup 1 signatures: {group1_sigs}')
+    logger.info(f'\nGroup 2 signatures: {group2_sigs}')
 
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
@@ -145,11 +147,11 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
 
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
-    logger.info(f"metadata head: {metadata.head()}")
+    logger.info(f"\nmetadata head:\n---\n{metadata.head()}\n---\n")
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
-    logger.info(f"Loaded {len(sketches)} sourmash signatures/sketches")
+    logger.info(f"\nLoaded {len(sketches)} sourmash signatures/sketches")
     if not sketches:
         # If sketches is empty --> something wrong happened
         sketch_filenames = '\n'.join(metadata[sig_col].head())
@@ -158,7 +160,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                          f"load:\n---\n{sketch_filenames}\n---\nMaybe the molecule or "
                          f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
     sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
-    logger.info(f"Sketch series head: {sketch_series.head()}")
+    logger.info(f"\nSketch series head: {sketch_series.head()}")
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
