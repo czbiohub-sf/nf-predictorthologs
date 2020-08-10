@@ -1456,6 +1456,78 @@ if (params.protein_searcher == 'sourmash'){
     """
   }
 
+  if ( params.csv_has_is_aligned ) {
+    ch_per_group_unaligned_sig
+      .join( ch_group_to_hash_sig )
+      // [DUMP: ch_group_to_hash_sig]
+      // ['monocyte',
+      //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
+      // '2852067181280790833\n',
+      //  hash-2852067181280790833,
+      //  hash-2852067181280790833.sig]
+      .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
+      .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /* --                                                                     -- */
+    /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
+    /* --                                                                     -- */
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /*
+    * STEP 7 - Filter hashes for only unaligned ones
+    */
+    process is_hash_in_unaligned {
+      tag "${sample_id}"
+      label "process_low"
+
+      publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
+
+      input:
+      set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+
+      output:
+      set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+
+      script:
+      group_cleaned = groupCleaner(group)
+      hash_cleaned = hashCleaner(hash)
+      sample_id = "${group_cleaned}__${hash_id}"
+      matches = "${sample_id}__matches.txt"
+      """
+      rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+      """
+    }
+    ch_hash_sigs_in_unaligned
+      .dump( tag: 'ch_hash_sigs_in_unaligned' )
+      // Check that matches are nonempty
+      .branch{
+        aligned: it[4].size() == 0
+        unaligned: it[4].size() > 0
+      }
+      .set{ ch_hashes_sigs_branched }
+
+      ch_hashes_sigs_branched
+        .unaligned
+        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+        .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
+        .set { ch_group_hash_sigs_to_query }
+
+      ch_hashes_sigs_branched
+        .aligned
+        .map { it -> tuple(it[0], it[1], it[2]) }
+        .dump ( tag: 'ch_hashes_in_group_aligned' )
+        .set { ch_hashes_in_group_aligned }
+  } else {
+     // Search all hashes
+     ch_group_hash_sigs_to_query = ch_group_to_hash_sig
+   }
+
   process sourmash_db_search {
    tag "${group_cleaned}"
    label "process_low"
@@ -1486,80 +1558,10 @@ if (params.protein_searcher == 'sourmash'){
  }
 
 
- if ( params.csv_has_is_aligned ) {
-   ch_per_group_unaligned_sig
-     .join( ch_group_to_hash_sig )
-     // [DUMP: ch_group_to_hash_sig]
-     // ['monocyte',
-     //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-     //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-     //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-     //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-     //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
-     // '2852067181280790833\n',
-     //  hash-2852067181280790833,
-     //  hash-2852067181280790833.sig]
-     .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
-     .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
-   ///////////////////////////////////////////////////////////////////////////////
-   ///////////////////////////////////////////////////////////////////////////////
-   /* --                                                                     -- */
-   /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
-   /* --                                                                     -- */
-   ///////////////////////////////////////////////////////////////////////////////
-   ///////////////////////////////////////////////////////////////////////////////
-   /*
-   * STEP 7 - Filter hashes for only unaligned ones
-   */
-   process is_hash_in_unaligned {
-     tag "${sample_id}"
-     label "process_low"
-
-     publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
-
-     input:
-     set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
-
-     output:
-     set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
-
-     script:
-     group_cleaned = groupCleaner(group)
-     hash_cleaned = hashCleaner(hash)
-     sample_id = "${group_cleaned}__${hash_id}"
-     matches = "${sample_id}__matches.txt"
-     """
-     rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
-     """
-   }
-   ch_hash_sigs_in_unaligned
-     .dump( tag: 'ch_hash_sigs_in_unaligned' )
-     // Check that matches are nonempty
-     .branch{
-       aligned: it[4].size() == 0
-       unaligned: it[4].size() > 0
-     }
-     .set{ ch_hashes_sigs_branched }
-
-     ch_hashes_sigs_branched
-       .unaligned
-       .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-       .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-       .set { ch_group_hash_sigs_to_query }
-
-     ch_hashes_sigs_branched
-       .aligned
-       .map { it -> tuple(it[0], it[1], it[2]) }
-       .dump ( tag: 'ch_hashes_in_group_aligned' )
-       .set { ch_hashes_in_group_aligned }
- }
- // else {
- //   // Search all hashes
- //   ch_group_hash_sigs_to_query = ch_group_to_hash_sig
- // }
 
 }
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
