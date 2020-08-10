@@ -335,6 +335,7 @@ if (params.diff_hash_expression) {
     // Create channel of all signatures, but a list within a list
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
