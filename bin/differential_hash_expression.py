@@ -31,6 +31,8 @@ PENALTY = 'l1'
 SOLVER = 'saga'
 
 
+COEF_COL ='coefficient'
+
 # Create a logger
 logging.basicConfig(format='%(name)s - %(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__file__)
@@ -97,12 +99,18 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
     logger.info(f"Running logistic regression: {regressor}")
     regressor.fit(X, y)
 
-    coefficients = pd.Series(regressor.coef_[0], index=X.columns)
+    coefficients = pd.Series(regressor.coef_[0], index=X.columns, name=COEF_COL)
+
+    # Get median hash abundance per group
+    medians = X.groupby(y, axis=0).median()
+    medians = medians.T
+    coeffs_medians = medians.join(coefficients)
+
     n_positive = (coefficients > regressor.tol).sum()
     logger.info(f'Number of coefficients greater than tolerance '
                 f'(tolerance: {regressor.tol}): {n_positive}')
 
-    return coefficients
+    return coeffs_medians
 
 
 def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
@@ -135,7 +143,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                                 random_state=random_state,
                                                 with_abundance=with_abundance,
                                                 **kwargs)
-    coefficients.name = group1_name
+    coefficients = coefficients.rename(columns={0: group1_name, 1: 'rest'})
     return coefficients
 
 
@@ -196,10 +204,9 @@ def write_hash_coefficients(coefficients, group, threshold):
     coefficients.to_csv(csv, header=False)
 
     # Write only hashes above threshold to file
-    filtered_coef = coefficients[coefficients > threshold]
+    filtered_coef = coefficients.loc[coefficients[COEF_COL] > threshold, group1]
     txt = f'{sanitized}__informative_hashes.txt'
-    informative_hashes = pd.Series(filtered_coef.index)
-    informative_hashes.to_csv(txt, index=False, header=False)
+    informative_hashes.to_csv(txt, index=True, header=False)
 
 
 if __name__ == "__main__":
