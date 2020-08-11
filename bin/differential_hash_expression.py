@@ -30,6 +30,7 @@ FASTA = "fasta"
 PENALTY = "l1"
 SOLVER = "saga"
 
+MIN_ABUNDANCE = 2
 MIN_CELLS = 3
 COEF_COL = "coefficient"
 
@@ -39,7 +40,7 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
-def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=1):
+def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=MIN_ABUNDANCE):
     if with_abundance:
         records = {
             x.name(): x.minhash.get_mins(with_abundance=with_abundance) for x in sigs
@@ -54,7 +55,7 @@ def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=1):
         }
     hash_df = pd.DataFrame(records)
 
-    if min_cells:
+    if with_abundance and min_cells:
         # Filter for hashes with at least min_abundance abundance, in at least
         # min_cells samples
         hash_mask = hash_df >= min_abundance
@@ -71,15 +72,30 @@ def make_target_vector(n_group1, n_group2):
 
 
 def get_training_data(
-    sigs1, sigs2, with_abundance=False, verbose=False, min_cells=MIN_CELLS
+    sigs1,
+    sigs2,
+    with_abundance=False,
+    verbose=False,
+    min_cells=MIN_CELLS,
+    min_abundance=MIN_ABUNDANCE,
 ):
     """Create X feature matrix and y target vector for machine learning"""
 
     # Create pandas dataframe of hash abundances
-    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance, min_cells=min_cells)
+    hash_df1 = make_hash_df(
+        sigs1,
+        with_abundance=with_abundance,
+        min_cells=min_cells,
+        min_abundance=min_abundance,
+    )
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
-    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance, min_cells=min_cells)
+    hash_df2 = make_hash_df(
+        sigs2,
+        with_abundance=with_abundance,
+        min_cells=min_cells,
+        min_abundance=min_abundance,
+    )
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f"Number of hashes in group1: {len(hash_df1.index)}")
@@ -100,6 +116,7 @@ def differential_hash_expression(
     sigs1,
     sigs2,
     with_abundance=False,
+    min_abundance=MIN_ABUNDANCE,
     min_cells=MIN_CELLS,
     verbose=False,
     penalty=PENALTY,
@@ -120,6 +137,7 @@ def differential_hash_expression(
         with_abundance=with_abundance,
         verbose=verbose,
         min_cells=min_cells,
+        min_abundance=min_abundance,
     )
 
     regressor = LogisticRegression(
@@ -168,6 +186,7 @@ def get_hashes_enriched_in_group(
     verbose=False,
     with_abundance=False,
     min_cells=MIN_CELLS,
+    min_abundance=MIN_ABUNDANCE,
     **kwargs,
 ):
     rows = annotations[group_col] == group1_name
@@ -193,6 +212,7 @@ def get_hashes_enriched_in_group(
         random_state=random_state,
         with_abundance=with_abundance,
         min_cells=min_cells,
+        min_abundance=min_abundance,
         **kwargs,
     )
     coefficients = coefficients.rename(columns={0: group1_name, 1: "rest"})
@@ -216,6 +236,7 @@ def main(
     use_sig_basename=False,
     with_abundance=False,
     min_cells=3,
+    min_abundance=MIN_ABUNDANCE,
     max_group_size=MAX_GROUP_SIZE,
 ):
     metadata = pd.read_csv(metadata_csv, index_col="sample_id")
@@ -256,6 +277,7 @@ def main(
             max_group_size=max_group_size,
             with_abundance=with_abundance,
             min_cells=min_cells,
+            min_abundance=min_abundance,
         )
         write_hash_coefficients(coefficients, group1, threshold)
     else:
@@ -275,6 +297,7 @@ def main(
                 max_group_size=max_group_size,
                 with_abundance=with_abundance,
                 min_cells=min_cells,
+                min_abundance=min_abundance,
             )
             write_hash_coefficients(coefficients, group1, threshold)
 
@@ -407,11 +430,17 @@ sklearn.preprocessing.""",
         help="Only use hashes expressed in at least this many cells",
     )
     parser.add_argument(
+        "--min-abundance",
+        type=int,
+        default=MIN_ABUNDANCE,
+        help="Only use hashes with at least this much abundance",
+    )
+    parser.add_argument(
         "-r",
         "--random-state",
         type=int,
         default=0,
-        help="Set seed of random number generator to ensure " "reproducible results",
+        help="Set seed of random number generator to ensure reproducible results",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="If true, have lots of output"
@@ -454,4 +483,6 @@ sklearn.preprocessing.""",
         use_sig_basename=args.use_sig_basename,
         max_group_size=args.max_group_size,
         with_abundance=args.with_abundance,
+        min_cells=args.min_cells,
+        min_abundance=args.min_abundance,
     )
