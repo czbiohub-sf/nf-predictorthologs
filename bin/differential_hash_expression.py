@@ -102,7 +102,7 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
     coefficients = pd.Series(regressor.coef_[0], index=X.columns, name=COEF_COL)
 
     # Get median hash abundance per group
-    medians = X.groupby(y, axis=0).median()
+    medians = X.groupby(y, axis=0).median().astype(int)
     medians = medians.T
     coeffs_medians = medians.join(coefficients)
 
@@ -205,6 +205,8 @@ def write_hash_coefficients(coefficients, group, threshold):
 
     # Write only hashes above threshold to file
     informative_hashes = coefficients.loc[coefficients[COEF_COL] > threshold, group]
+    # Replace all 0s with 1s
+    informative_hashes = informative_hashes.replace(0, 1)
     txt = f'{sanitized}__informative_hashes.txt'
     informative_hashes.to_csv(txt, index=True, header=False)
 
