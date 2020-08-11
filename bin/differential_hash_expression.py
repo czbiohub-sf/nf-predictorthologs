@@ -30,7 +30,7 @@ FASTA = 'fasta'
 PENALTY = 'l1'
 SOLVER = 'saga'
 
-
+MIN_CELLS = 3
 COEF_COL ='coefficient'
 
 # Create a logger
@@ -39,7 +39,7 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
-def make_hash_df(sigs, with_abundance=False):
+def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=2):
     if with_abundance:
         records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
@@ -47,7 +47,16 @@ def make_hash_df(sigs, with_abundance=False):
         # Set value of each hash abundance to 1
         records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
                    for x in sigs}
-    return pd.DataFrame(records)
+    hash_df = pd.DataFrame(records)
+
+    if min_cells:
+        # Filter for hashes with at least min_abundance abundance, in at least
+        # min_cells samples
+        hash_mask = hash_df >= min_abundance
+        hash_filter = hash_mask.sum() > min_cells
+        hash_df = hash_df.loc[:, hash_filter]
+
+    return hash_df
 
 
 def make_target_vector(n_group1, n_group2):
@@ -56,14 +65,14 @@ def make_target_vector(n_group1, n_group2):
     return y_target
 
 
-def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
+def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False, min_cells=MIN_CELLS):
     """Create X feature matrix and y target vector for machine learning"""
 
     # Create pandas dataframe of hash abundances
-    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
+    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance, min_cells=min_cells)
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
-    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
+    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance, min_cells=min_cells)
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f'Number of hashes in group1: {len(hash_df1.index)}')
@@ -72,6 +81,7 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
     # Concatenate to make feature matrix
     hash_df = pd.concat([hash_df1, hash_df2], axis=1)
     X = hash_df.T
+    X = X.loc[(X > 1).any(axis=1) & X.notnull(axis=1), :]
     X = X.fillna(0)
 
     # Create target vector "group1" is 1s and everything else is 0
@@ -80,7 +90,8 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
     return X, y_target
 
 
-def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=False,
+def differential_hash_expression(sigs1, sigs2, with_abundance=False, min_cells=MIN_CELLS,
+                                 verbose=False,
                                  penalty=PENALTY, solver=SOLVER,
                                  random_state=0, class_weight='balanced',
                                  # Smaller C for stronger regularization
@@ -91,7 +102,7 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
     if verbose:
         print("Creating training data")
     X, y = get_training_data(sigs1, sigs2, with_abundance=with_abundance,
-                             verbose=verbose)
+                             verbose=verbose, min_cells=min_cells)
 
     regressor = LogisticRegression(solver=solver, penalty=penalty, verbose=verbose,
                                    random_state=random_state, class_weight=class_weight,
@@ -123,7 +134,8 @@ def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
 
 def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_series,
                                  max_group_size=MAX_GROUP_SIZE, random_state=0,
-                                 verbose=False, with_abundance=False, **kwargs):
+                                 verbose=False, with_abundance=False, min_cells=MIN_CELLS,
+                                 **kwargs):
     rows = annotations[group_col] == group1_name
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
@@ -142,6 +154,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                                 verbose=verbose,
                                                 random_state=random_state,
                                                 with_abundance=with_abundance,
+                                                min_cells=min_cells,
                                                 **kwargs)
     coefficients = coefficients.rename(columns={0: group1_name, 1: 'rest'})
     return coefficients
@@ -149,7 +162,7 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
 
 def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SIG,
          threshold=0, verbose=True, C=0.1, solver=SOLVER, penalty=PENALTY, n_jobs=8,
-         random_state=0, use_sig_basename=False, with_abundance=False,
+         random_state=0, use_sig_basename=False, with_abundance=False, min_cells=3,
           max_group_size=MAX_GROUP_SIZE):
     metadata = pd.read_csv(metadata_csv, index_col='sample_id')
 
@@ -179,7 +192,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                     penalty=penalty,
                                                     random_state=random_state,
                                                     max_group_size=max_group_size,
-                                                    with_abundance=with_abundance)
+                                                    with_abundance=with_abundance,
+                                                    min_cells=min_cells)
         write_hash_coefficients(coefficients, group1, threshold)
     else:
         for group1, df in metadata.groupby(group_col):
@@ -191,7 +205,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                                                         penalty=penalty,
                                                         random_state=random_state,
                                                         max_group_size=max_group_size,
-                                                        with_abundance=with_abundance)
+                                                        with_abundance=with_abundance,
+                                                        min_cells=min_cells)
             write_hash_coefficients(coefficients, group1, threshold)
 
 
@@ -275,6 +290,8 @@ sklearn.preprocessing.""")
     parser.add_argument('-m', '--max-group-size', type=int, default=MAX_GROUP_SIZE,
                         help='If a group is larger than this, subsample random cells '
                              '(using the --random-state) ')
+    parser.add_argument('--min-cells', type=int, default=MIN_CELLS,
+                        help='Only use hashes expressed in at least this many cells')
     parser.add_argument('-r', '--random-state', type=int, default=0,
                         help='Set seed of random number generator to ensure '
                              'reproducible results')
