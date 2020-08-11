@@ -1022,7 +1022,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search
+    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search
 
     script:
     group_cleaned = groupCleaner(group)
@@ -1189,6 +1189,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
           --input-is-protein \\
           --${sourmash_molecule} \\
           --output ${sig} \\
+          --track-abundance \\
           ${hashes}
       """
     }
