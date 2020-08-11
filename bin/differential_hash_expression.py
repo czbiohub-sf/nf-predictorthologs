@@ -39,7 +39,7 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
-def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=2):
+def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=1):
     if with_abundance:
         records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
@@ -81,7 +81,6 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False, min_cel
     # Concatenate to make feature matrix
     hash_df = pd.concat([hash_df1, hash_df2], axis=1)
     X = hash_df.T
-    X = X.loc[(X > 1).any(axis=1) & X.notnull(axis=1), :]
     X = X.fillna(0)
 
     # Create target vector "group1" is 1s and everything else is 0
