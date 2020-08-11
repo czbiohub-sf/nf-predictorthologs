@@ -204,7 +204,7 @@ def write_hash_coefficients(coefficients, group, threshold):
     coefficients.to_csv(csv, header=False)
 
     # Write only hashes above threshold to file
-    filtered_coef = coefficients.loc[coefficients[COEF_COL] > threshold, group]
+    informative_hashes = coefficients.loc[coefficients[COEF_COL] > threshold, group]
     txt = f'{sanitized}__informative_hashes.txt'
     informative_hashes.to_csv(txt, index=True, header=False)
 
