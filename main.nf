@@ -1427,7 +1427,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
    ch_unassigned_hashes_for_ripgrep
       .join( ch_group_to_signatures )
-      .into { ch_group_to_unassigned_hashes_and_sigs }
+      .set { ch_group_to_unassigned_hashes_and_sigs }
 
 
     ///////////////////////////////////////////////////////////////////////////////
