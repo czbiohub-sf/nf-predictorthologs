@@ -1373,6 +1373,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
    output:
    file(csv_output)
+   file(matches)
    set val(group), file(unassigned) into ch_unassigned_sig_for_seqs, ch_unassigned_sig_for_search_sigs
 
    script:
@@ -1380,12 +1381,15 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    csv_output = "${group_cleaned}.csv"
    unassigned = "${group_cleaned}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+   matches = "${group_cleaned}__matches.sig"
    """
    sourmash gather \\
+       --debug \\
        --threshold 1e-100 \\
        --output ${csv_output} \\
        --ksize ${sourmash_ksize} \\
        --${sourmash_molecule} \\
+       --save-matches ${matches} \\
        --output-unassigned ${unassigned} \\
        ${query_sig} \\
        ${sourmash_sbt_index}
