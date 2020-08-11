@@ -53,7 +53,7 @@ def main():
     hashes = {}
     for line in open(args.hashfile, "rt"):
         if args.track_abundance:
-            hashval, abundance = map(int, line.strip().split())
+            hashval, abundance = map(int, line.strip().split(','))
         else:
             hashval = int(line.strip())
             abundance = 1
