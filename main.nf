@@ -531,6 +531,7 @@ diff_hash_with_abundance = params.diff_hash_with_abundance
 diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
+diff_hash_min_cells = params.diff_hash_min_cells
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1040,6 +1041,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
+        --min-cells ${diff_hash_min_cells} \\
         ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
         > '${group_cleaned}.log'
