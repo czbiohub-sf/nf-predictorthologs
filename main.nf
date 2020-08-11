@@ -201,8 +201,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // No hashes - just do a diamond blastp search for each peptide fasta
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
-      // add "hash" text for now=
-      .map { it -> tuple(false, it[0], it[1])}
       .set { ch_protein_seq_for_diamond }
   }
 
