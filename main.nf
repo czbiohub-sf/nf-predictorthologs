@@ -532,6 +532,7 @@ diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularizat
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
 diff_hash_min_cells = params.diff_hash_min_cells
+diff_hash_min_abundance = params.diff_hash_min_abundance
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -559,6 +560,8 @@ if (params.hashes) summary['Hashes']                                        = pa
 if (using_hashes) summary['sourmash ksize']                                 = params.sourmash_ksize
 if (using_hashes) summary['sourmash molecule']                              = params.sourmash_molecule
 if (params.diff_hash_expression) summary['Diff Hash abundance?']            = params.diff_hash_with_abundance
+if (params.diff_hash_expression) summary['Diff Hash min cells']             = params.diff_hash_min_cells
+if (params.diff_hash_expression) summary['Diff Hash min abundance']         = params.diff_hash_min_abundance
 if (params.diff_hash_expression) summary['Diff Hash C']                     = params.diff_hash_inverse_regularization_strength
 if (params.diff_hash_expression) summary['Diff Hash solver']                = params.diff_hash_solver
 if (params.diff_hash_expression) summary['Diff Hash penalty']               = params.diff_hash_penalty
@@ -1042,6 +1045,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         --solver ${diff_hash_solver} \\
         --max-group-size 100 \\
         --min-cells ${diff_hash_min_cells} \\
+        --min-abundance ${diff_hash_min_abundance} \\
         ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
         > '${group_cleaned}.log'
