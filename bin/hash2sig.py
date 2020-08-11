@@ -27,6 +27,12 @@ def main():
         action="store_true",
         help="Consume protein sequences - no translation needed.",
     )
+    p.add_argument(
+        "--track-abundance",
+        action="store_true",
+        help="The hashfile is a csv containing the hashval,abundance on each line. "
+             "Use this abundance as the abundance for each hash",
+    )
     add_construct_moltype_args(p)
     args = p.parse_args()
 
@@ -44,10 +50,14 @@ def main():
         return -1
 
     # first, load in all the hashes
-    hashes = set()
+    hashes = {}
     for line in open(args.hashfile, "rt"):
-        hashval = int(line.strip())
-        hashes.add(hashval)
+        if args.track_abundance:
+            hashval, abundance = map(int, line.strip().split())
+        else:
+            hashval = int(line.strip())
+            abundance = 1
+        hashes[hashval] = abundance
 
     if not hashes:
         error("ERROR, no hashes loaded from {}!", args.hashfile)
@@ -81,10 +91,12 @@ def main():
         dayhoff=args.dayhoff,
         is_protein=args.input_is_protein,
         hp=args.hp,
+        track_abundance=args.track_abundance,
     )
 
-    # add hashes into!
-    minhash.add_many(hashes)
+    # add hashes into MinHash!
+    for hashval, abundance in hashes.items():
+        minhash.add_hash_with_abundance(hashval, abundance)
 
     if len(minhash) < len(hashes):
         notify(
