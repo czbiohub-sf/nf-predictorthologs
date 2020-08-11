@@ -21,7 +21,7 @@ dependencies:
   - bioconda::bedtools=2.29.2
   - pip=20.0.2
   - conda-forge::scikit-learn=0.22.1
-  - conda-forge::sourmash=3.4.1
+  - bioconda::sourmash=3.4.1
   - conda-forge::pandas=1.0.3
   - conda-forge::tqdm=4.45.0
   - thombashi::pathvalidate=2.2.0
@@ -34,5 +34,6 @@ dependencies:
   - conda-forge::ripgrep=12.0.1
   - csvtk=0.20.0
   - infernal=1.1.2
+  - conda-forge::fastparquet=0.4.1
   - pip:
     - git+https://github.com/czbiohub/sencha.git@master#egg=sencha
