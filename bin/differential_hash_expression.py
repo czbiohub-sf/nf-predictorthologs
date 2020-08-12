@@ -40,7 +40,7 @@ logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
-def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=MIN_ABUNDANCE):
+def make_hash_df(sigs, with_abundance=False):
     if with_abundance:
         records = {
             x.name(): x.minhash.get_mins(with_abundance=with_abundance) for x in sigs
@@ -77,17 +77,13 @@ def get_training_data(
     # Create pandas dataframe of hash abundances
     hash_df1 = make_hash_df(
         sigs1,
-        with_abundance=with_abundance,
-        min_cells=min_cells,
-        min_abundance=min_abundance,
+        with_abundance=with_abundance
     )
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
     hash_df2 = make_hash_df(
         sigs2,
-        with_abundance=with_abundance,
-        min_cells=min_cells,
-        min_abundance=min_abundance,
+        with_abundance=with_abundance
     )
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
