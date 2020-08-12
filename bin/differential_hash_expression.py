@@ -55,13 +55,6 @@ def make_hash_df(sigs, with_abundance=False, min_cells=3, min_abundance=MIN_ABUN
         }
     hash_df = pd.DataFrame(records)
 
-    if with_abundance and min_cells:
-        # Filter for hashes with at least min_abundance abundance, in at least
-        # min_cells samples
-        hash_mask = hash_df >= min_abundance
-        hash_filter = hash_mask.sum() > min_cells
-        hash_df = hash_df.loc[:, hash_filter]
-
     return hash_df
 
 
@@ -105,6 +98,13 @@ def get_training_data(
     hash_df = pd.concat([hash_df1, hash_df2], axis=1)
     X = hash_df.T
     X = X.fillna(0)
+
+    if with_abundance and min_cells:
+        # Filter for hashes with at least min_abundance abundance, in at least
+        # min_cells samples
+        hash_mask = X >= min_abundance
+        hash_filter = hash_mask.sum() > min_cells
+        X = X.loc[:, hash_filter]
 
     # Create target vector "group1" is 1s and everything else is 0
     y_target = make_target_vector(len(sigs1), len(sigs2))
