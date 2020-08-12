@@ -1402,7 +1402,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    """
  }
 
- if ( params.diff_hash_expression ) {
+ if ( params.diff_hash_expression && params.sourmash_searcher == "gather" ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
