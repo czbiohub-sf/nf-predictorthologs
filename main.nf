@@ -503,6 +503,7 @@ sourmash_ksize = params.sourmash_ksize
 sourmash_molecule = params.sourmash_molecule
 sourmash_log2_sketch_size = params.sourmash_log2_sketch_size
 sourmash_scaled = params.sourmash_scaled
+sourmash_searcher = params.sourmash_searcher
 
 if (params.diff_hash_expression || params.protein_searcher == "sourmash") {
   if (!sourmash_scaled) {
@@ -1365,7 +1366,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
   /*
   * STEP 7 - Find hashes in database
   */
-  process sourmash_gather {
+  process sourmash_search {
    tag "${group_cleaned}"
    label "process_low"
 
@@ -1386,8 +1387,10 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    unassigned = "${group_cleaned}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    matches = "${group_cleaned}__matches.sig"
+   search_flag = sourmash_searcher == "search" ? '--containment'  : ''
    """
-   sourmash gather \\
+   sourmash ${sourmash_searcher} \\
+      ${search_flag} \\
        --debug \\
        --threshold 1e-100 \\
        --output ${csv_output} \\
