@@ -1387,17 +1387,15 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    unassigned = "${group_cleaned}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    matches = "${group_cleaned}__matches.sig"
-   search_flag = sourmash_searcher == "search" ? '--containment'  : ''
+   search_flag = sourmash_searcher == "search" ? '--containment'  : "--debug --output-unassigned ${unassigned}"
    """
    sourmash ${sourmash_searcher} \\
       ${search_flag} \\
-       --debug \\
        --threshold 1e-100 \\
        --output ${csv_output} \\
        --ksize ${sourmash_ksize} \\
        --${sourmash_molecule} \\
        --save-matches ${matches} \\
-       --output-unassigned ${unassigned} \\
        ${query_sig} \\
        ${sourmash_sbt_index}
    """
