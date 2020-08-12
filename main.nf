@@ -1227,7 +1227,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       //  hash-2852067181280790833,
       //  hash-2852067181280790833.sig]
       .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
-      .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
+      .set{ ch_group_to_hash_sig_with_group_unaligned_sigs }
 
     ///////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////
