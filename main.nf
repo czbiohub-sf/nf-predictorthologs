@@ -905,7 +905,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   process translate {
     tag "${sample_sketch_id}"
     label "process_long"
-    publishDir "${params.outdir}/translate/", mode: 'copy'
+    publishDir "${params.outdir}/translate/${bloom_id}", mode: 'copy'
 
     input:
     tuple \
