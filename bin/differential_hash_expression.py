@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 from pathvalidate import sanitize_filename
+import scanpy as sc
 import screed
 from sklearn.linear_model import LogisticRegression
 from sourmash.cli.utils import add_construct_moltype_args
@@ -75,16 +76,10 @@ def get_training_data(
     """Create X feature matrix and y target vector for machine learning"""
 
     # Create pandas dataframe of hash abundances
-    hash_df1 = make_hash_df(
-        sigs1,
-        with_abundance=with_abundance
-    )
+    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
-    hash_df2 = make_hash_df(
-        sigs2,
-        with_abundance=with_abundance
-    )
+    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f"Number of hashes in group1: {len(hash_df1.index)}")
@@ -115,6 +110,7 @@ def differential_hash_expression(
     min_abundance=MIN_ABUNDANCE,
     min_cells=MIN_CELLS,
     verbose=False,
+    method="logreg",
     penalty=PENALTY,
     solver=SOLVER,
     random_state=0,
@@ -125,6 +121,7 @@ def differential_hash_expression(
     C=0.1,
     **kwargs,
 ):
+
     if verbose:
         print("Creating training data")
     X, y = get_training_data(
@@ -135,33 +132,44 @@ def differential_hash_expression(
         min_cells=min_cells,
         min_abundance=min_abundance,
     )
-
-    regressor = LogisticRegression(
-        solver=solver,
-        penalty=penalty,
-        verbose=verbose,
-        random_state=random_state,
-        class_weight=class_weight,
-        C=C,
-        **kwargs,
-    )
-    logger.info(f"Running logistic regression: {regressor}")
-    regressor.fit(X, y)
-
-    coefficients = pd.Series(regressor.coef_[0], index=X.columns, name=COEF_COL)
-
     # Sum the hash abundance per group
     sums = X.groupby(y, axis=0).sum().astype(int)
     sums = sums.T
-    coeffs_medians = sums.join(coefficients)
 
-    n_positive = (coefficients > regressor.tol).sum()
-    logger.info(
-        f"Number of coefficients greater than tolerance "
-        f"(tolerance: {regressor.tol}): {n_positive}"
-    )
+    if method == "logreg":
+        regressor = LogisticRegression(
+            solver=solver,
+            penalty=penalty,
+            verbose=verbose,
+            random_state=random_state,
+            class_weight=class_weight,
+            C=C,
+            **kwargs,
+        )
+        logger.info(f"Running logistic regression: {regressor}")
+        regressor.fit(X, y)
 
-    return coeffs_medians
+        coefficients = pd.Series(regressor.coef_[0], index=X.columns, name=COEF_COL)
+
+        n_positive = (coefficients > regressor.tol).sum()
+        logger.info(
+            f"Number of coefficients greater than tolerance "
+            f"(tolerance: {regressor.tol}): {n_positive}"
+        )
+        coefficients = sums.join(coefficients)
+
+    else:
+        y.name = "groups"
+        obs = y.to_frame()
+        obs.index = X.index
+        adata = anndata.AnnData(X, obs=y)
+        sc.tl.rank_genes_groups(adata, "groups")
+
+        coefficients = sc.get.rank_genes_groups_df(adata)
+        coefficients = coefficients.rename(columns={"scores": COEF_COL})
+        coefficients = coefficients.join(sums)
+
+    return coefficients
 
 
 def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
