@@ -1251,16 +1251,20 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       set val(group), file(group_unaligned_sigs), val(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
+      file(hashes_only)
       set val(group), file(matches) into ch_hash_sigs_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
+      hashes_only = "${group_cleaned}__hashes_only.txt"
       matches = "${group_cleaned}__matches.txt"
       """
+      # Isolate hashes only --> Take first column
+      cut -f1 ${diffhashes} -d, > ${hashes_only}
       rg \\
           --threads ${task.cpus} \\
           --files-with-matches \\
-          --file ${diffhashes} \\
+          --file ${hashes_only} \\
           ${group_unaligned_sigs} \\
           > ${matches}
       """
