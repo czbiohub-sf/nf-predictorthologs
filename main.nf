@@ -307,12 +307,12 @@ if (params.csv_has_is_aligned) {
       .fromPath(params.csv)
       .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
-      .filter{ row -> row.is_aligned == 'unaligned' }
-      .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
+      // .filter{ row -> row.is_aligned == 'unaligned' }
+      // .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
       .dump( tag: 'csv_unaligned' )
-      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
+      .map{ row -> tuple(row.group, row.is_aligned, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
-      .groupTuple()
+      .groupTuple([0, 1])
       .dump( tag: 'ch_per_group_unaligned_sig' )
       .set{ ch_per_group_unaligned_sig }
 
