@@ -19,4 +19,4 @@ ENV PATH /opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH
 
 RUN echo 'export "PATH=/opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH"' >> ~/.bashrc
 
-RUN mkdir /tmp/numba_cache & chmod 777 /tmp/numba_cache & NUMBA_CACHE_DIR=/tmp/numba_cache
+RUN mkdir /tmp/numba_cache & chmod 777 /tmp/numba_cache & export NUMBA_CACHE_DIR=/tmp/numba_cache
