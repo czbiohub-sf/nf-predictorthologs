@@ -1256,7 +1256,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       script:
       group_cleaned = groupCleaner(group)
       sample_id = "${group_cleaned}__${is_aligned}"
-      hashes_only = "${sample_id}__hashes_only.txt"
+      hashes_only = "${group_cleaned}__hashes_only.txt"
       matches = "${sample_id}__matches.txt"
       """
       # Isolate hashes only --> Take first column
