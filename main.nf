@@ -1028,7 +1028,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search
+    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search, ch_informative_hashes_for_find_unaligned
 
     script:
     group_cleaned = groupCleaner(group)
@@ -1204,6 +1204,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     // ch_hash_sigs_from_hash2sig_to_print.dump(tag: 'ch_hash_sigs_from_hash2sig_to_print')
     //
     ch_hash_to_group_for_joining_after_hash2sig
+      .dump( tag: ch_hash_to_group_for_joining_after_hash2sig )
       .join( ch_hash_sigs_from_hash2sig_to_join )
       // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
       // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
@@ -1216,7 +1217,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
   if ( params.csv_has_is_aligned ) {
     ch_per_group_unaligned_sig
-      .join( ch_group_to_hash_sig )
+      .join( ch_informative_hashes_for_find_unaligned )
       // [DUMP: ch_group_to_hash_sig]
       // ['monocyte',
       //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -1247,18 +1248,21 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+      set val(group), file(group_unaligned_sigs), val(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
-      set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+      set val(group), file(matches) into ch_hash_sigs_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
-      hash_cleaned = hashCleaner(hash)
-      sample_id = "${group_cleaned}__${hash_id}"
-      matches = "${sample_id}__matches.txt"
+      matches = "${group_cleaned}__matches.txt"
       """
-      rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+      rg \\
+          --threads ${task.cpus} \\
+          --files-with-matches \\
+          --file ${diffhashes} \\
+          ${group_unaligned_sigs} \\
+          > ${matches}
       """
     }
     ch_hash_sigs_in_unaligned
