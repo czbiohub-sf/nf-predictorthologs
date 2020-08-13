@@ -312,7 +312,7 @@ if (params.csv_has_is_aligned) {
       .dump( tag: 'csv_unaligned' )
       .map{ row -> tuple(row.group, row.is_aligned, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
-      .groupTuple([0, 1])
+      .groupTuple( by: [0, 1] )
       .dump( tag: 'ch_per_group_unaligned_sig' )
       .set{ ch_per_group_unaligned_sig }
 
