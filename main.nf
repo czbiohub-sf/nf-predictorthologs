@@ -529,6 +529,7 @@ need_refseq_download = !existing_reference && !params.proteome_search_fasta && p
 //////////////////////////////////////////////////////////////////
 /* -   Parse differential hash expression parameters         -- */
 //////////////////////////////////////////////////////////////////
+diff_hash_method = params.diff_hash_method
 diff_hash_with_abundance = params.diff_hash_with_abundance
 diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularization_strength
 diff_hash_solver = params.diff_hash_solver
@@ -1035,6 +1036,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     abundance_flag = diff_hash_with_abundance ? '--with-abundance' : ''
     """
     differential_hash_expression.py \\
+        --method ${diff_hash_method} \\
         --ksize ${sourmash_ksize} \\
         --input-is-protein \\
         --n-jobs ${task.cpus} \\
