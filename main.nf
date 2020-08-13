@@ -1366,8 +1366,8 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
   /*
   * STEP 7 - Find hashes in database
   */
-  process sourmash_search {
-   tag "${group_cleaned}"
+  process sourmash {
+   tag "${sourmash_searcher}__${group_cleaned}"
    label "process_low"
 
    publishDir "${params.outdir}/sourmash/", mode: 'copy'
