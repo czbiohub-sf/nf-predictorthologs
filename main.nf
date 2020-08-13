@@ -986,7 +986,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   // it[1] = bloom id
   // it[2] = sequence fasta file
   ch_translated_proteins_potentially_empty
-    .filter{ it[2].size() > 0 }
+    .filter{ it[1].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
     // [DUMP: ch_translated_proteins_potentially_empty]
     //    ['NC-033660.1-74563649-74570299-+-516-0',
