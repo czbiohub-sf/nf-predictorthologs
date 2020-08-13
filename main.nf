@@ -1247,11 +1247,11 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
+      set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
       file(hashes_only)
-      set val(group), file(matches) into ch_hash_sigs_in_unaligned
+      set val(group), val(is_aligned), file(matches) into ch_hash_sigs_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
@@ -1264,7 +1264,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
           --threads ${task.cpus} \\
           --files-with-matches \\
           --file ${hashes_only} \\
-          ${group_unaligned_sigs} \\
+          ${sigs} \\
           > ${matches}
       """
     }
@@ -1272,22 +1272,22 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       .dump( tag: 'ch_hash_sigs_in_unaligned' )
       // Check that matches are nonempty
       .branch{
-        aligned: it[4].size() == 0
-        unaligned: it[4].size() > 0
+        aligned: it[1] == 'aligned'
+        unaligned: it[1] == 'unaligned'
       }
       .set{ ch_hashes_sigs_branched }
-
-      // ch_hashes_sigs_branched
-      //   .unaligned
-      //   .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-      //   .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-      //   .set { ch_group_hash_sigs_to_query }
-
-      ch_hashes_sigs_branched
-        .aligned
-        .map { it -> tuple(it[0], it[1], it[2]) }
-        .dump ( tag: 'ch_hashes_in_group_aligned' )
-        .set { ch_hashes_in_group_aligned }
+    //
+    //   // ch_hashes_sigs_branched
+    //   //   .unaligned
+    //   //   .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+    //   //   .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
+    //   //   .set { ch_group_hash_sigs_to_query }
+    //
+    //   ch_hashes_sigs_branched
+    //     .aligned
+    //     .map { it -> tuple(it[0], it[1], it[2]) }
+    //     .dump ( tag: 'ch_hashes_in_group_aligned' )
+    //     .set { ch_hashes_in_group_aligned }
   } else {
     // Search all hashes
     // ch_group_hash_sigs_to_query = ch_group_to_hash_sig
