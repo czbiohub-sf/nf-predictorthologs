@@ -1216,7 +1216,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
   if ( params.csv_has_is_aligned ) {
     ch_per_group_unaligned_sig
-      .join( ch_informative_hashes_for_find_unaligned )
+      .combine( ch_informative_hashes_for_find_unaligned, by: 0 )
       // [DUMP: ch_group_to_hash_sig]
       // ['monocyte',
       //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -1255,8 +1255,9 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
 
       script:
       group_cleaned = groupCleaner(group)
-      hashes_only = "${group_cleaned}__hashes_only.txt"
-      matches = "${group_cleaned}__matches.txt"
+      sample_id = "${group_cleaned}__${is_aligned}"
+      hashes_only = "${sample_id}__hashes_only.txt"
+      matches = "${sample_id}__matches.txt"
       """
       # Isolate hashes only --> Take first column
       cut -f1 ${diffhashes} -d, > ${hashes_only}
