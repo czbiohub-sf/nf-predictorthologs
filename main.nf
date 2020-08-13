@@ -1413,6 +1413,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    # Create empty files in case there were no matches so pipeline doesn't die
    touch ${unassigned}
    touch ${csv_output}
+   touch ${matches}
    """
  }
 
