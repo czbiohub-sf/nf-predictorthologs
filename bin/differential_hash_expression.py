@@ -178,7 +178,6 @@ def get_hashes_enriched_in_group(
     group_col,
     sketch_series,
     max_group_size=MAX_GROUP_SIZE,
-    method="logreg",
     random_state=0,
     verbose=False,
     with_abundance=False,
@@ -210,12 +209,9 @@ def get_hashes_enriched_in_group(
         with_abundance=with_abundance,
         min_cells=min_cells,
         min_abundance=min_abundance,
-        method=method,
         **kwargs,
     )
-    if method == "logreg":
-        coefficients = coefficients.rename(columns={0: group1_name, 1: "rest"})
-
+    coefficients = coefficients.rename(columns={0: group1_name, 1: "rest"})
     return coefficients
 
 
@@ -228,7 +224,6 @@ def main(
     sig_col=SIG,
     threshold=0,
     verbose=True,
-    method="logreg",
     C=0.1,
     solver=SOLVER,
     penalty=PENALTY,
@@ -270,7 +265,6 @@ def main(
             group_col,
             sketch_series,
             verbose=verbose,
-            method=method,
             C=C,
             n_jobs=n_jobs,
             solver=solver,
@@ -291,7 +285,6 @@ def main(
                 group_col,
                 sketch_series,
                 verbose=verbose,
-                method=method,
                 C=C,
                 n_jobs=n_jobs,
                 solver=solver,
@@ -338,13 +331,6 @@ if __name__ == "__main__":
         "--with-abundance",
         action="store_true",
         help="Include hash abundances for differential hash expression",
-    )
-    parser.add_argument(
-        "--method",
-        type=str,
-        default="logreg",
-        help="Name of differential expression method. Must be compatible with Scanpy. "
-        "Valid values: ['logreg', 't-test', 'wilcoxon', 't-test_overestim_var']",
     )
     parser.add_argument(
         "-g",
@@ -485,7 +471,6 @@ sklearn.preprocessing.""",
         sig_col=args.sig_col,
         threshold=args.threshold,
         verbose=args.verbose,
-        method=args.method,
         C=args.inverse_regularization_strength,
         solver=args.solver,
         penalty=args.penalty,
