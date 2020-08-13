@@ -1389,7 +1389,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
    matches = "${group_cleaned}__matches.sig"
    generated_search_flag = sourmash_searcher == "search" ? ""  : "--debug --output-unassigned ${unassigned}"
-   user_search_flags = sourmash_search_flags
+   user_search_flags = sourmash_search_flags ? "${sourmash_search_flags}" : ""
    """
    sourmash ${sourmash_searcher} \\
       ${user_search_flags} \\
