@@ -1247,7 +1247,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), val(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
+      set val(group), file(group_unaligned_sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
       file(hashes_only)
