@@ -1204,7 +1204,6 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
     // ch_hash_sigs_from_hash2sig_to_print.dump(tag: 'ch_hash_sigs_from_hash2sig_to_print')
     //
     ch_hash_to_group_for_joining_after_hash2sig
-      .dump( tag: ch_hash_to_group_for_joining_after_hash2sig )
       .join( ch_hash_sigs_from_hash2sig_to_join )
       // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
       // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
