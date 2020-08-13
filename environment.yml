@@ -11,7 +11,7 @@ dependencies:
   - conda-forge::pymdown-extensions=6.0
   - conda-forge::pygments=2.5.2
   # TODO nf-core: Add required software dependencies here
-  - bioconda::anndata=0.6.22.post1
+  - conda-forge::anndata=0.7.4
   - bioconda::bedtools=2.29.2
   - bioconda::bioawk=1.0
   - bioconda::csvtk=0.20.0
