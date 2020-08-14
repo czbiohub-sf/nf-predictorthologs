@@ -1332,371 +1332,6 @@ if (params.hashes) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
-/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
- */
- do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes || params.protein_searcher == "diamond")
- println "do_hash2kmer: ${do_hash2kmer}"
- if (do_hash2kmer){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${tag_id}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-
-    input:
-    tuple val(hash), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
-
-    output:
-    file(kmers)
-    set val(hash), val(sample_id), file(sequences) into \
-      ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, \
-      ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond, \
-      ch_hash_to_id_to_fasta_for_filter_unaligned_reads
-
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    tag_id = "${hash_id}__${sample_id}"
-    kmers = "${tag_id}__kmer.txt"
-    sequences = "${tag_id}__sequences.fasta"
-    """
-    echo ${hash_cleaned} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${sourmash_molecule} \\
-        hash.txt \\
-        ${fasta}
-    """
-  }
-  //
-  // ch_hash_to_id_to_fasta_for_filter_unaligned_reads
-  //   .map { it -> [it[0], it[2]] }
-  //   .set { ch_hash_to_seq_for_filter_unaligned_reads }
-
-  ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam
-    .dump( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids' )
-    // .join {  }
-    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
-
-  if (params.featurecounts_hashes) {
-    ch_hash_to_id_to_bam_for_filter_bam
-      .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
-      .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
-      .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
-
-    ch_bams_for_map_then_bioawk
-      .map { it -> [it[0], it[1], it[3]] }
-      .dump ( tag: 'ch_bams_for_filter_reads_with_hashes_for_bioawak' )
-      .set { ch_bams_for_filter_reads_with_hashes_for_bioawak }
-
-    ch_bams_for_map_then_filter_bams
-      .map { it -> [it[0], it[1], it[2]] }
-      .set { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
-  }
-
-  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-
-  ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
-    // Remove fasta id to make groupTuple easier
-    .map { it -> [it[0], it[2]] }
-    .dump ( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond__no_fasta_id' )
-    .groupTuple()
-    .join ( ch_hash_to_group_for_joining_after_hash2kmer, remainder: true )
-    // [DUMP: ch_protein_seq_for_diamond]
-    //    ['4122771730240801637\n',
-    //      [hash-4122771730240801637__MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC__sequences.fasta,
-    //       hash-4122771730240801637__10X_P4_2__unaligned__GACGTTACACCCATGG__sequences.fasta,
-    //       hash-4122771730240801637__MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT__sequences.fasta,
-    //       hash-4122771730240801637__10X_P5_0__unaligned__TCCACACCACATTTCT__sequences.fasta,
-    //       hash-4122771730240801637__10X_P4_2__unaligned__ATCGAGTCACCAGTTA__sequences.fasta],
-    //     'Liver unaligned']
-    .dump ( tag: 'ch_hash_to_fastas_to_group' )
-    .transpose()
-    // [DUMP: ch_protein_seq_for_diamond]
-    //    ['15007113384290734478\n',
-    //      hash-15007113384290734478__MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__sequences.fasta,
-    //      'Mostly marrow unaligned']
-    .dump ( tag: 'ch_hash_to_single_fasta_to_group' )
-    .map { it -> [it[0], it[2], it[1]] }
-    .dump ( tag: 'ch_protein_seq_for_diamond' )
-    .set { ch_protein_seq_for_diamond }
-
-}
-
-
-if (params.featurecounts_hashes) {
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE BAM CONTAINING HASHES                         -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 9 - Extract sequence ids of reads containing hashes
-   */
-  process bioawk_read_ids_with_hash {
-    tag "${tag_id}"
-    label "process_low"
-
-    publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
-
-    input:
-    // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
-    set val(hash), val(sample_id), file(seqs_with_hash) from ch_bams_for_filter_reads_with_hashes_for_bioawak
-
-    output:
-    set val(hash), val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(hash), val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
-
-    script:
-    hash_cleaned = hash.replaceAll('\\n', '')
-    hash_id = "hash-${hash_cleaned}"
-    tag_id = "${hash_id}__${sample_id}"
-    read_ids_with_hash = "${tag_id}__reads_ids_with_hash__regex_pattern.txt"
-    read_headers_with_hash = "${tag_id}__reads_headers_with_hash.txt"
-    """
-    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
-      | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
-    bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
-    """
-  }
-
-  ch_read_ids_with_hash
-    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1], remainder: true )
-    // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
-    //    ['117030662087159\n',
-    //     'SRR306777_GSM752631_mml_br_F_1',
-    //     hash-117030662087159__SRR306777_GSM752631_mml_br_F_1__reads_ids_with_hash__regex_pattern.txt,
-    //     SRR306777_GSM752631_mml_br_F_1Aligned.sortedByCoord.out.bam]
-    .dump ( tag: 'ch_hash_sample_id_read_ids_bam_for_filter_bam' )
-    .set { ch_hash_sample_id_read_ids_bam_for_filter_bam }
-
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE BAM CONTAINING HASHES                         -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 9 - Filter per-sample bams for aligned read ids
-   */
-  process filter_bam_for_reads_with_hashes {
-    tag "${tag_id}"
-    label "process_medium"
-
-    publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
-
-    input:
-    set val(hash), val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
-
-    output:
-    set val(sample_id), val(hash), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
-    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
-
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    tag_id = "${hash_id}__${sample_id}"
-    reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
-    reads_in_hashes_bam = "${tag_id}__reads_in_shared_hashes.bam"
-    read_ids_mapped = "${tag_id}__aligned_read_ids.txt"
-    """
-    samtools view -H ${bam} \\
-      > header.sam
-    # Use -F 4 to only show aligned reads, just in case bam has unaligned
-    # Use pipes for everything instead of writing to disk as the bams could be
-    # VERY large and want to avoid the cost of file I/O and writing to disk
-    samtools view --threads ${task.cpus} -F 4 ${bam} \\
-      | rg --file ${read_ids_with_hash} --threads ${task.cpus} - \\
-      | cat header.sam - \\
-      | samtools view --threads ${task.cpus} -1b - \\
-      > ${reads_in_hashes_bam} \\
-        || touch ${reads_in_hashes_bam}
-    # touch a decoy file in case it fails, which means no reads were found
-    samtools view ${reads_in_hashes_bam} \\
-      | cut -f 1 \\
-      > ${read_ids_mapped} \\
-        || touch ${reads_in_hashes_bam}
-    # touch a decoy file in case it fails, which means no reads were found
-    """
-  }
-
-  ch_bam_filtered
-    // At least 1 aligned read
-    .filter { it -> it[2].size() > 0 }
-    // Remove read ids (item 2)
-    .map { it -> [it[0], it[1], it[3]]}
-    .dump ( tag: 'ch_bam_filtered_for_featurecounts' )
-    .set { ch_bam_filtered_for_featurecounts }
-
-  ch_read_ids_mapped
-    .dump ( tag: 'ch_read_ids_mapped' )
-    // Keep only cases where there were no aligned reads
-    .filter { it -> it[2].size() == 0 }
-    .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log; ch_read_ids_unmapped_for_files }
-
-  ch_read_ids_unmapped_for_files
-    .collectFile(newLine: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
-      ["hash-${hashCleaner(item[0])}.txt", item[1] ]
-    }
-    .subscribe {
-      println "Wrote samples with unaligned hashes to ${it.name}"
-    }
-
-  ch_read_ids_unmapped_for_log
-    .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
-
-  ch_read_ids_unmapped_for_hashes
-    // [hash, sample_id, read_ids]
-    .map { it -> it[0] }
-    .unique ()
-    .dump ( tag: 'unaligned_hashes' )
-    .into { ch_hashes_for_hash2sig_maybe ; ch_unaligned_hashes_for_concatenate_seqs }
-
-  if ( !params.csv_has_is_aligned_col ) {
-    ch_hashes_for_hash2sig_maybe
-      .set { ch_hashes_for_hash2sig }
-  }
-
-  ch_unaligned_hashes_for_concatenate_seqs
-    .collect()
-    .dump ( tag: 'unaligned_hashes_collected' )
-    .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
-    .groupTuple ()
-    .dump ( tag: 'ch_hash_to_seq_unaligned' )
-    .set { ch_hash_to_seq_unaligned }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --            Get sequences of hashes in unaligned reads               -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 10 - Filter per-sample sequences for unaligned read ids
-   */
-  process concatenate_unaligned_hashes {
-    tag "${hash_id}"
-    label "process_medium"
-
-    publishDir "${params.outdir}/unaligned_hashes/", mode: 'copy'
-
-    input:
-    set val(hash), val(sample_ids), file(seqs_fasta) from ch_hash_to_seq_unaligned
-
-    output:
-    set val(hash), val(hash_id), file(fasta_unmapped) into ch_fasta_unmapped
-
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    fasta_unmapped = "${hash_id}__unmapped.fasta"
-    samples_with_unmapped_hash = "${hash_id}__unmapped__samples_with_hash.txt"
-    """
-    echo '${sample_ids.join('\\n')}' > ${samples_with_unmapped_hash}
-    cat ${seqs_fasta} > ${fasta_unmapped}
-    """
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                RUN FEATURECOUNTS WITH ORTHOLOGY                     -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 11 - Filter per-sample bams for aligned read ids
-   */
-  if (params.csv_has_gtf_col && ! params.skip_orthology_qc) {
-    println "In params.csv_has_gtf_col"
-
-    ch_sample_id_to_gtf
-      // Use cross, not join, so there are many hash-bam pairs
-      .combine ( ch_bam_filtered_for_featurecounts, by: 0)
-      .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
-      // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
-      //    ['SRR306827_GSM752680_ppa_br_F_2',
-      //       Pan_paniscus.panpan1.1.97.gtf,
-      //      '2655017856511517\n',
-      //      hash-2655017856511517__SRR306827_GSM752680_ppa_br_F_2__reads_in_shared_hashes.bam]
-      .set { ch_sample_id_to_hash_to_bam_to_gtf }
-
-     process featureCounts {
-         label 'process_high'
-         tag "${featurecounts_id}"
-         publishDir "${params.outdir}/featureCounts", mode: "copy",
-             saveAs: {filename ->
-                 if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
-                 else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-                 else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
-                 else "$filename"
-             }
-
-         input:
-         set val(sample_id), file(gtf), val(hash), file(bam) from ch_sample_id_to_hash_to_bam_to_gtf
-         file orthology_header from ch_orthology_types_header.collect()
-
-         output:
-         file "${featurecounts_id}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-         file "${featurecounts_id}_gene.featureCounts.txt.summary" into featureCounts_logs
-         file "${featurecounts_id}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
-
-         script:
-         hash_cleaned = hashCleaner(hash)
-         hash_id = "hash-${hash_cleaned}"
-         featurecounts_id = "${hash_id}__${sample_id}"
-
-         def featureCounts_direction = 0
-         def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
-         if (forwardStranded && !unStranded) {
-             featureCounts_direction = 1
-         } else if (reverseStranded && !unStranded) {
-             featureCounts_direction = 2
-         }
-         // Try to get real sample name
-         sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-         orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
-         mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
-         """
-         featureCounts \\
-            -a $gtf \\
-            -g ${params.fc_group_features} \\
-            -t ${params.fc_count_type} \\
-            -o ${featurecounts_id}_gene.featureCounts.txt \\
-            $extraAttributes \\
-            -T ${task.cpus} \\
-            -p \\
-            -s $featureCounts_direction \\
-            $bam
-         # Potentially count reads in orthologous gene features
-         $orthology_qc
-         # Summarize orthologous genes for multqic
-         $mod_orthology
-         """
-     }
-   }
-}
-
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
 /* --            PREPARE HASHES FOR SEARCHING WITH SOURMASH               -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
@@ -2136,6 +1771,371 @@ if (params.protein_searcher == 'diamond') {
 }
 
 
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+ */
+ do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes || params.protein_searcher == "diamond")
+ println "do_hash2kmer: ${do_hash2kmer}"
+ if (do_hash2kmer){
+  // No protein fasta provided for searching for orthologs, need to
+  // download refseq
+  process hash2kmer {
+    tag "${tag_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+
+    input:
+    tuple val(hash), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
+
+    output:
+    file(kmers)
+    set val(hash), val(sample_id), file(sequences) into \
+      ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, \
+      ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond, \
+      ch_hash_to_id_to_fasta_for_filter_unaligned_reads
+
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    tag_id = "${hash_id}__${sample_id}"
+    kmers = "${tag_id}__kmer.txt"
+    sequences = "${tag_id}__sequences.fasta"
+    """
+    echo ${hash_cleaned} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${sourmash_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${sourmash_molecule} \\
+        hash.txt \\
+        ${fasta}
+    """
+  }
+  //
+  // ch_hash_to_id_to_fasta_for_filter_unaligned_reads
+  //   .map { it -> [it[0], it[2]] }
+  //   .set { ch_hash_to_seq_for_filter_unaligned_reads }
+
+  ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam
+    .dump( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids' )
+    // .join {  }
+    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
+
+  if (params.featurecounts_hashes) {
+    ch_hash_to_id_to_bam_for_filter_bam
+      .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
+      .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
+      .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
+
+    ch_bams_for_map_then_bioawk
+      .map { it -> [it[0], it[1], it[3]] }
+      .dump ( tag: 'ch_bams_for_filter_reads_with_hashes_for_bioawak' )
+      .set { ch_bams_for_filter_reads_with_hashes_for_bioawak }
+
+    ch_bams_for_map_then_filter_bams
+      .map { it -> [it[0], it[1], it[2]] }
+      .set { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
+  }
+
+  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+
+  ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
+    // Remove fasta id to make groupTuple easier
+    .map { it -> [it[0], it[2]] }
+    .dump ( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond__no_fasta_id' )
+    .groupTuple()
+    .join ( ch_hash_to_group_for_joining_after_hash2kmer, remainder: true )
+    // [DUMP: ch_protein_seq_for_diamond]
+    //    ['4122771730240801637\n',
+    //      [hash-4122771730240801637__MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC__sequences.fasta,
+    //       hash-4122771730240801637__10X_P4_2__unaligned__GACGTTACACCCATGG__sequences.fasta,
+    //       hash-4122771730240801637__MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT__sequences.fasta,
+    //       hash-4122771730240801637__10X_P5_0__unaligned__TCCACACCACATTTCT__sequences.fasta,
+    //       hash-4122771730240801637__10X_P4_2__unaligned__ATCGAGTCACCAGTTA__sequences.fasta],
+    //     'Liver unaligned']
+    .dump ( tag: 'ch_hash_to_fastas_to_group' )
+    .transpose()
+    // [DUMP: ch_protein_seq_for_diamond]
+    //    ['15007113384290734478\n',
+    //      hash-15007113384290734478__MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__sequences.fasta,
+    //      'Mostly marrow unaligned']
+    .dump ( tag: 'ch_hash_to_single_fasta_to_group' )
+    .map { it -> [it[0], it[2], it[1]] }
+    .dump ( tag: 'ch_protein_seq_for_diamond' )
+    .set { ch_protein_seq_for_diamond }
+
+}
+
+
+if (params.featurecounts_hashes) {
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE BAM CONTAINING HASHES                         -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 9 - Extract sequence ids of reads containing hashes
+   */
+  process bioawk_read_ids_with_hash {
+    tag "${tag_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
+
+    input:
+    // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
+    set val(hash), val(sample_id), file(seqs_with_hash) from ch_bams_for_filter_reads_with_hashes_for_bioawak
+
+    output:
+    set val(hash), val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
+    set val(hash), val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
+
+    script:
+    hash_cleaned = hash.replaceAll('\\n', '')
+    hash_id = "hash-${hash_cleaned}"
+    tag_id = "${hash_id}__${sample_id}"
+    read_ids_with_hash = "${tag_id}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hash = "${tag_id}__reads_headers_with_hash.txt"
+    """
+    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
+      | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
+    bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
+    """
+  }
+
+  ch_read_ids_with_hash
+    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1], remainder: true )
+    // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
+    //    ['117030662087159\n',
+    //     'SRR306777_GSM752631_mml_br_F_1',
+    //     hash-117030662087159__SRR306777_GSM752631_mml_br_F_1__reads_ids_with_hash__regex_pattern.txt,
+    //     SRR306777_GSM752631_mml_br_F_1Aligned.sortedByCoord.out.bam]
+    .dump ( tag: 'ch_hash_sample_id_read_ids_bam_for_filter_bam' )
+    .set { ch_hash_sample_id_read_ids_bam_for_filter_bam }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE BAM CONTAINING HASHES                         -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 9 - Filter per-sample bams for aligned read ids
+   */
+  process filter_bam_for_reads_with_hashes {
+    tag "${tag_id}"
+    label "process_medium"
+
+    publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
+
+    input:
+    set val(hash), val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
+
+    output:
+    set val(sample_id), val(hash), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
+    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
+
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    tag_id = "${hash_id}__${sample_id}"
+    reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
+    reads_in_hashes_bam = "${tag_id}__reads_in_shared_hashes.bam"
+    read_ids_mapped = "${tag_id}__aligned_read_ids.txt"
+    """
+    samtools view -H ${bam} \\
+      > header.sam
+    # Use -F 4 to only show aligned reads, just in case bam has unaligned
+    # Use pipes for everything instead of writing to disk as the bams could be
+    # VERY large and want to avoid the cost of file I/O and writing to disk
+    samtools view --threads ${task.cpus} -F 4 ${bam} \\
+      | rg --file ${read_ids_with_hash} --threads ${task.cpus} - \\
+      | cat header.sam - \\
+      | samtools view --threads ${task.cpus} -1b - \\
+      > ${reads_in_hashes_bam} \\
+        || touch ${reads_in_hashes_bam}
+    # touch a decoy file in case it fails, which means no reads were found
+    samtools view ${reads_in_hashes_bam} \\
+      | cut -f 1 \\
+      > ${read_ids_mapped} \\
+        || touch ${reads_in_hashes_bam}
+    # touch a decoy file in case it fails, which means no reads were found
+    """
+  }
+
+  ch_bam_filtered
+    // At least 1 aligned read
+    .filter { it -> it[2].size() > 0 }
+    // Remove read ids (item 2)
+    .map { it -> [it[0], it[1], it[3]]}
+    .dump ( tag: 'ch_bam_filtered_for_featurecounts' )
+    .set { ch_bam_filtered_for_featurecounts }
+
+  ch_read_ids_mapped
+    .dump ( tag: 'ch_read_ids_mapped' )
+    // Keep only cases where there were no aligned reads
+    .filter { it -> it[2].size() == 0 }
+    .into { ch_read_ids_unmapped_for_hashes; ch_read_ids_unmapped_for_log; ch_read_ids_unmapped_for_files }
+
+  ch_read_ids_unmapped_for_files
+    .collectFile(newLine: true, storeDir: "${params.outdir}/unaligned_hashes/") { item ->
+      ["hash-${hashCleaner(item[0])}.txt", item[1] ]
+    }
+    .subscribe {
+      println "Wrote samples with unaligned hashes to ${it.name}"
+    }
+
+  ch_read_ids_unmapped_for_log
+    .subscribe { log.info "hash: ${hashCleaner(it[0])} was unaligned in sample: ${it[1]}" }
+
+  ch_read_ids_unmapped_for_hashes
+    // [hash, sample_id, read_ids]
+    .map { it -> it[0] }
+    .unique ()
+    .dump ( tag: 'unaligned_hashes' )
+    .into { ch_hashes_for_hash2sig_maybe ; ch_unaligned_hashes_for_concatenate_seqs }
+
+  if ( !params.csv_has_is_aligned_col ) {
+    ch_hashes_for_hash2sig_maybe
+      .set { ch_hashes_for_hash2sig }
+  }
+
+  ch_unaligned_hashes_for_concatenate_seqs
+    .collect()
+    .dump ( tag: 'unaligned_hashes_collected' )
+    .join( ch_hash_to_id_to_fasta_for_filter_unaligned_reads )
+    .groupTuple ()
+    .dump ( tag: 'ch_hash_to_seq_unaligned' )
+    .set { ch_hash_to_seq_unaligned }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --            Get sequences of hashes in unaligned reads               -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 10 - Filter per-sample sequences for unaligned read ids
+   */
+  process concatenate_unaligned_hashes {
+    tag "${hash_id}"
+    label "process_medium"
+
+    publishDir "${params.outdir}/unaligned_hashes/", mode: 'copy'
+
+    input:
+    set val(hash), val(sample_ids), file(seqs_fasta) from ch_hash_to_seq_unaligned
+
+    output:
+    set val(hash), val(hash_id), file(fasta_unmapped) into ch_fasta_unmapped
+
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    fasta_unmapped = "${hash_id}__unmapped.fasta"
+    samples_with_unmapped_hash = "${hash_id}__unmapped__samples_with_hash.txt"
+    """
+    echo '${sample_ids.join('\\n')}' > ${samples_with_unmapped_hash}
+    cat ${seqs_fasta} > ${fasta_unmapped}
+    """
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                RUN FEATURECOUNTS WITH ORTHOLOGY                     -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 11 - Filter per-sample bams for aligned read ids
+   */
+  if (params.csv_has_gtf_col && ! params.skip_orthology_qc) {
+    println "In params.csv_has_gtf_col"
+
+    ch_sample_id_to_gtf
+      // Use cross, not join, so there are many hash-bam pairs
+      .combine ( ch_bam_filtered_for_featurecounts, by: 0)
+      .dump( tag : 'ch_sample_id_to_hash_to_bam_to_gtf' )
+      // [DUMP: ch_sample_id_to_hash_to_bam_to_gtf]
+      //    ['SRR306827_GSM752680_ppa_br_F_2',
+      //       Pan_paniscus.panpan1.1.97.gtf,
+      //      '2655017856511517\n',
+      //      hash-2655017856511517__SRR306827_GSM752680_ppa_br_F_2__reads_in_shared_hashes.bam]
+      .set { ch_sample_id_to_hash_to_bam_to_gtf }
+
+     process featureCounts {
+         label 'process_high'
+         tag "${featurecounts_id}"
+         publishDir "${params.outdir}/featureCounts", mode: "copy",
+             saveAs: {filename ->
+                 if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
+                 else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+                 else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+                 else "$filename"
+             }
+
+         input:
+         set val(sample_id), file(gtf), val(hash), file(bam) from ch_sample_id_to_hash_to_bam_to_gtf
+         file orthology_header from ch_orthology_types_header.collect()
+
+         output:
+         file "${featurecounts_id}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
+         file "${featurecounts_id}_gene.featureCounts.txt.summary" into featureCounts_logs
+         file "${featurecounts_id}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
+
+         script:
+         hash_cleaned = hashCleaner(hash)
+         hash_id = "hash-${hash_cleaned}"
+         featurecounts_id = "${hash_id}__${sample_id}"
+
+         def featureCounts_direction = 0
+         def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
+         if (forwardStranded && !unStranded) {
+             featureCounts_direction = 1
+         } else if (reverseStranded && !unStranded) {
+             featureCounts_direction = 2
+         }
+         // Try to get real sample name
+         sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
+         orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
+         mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
+         """
+         featureCounts \\
+            -a $gtf \\
+            -g ${params.fc_group_features} \\
+            -t ${params.fc_count_type} \\
+            -o ${featurecounts_id}_gene.featureCounts.txt \\
+            $extraAttributes \\
+            -T ${task.cpus} \\
+            -p \\
+            -s $featureCounts_direction \\
+            $bam
+         # Potentially count reads in orthologous gene features
+         $orthology_qc
+         # Summarize orthologous genes for multqic
+         $mod_orthology
+         """
+     }
+   }
+}
 
 
 
