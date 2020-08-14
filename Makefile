@@ -8,9 +8,9 @@ NF_RUN=nextflow run -resume
 test: \
 	test_bam \
 	test_bam_noncoding \
-	test_diff_hash \
 	test_diff_hash_abundance \
-	test_diff_hash_sourmash \
+	test_diff_hash_gather \
+	test_diff_hash_search \
 	test_diff_hash_is_aligned \
 	test_download_refseq \
 	test_existing_database \
@@ -41,10 +41,13 @@ test_fastq_paired:
 test_download_refseq:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
-test_diff_hash:
+test_diff_hash_abundance:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
-test_diff_hash_abundance:
+test_diff_hash_gather:
+	${NF_RUN} -profile $@,${CONTAINER} .
+
+test_diff_hash_search:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
 test_existing_database:

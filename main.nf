@@ -577,9 +577,6 @@ if (params.csv) summary['CSV of input reads']                               = pa
 if (!params.input_is_protein) summary['sencha translate Ref']              = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
-if (params.hashes) summary['Hashes']                                        = params.hashes
-if (using_hashes) summary['sourmash ksize']                                 = params.sourmash_ksize
-if (using_hashes) summary['sourmash molecule']                              = params.sourmash_molecule
 if (params.diff_hash_expression) summary['Diff Hash abundance?']            = params.diff_hash_with_abundance
 if (params.diff_hash_expression) summary['Diff Hash min cells']             = params.diff_hash_min_cells
 if (params.diff_hash_expression) summary['Diff Hash min abundance']         = params.diff_hash_min_abundance
@@ -591,9 +588,10 @@ if (params.protein_fastas) summary['Input protein fastas']                  = pa
 if (params.proteome_search_fasta) summary['Proteome search ref']            = params.proteome_search_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
-if (params.hashes || params.diff_hash_expression) summary['sourmash ksize']                                = params.sourmash_ksize
-if (params.hashes || params.diff_hash_expression) summary['sourmash molecule']                             = params.sourmash_molecule
-if (params.hashes || params.diff_hash_expression) summary['sourmash scaled']                             = params.sourmash_scaled
+if (using_hashes) summary['sourmash searcher']                                = params.sourmash_searcher
+if (using_hashes) summary['sourmash ksize']                                = params.sourmash_ksize
+if (using_hashes) summary['sourmash molecule']                             = params.sourmash_molecule
+if (using_hashes) summary['sourmash scaled']                             = params.sourmash_scaled
 if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.taxonmap_gz
@@ -1138,24 +1136,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
-if (params.hashes) {
-  // // Combine the extracted hashes with the known proteins
-  // ch_protein_fastas
-  //   .map{ it -> it[1] }  // get only the file, not the sample id
-  //   .collect()           // make a single flat list
-  //   .map{ it -> [it] }   // Nest within a list so the next step does what I want
-  //   .set{ ch_protein_fastas_flat_list }
-  //
-  // ch_hashes_for_hash2kmer
-  //     .combine( ch_protein_fastas_flat_list )
-  //     .set { ch_hashes_with_fastas_for_hash2kmer }
-  //     // Desired output:
-  //     // [1, ["a", "b", "c"]]
-  //     // [2, ["a", "b", "c"]]
-  //     // [3, ["a", "b", "c"]]
-  //     // 1, 2, 3 = hashes
-  //     // "a", "b", "c" = protein fasta files
-} else if (params.diff_hash_expression) {
+if (params.diff_hash_expression) {
 
   ch_hash_to_group_for_hash2kmer
     .join( ch_group_to_fasta )
@@ -1294,21 +1275,6 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
         unaligned: it[1] == 'unaligned'
       }
       .set{ ch_hashes_sigs_branched }
-    //
-    //   // ch_hashes_sigs_branched
-    //   //   .unaligned
-    //   //   .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-    //   //   .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-    //   //   .set { ch_group_hash_sigs_to_query }
-    //
-    //   ch_hashes_sigs_branched
-    //     .aligned
-    //     .map { it -> tuple(it[0], it[1], it[2]) }
-    //     .dump ( tag: 'ch_hashes_in_group_aligned' )
-    //     .set { ch_hashes_in_group_aligned }
-  } else {
-    // Search all hashes
-    // ch_group_hash_sigs_to_query = ch_group_to_hash_sig
   }
 
 
@@ -1549,7 +1515,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
     .set { ch_group_hashes_fastas }
 }
 
-if ( (params.diff_hash_expression && params.protein_searcher == "gather") || params.hashes ) {
+if ( (params.diff_hash_expression && (params.sourmash_searcher == "gather")) || params.hashes ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
@@ -1593,72 +1559,8 @@ if ( (params.diff_hash_expression && params.protein_searcher == "gather") || par
     ch_unassigned_seqs_from_hash2kmer
       .filter { it -> it[1].size() > 0 }
       .set { ch_protein_seq_for_diamond }
-    // ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-    //
-    // ch_hash_to_group_for_joining_after_hash2kmer
-    //   .join(ch_seqs_from_hash2kmer)
-    //   .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-    //   .set{ ch_protein_seq_for_diamond }
    }
 }
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/* --                                                                     -- */
-/* --              EXTRACT SEQUENCES CONTAINING HASHES                    -- */
-/* --                                                                     -- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
- */
-//  do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
-//  if (do_hash2kmer) {
-//   // No protein fasta provided for searching for orthologs, need to
-//   // download refseq
-//   process hash2kmer {
-//     tag "${hash_cleaned}"
-//     label "process_low"
-//
-//     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
-//
-//     input:
-//     tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
-//
-//     output:
-//     file(kmers_from_hashes)
-//     set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
-//     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
-//
-//     script:
-//     hash_cleaned = hashCleaner(hash)
-//     hash_id = "hash-${hash_cleaned}"
-//     kmers_from_hashes = "${hash_id}__kmer.txt"
-//     sequences = "${hash_id}__sequences.fasta"
-//     first_flag = params.do_featurecounts_orthology ? '' : '--first'
-//     """
-//     echo ${hash_cleaned} >> hash.txt
-//     hash2kmer.py \\
-//         --ksize ${sourmash_ksize} \\
-//         --no-dna \\
-//         --input-is-protein \\
-//         --output-sequences ${sequences} \\
-//         --output-kmers ${kmers_from_hashes} \\
-//         --${sourmash_molecule} \\
-//         ${first_flag} \\
-//         hash.txt \\
-//         ${peptide_fastas}
-//     """
-//   }
-//   ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-//
-//   ch_hash_to_group_for_joining_after_hash2kmer
-//     .join(ch_seqs_from_hash2kmer)
-//     .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-//     .set{ ch_protein_seq_for_diamond }
-// }
 
 
 
@@ -1669,7 +1571,7 @@ if ( (params.diff_hash_expression && params.protein_searcher == "gather") || par
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'diamond' || (params.diff_hash_expression && params.sourmash_searcher == "gather")) {
+if (params.protein_searcher == 'diamond' || (params.diff_hash_expression && (params.sourmash_searcher == "gather"))) {
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
