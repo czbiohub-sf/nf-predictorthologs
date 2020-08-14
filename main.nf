@@ -47,6 +47,7 @@ def helpMessage() {
 
     Options:
       --single_end [bool]             Specifies that the input is single-end reads
+      --skip_remove_duplicates_bam    If provided, skip removal of duplicates from bam file
 
     BLAST-like protein search options                        If not specified in the configuration file or you wish to overwrite any of the references
       --refseq_release        Valid terms from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/,
@@ -148,7 +149,7 @@ if (params.hashes) {
 
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
-    print("supplied bam, not looking at any supplied --reads")
+    log.info "supplied bam, not looking at any supplied --reads"
     Channel.fromPath(params.bai)
         .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
         .set { ch_bai }
@@ -163,6 +164,12 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
         .set {ch_bed_bam_bai}
+} else if (params.bam && !params.skip_remove_duplicates_bam && !params.bai) {
+    // deciding if sambamba steps are needed
+    log.info "supplied bam and no skip_remove_duplicates flag specified"
+    Channel.fromPath(params.bam)
+        .ifEmpty { exit 1, "params.bam was empty, no input file supplied" }
+        .into { ch_bam_for_dedup }
 } else if (params.input_is_protein) {
   log.info 'Using protein fastas as input -- ignoring reads and bams'
   ////////////////////////////////////////////////////
@@ -172,7 +179,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     Channel.fromPath(params.protein_fastas)
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
         .set { ch_protein_fastas }
-  } else if (params.csv) {
+  } else if (params.csv && params.input_is_protein) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath(params.csv)
@@ -198,9 +205,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 } else {
   // * Create a channel for input read files
-  if (params.csv) {
+  if (params.csv && params.csv_has_reads) {
     // Provided a csv file mapping sample_id to read(s) fastq path
-    print("supplied csv, not looking at any supplied --reads or readPaths")
+    log.info "supplied csv, not looking at any supplied --reads or readPaths"
     if (params.single_end) {
       Channel
         .fromPath(params.csv)
@@ -219,7 +226,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
     }
    } else if (params.readPaths){
-    print("supplied readPaths, not looking at any supplied --reads")
+    log.info "supplied readPaths, not looking at any supplied --reads"
     if (params.single_end) {
       Channel
         .from(params.readPaths)
@@ -327,12 +334,21 @@ if (params.csv_has_is_aligned_col) {
       .fromPath(params.csv)
       .splitCsv(header:true)
       .filter{ row -> row.is_aligned == 'unaligned' }
+      .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
       .dump( tag: 'csv_unaligned' )
       .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
       .dump( tag: 'ch_unaligned_sigs_flattened_for_finding_matches' )
       .set{ ch_unaligned_sigs_flattened_for_finding_matches }
+
+    Channel
+      .fromPath(params.csv)
+      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
+      .groupTuple()
+      .dump( tag: 'ch_per_group_unaligned_sig' )
+      .set{ ch_per_group_unaligned_sig }
 
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -408,8 +424,8 @@ if (params.diff_hash_expression) {
       .fromPath(params.csv)
       .splitCsv(header:true)
       .map{ row -> tuple(row.group) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
       .unique()
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
       .dump(tag: 'csv_unique_groups')
       .combine( ch_all_signatures_flat_list )
       .dump(tag: 'ch_groups_with_signatures_for_diff_hash')
@@ -435,14 +451,14 @@ Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.proteome_search_fasta}" }
      .into{ ch_diamond_reference_fasta; ch_sourmash_reference_fasta }
 }
-if (params.diamond_taxonmap_gz) {
-Channel.fromPath(params.diamond_taxonmap_gz, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.diamond_taxonmap_gz}" }
+if (params.taxonmap_gz) {
+Channel.fromPath(params.taxonmap_gz, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond Taxon map file not found: ${params.taxonmap_gz}" }
      .set{ ch_diamond_taxonmap_gz }
 }
-if (params.diamond_taxdmp_zip) {
-Channel.fromPath(params.diamond_taxdmp_zip, checkIfExists: true)
-     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.diamond_taxdmp_zip}" }
+if (params.taxdmp_zip) {
+Channel.fromPath(params.taxdmp_zip, checkIfExists: true)
+     .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
 if (params.diamond_database){
@@ -451,13 +467,32 @@ if (params.diamond_database){
        .set{ ch_diamond_db }
 }
 
+if (params.search_noncoding && params.infernal_db) {
+  if (hasExtension(params.infernal_db, 'gz')) {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db_gz }
+  } else {
+    Channel.fromPath(params.infernal_db, checkIfExists: true)
+         .ifEmpty { exit 1, "Infernal database file not found: ${params.infernal_db}" }
+         .set{ ch_infernal_db }
+  }
+}
+
+if (params.search_noncoding && params.rfam_clan_info){
+  Channel.fromPath(params.rfam_clan_info, checkIfExists: true)
+       .ifEmpty { exit 1, "Rfam Clan Information file not found: ${params.rfam_clan_info}" }
+       .set{ ch_rfam_clan_info }
+}
+
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.translate_peptide_ksize
-peptide_molecule = params.translate_peptide_molecule
+peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
+peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
+tablesize = params.translate_tablesize
 
 //////////////////////////////////////////////////////////////////
 /* -        Parse sourmash/hash2kmer parameters              -- */
@@ -531,9 +566,10 @@ if (params.hashes) summary['sourmash ksize']                                = pa
 if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
 if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
-if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.diamond_taxonmap_gz
-if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.diamond_taxdmp_zip
-summary["Filter bam hashes"]                                                 = params.filter_bam_hashes
+if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.taxonmap_gz
+if (params.protein_searcher == 'diamond') summary['Taxonomy database dump']     = params.taxdmp_zip
+summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
+summary["Featurecounts hashes"]                                                 = params.featurecounts_hashes
 // summary['Data Type']        = params.single_end ? 'Single-End' : 'Paired-End'
 summary['Max Resources']    = "$params.max_memory memory, $params.max_cpus cpus, $params.max_time time per job"
 if (workflow.containerEngine) summary['Container'] = "$workflow.containerEngine - $workflow.container"
@@ -623,6 +659,56 @@ process get_software_versions {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
+/* --               PREPROCESSING SAMBAMBA DEDUPLICATION                  -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_dedup {
+        tag "${prefix}"
+        label "process_high"
+        publishDir "${params.outdir}/sambamba_dedup", mode: 'copy'
+
+        input:
+        file(bam) from ch_bam_for_dedup
+
+        output:
+        set val(prefix), file(bam_dedup) into ch_dedup_bam_for_index, ch_dedup_bam_for_samtools_fastq
+
+        script:
+        buffer_size = task.memory.toMega()
+        prefix = "${bam.getBaseName()}_dedup"
+        bam_dedup = "${prefix}.bam"
+        """
+        sambamba markdup --remove-duplicates --sort-buffer-size ${buffer_size} --nthreads $task.cpus ${bam} ${bam_dedup}
+        """
+    }
+}
+
+if (params.bam && !params.skip_remove_duplicates_bam && !params.bai){
+    process sambamba_index {
+        tag "${bam_name}"
+        label "process_medium"
+        publishDir "${params.outdir}/sambamba_index", mode: 'copy'
+
+        input:
+        set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_index
+
+        output:
+        file(bai_dedup) into ch_dedup_bai
+
+        script:
+        bai_dedup = "${bam_name}.bai"
+        """
+        sambamba index  --nthreads $task.cpus ${bam_dedup} ${bai_dedup}
+        """
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
 /* --               SAMTOOLS VIEW GENOMIC REGION TO FASTA                 -- */
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
@@ -632,7 +718,30 @@ process get_software_versions {
  * STEP 0 - samtools view
  */
 
-if (params.bam && params.bed && params.bai) {
+if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_bam) {
+    process samtools_fastq_no_intersect {
+    tag "$bam_name"
+    label "process_low"
+    publishDir "${params.outdir}/intersect_fastqs", mode: 'copy'
+
+    input:
+    set val(bam_name), file(bam_dedup) from ch_dedup_bam_for_samtools_fastq
+
+    output:
+    set val(bam_name), file(fastq) into ch_intersected
+
+    script:
+    fastq = "${bam_name}.fastq.gz"
+    """
+      samtools fastq -N ${bam_dedup} \\
+      | gzip -c > ${fastq}
+    """
+    }
+    ch_intersected
+      // gzipped files are 20 bytes when empty
+      .filter{ it[1].size() > 20 }
+      .into { ch_read_files_fastqc; ch_read_files_trimming }
+} else if (params.bam && params.bed && params.bai) {
     process samtools_view_fastq {
     tag "$interval_name"
     label "process_low"
@@ -657,7 +766,6 @@ if (params.bam && params.bed && params.bai) {
     .filter{ it[1].size() > 20 }
     .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -730,6 +838,8 @@ if (!params.skip_trimming && !params.input_is_protein){
       if (reads[1] == null) {
           """
           fastp \\
+              --low_complexity_filter \\
+              --trim_poly_x \\
               --in1 ${reads} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
               --json ${name}_fastp.json \\
@@ -739,6 +849,8 @@ if (!params.skip_trimming && !params.input_is_protein){
         // More than one set of reads --> paired end
           """
           fastp \\
+              --low_complexity_filter \\
+              --trim_poly_x \\
               --in1 ${reads[0]} \\
               --in2 ${reads[1]} \\
               --out1 ${name}_R1_trimmed.fastq.gz \\
@@ -754,13 +866,8 @@ if (!params.skip_trimming && !params.input_is_protein){
         """
       }
   }
-  // filter out empty fastq files
-  ch_reads_trimmed
-      // gzipped files are 20 bytes when empty
-      .filter{ it[1].size() > 20 }
-      .set { ch_reads_trimmed_nonempty }
 } else if (!params.input_is_protein) {
-  ch_reads_trimmed_nonempty = ch_read_files_trimming
+  ch_reads_trimmed = ch_read_files_trimming
 } else {
   ch_fastp_results = Channel.empty()
 }
@@ -787,16 +894,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     input:
     file(peptides) from ch_proteome_translate_fasta
     each molecule from peptide_molecule
+    each ksize from peptide_ksize
 
     output:
-    set val(bloom_id), val(molecule), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
+    set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
 
     script:
-    bloom_id = "molecule-${molecule}"
+    bloom_id = "molecule-${molecule}_ksize-${ksize}"
     """
     sencha index \\
-      --tablesize 1e7 \\
+      --tablesize ${tablesize} \\
       --molecule ${molecule} \\
+      --peptide-ksize ${ksize} \\
       --save-as ${peptides.simpleName}__${bloom_id}.bloomfilter \\
       ${peptides}
     """
@@ -804,8 +913,16 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
-    .groupTuple(by: [0, 3])
-      .combine(ch_reads_trimmed_nonempty)
+      .groupTuple(by: [0, 1, 2])
+      .combine(ch_reads_trimmed)
+      .dump( tag: 'ch_sencha_bloom_filters_grouptuple' )
+      // [DUMP: ch_sencha_bloom_filters_grouptuple]
+      //    [molecule-protein_ksize-12,
+      //     'protein',
+      //      '12',
+      //      [ncbi_refseq_vertebrate_mammalian_ptprc_plus__np_only__molecule-protein_ksize-12.bloomfilter],
+      //    'bonobo_liver_ptprc',
+      //    bonobo_liver_ptprc_R1_trimmed.fastq.gz]
     .set{ ch_sencha_bloom_filters_grouptuple }
 
 
@@ -820,34 +937,44 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
    * STEP 3 - sencha translate
    */
   process translate {
-    tag "${sample_id}"
+    tag "${sample_sketch_id}"
     label "process_long"
     publishDir "${params.outdir}/translate/", mode: 'copy'
 
     input:
     tuple \
-      val(bloom_id), val(alphabet), file(bloom_filter), \
-      val(sample_id), file(reads) \
+        val(bloom_id), val(alphabet), val(ksize), file(bloom_filter),  \
+        val(sample_id), file(reads) \
         from ch_sencha_bloom_filters_grouptuple
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), val(bloom_id), file("${sample_bloom_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_scores.csv") into ch_coding_scores_csv
-    set val(sample_bloom_id), file("${sample_bloom_id}__coding_summary.json") into ch_coding_scores_json
+    set val(sample_sketch_id), file(noncoding_nucleotides) into ch_noncoding_nucleotides_potentially_empty
+    // Set first value to "false" so it's not treated as a differential hash, and only the sample_id is considered
+    set val(false), val(sample_sketch_id), file(peptides) into ch_translated_proteins_potentially_empty
+    set val(sample_sketch_id), file(coding_nucleotides) into ch_coding_nucleotides
+    set val(sample_sketch_id), file(coding_scores) into ch_coding_scores_csv
+    set val(sample_sketch_id), file(summary) into ch_coding_scores_json
 
     script:
-    sample_bloom_id = "${sample_id}__${bloom_id}"
+    sample_sketch_id = "${sample_id}__${bloom_id}"
+    noncoding_nucleotides = "${sample_sketch_id}__noncoding_reads_nucleotides.fasta"
+    coding_nucleotides = "${sample_sketch_id}__coding_reads_nucleotides.fasta"
+    peptides = "${sample_sketch_id}__coding_reads_peptides.fasta"
+    coding_scores = "${sample_sketch_id}__coding_scores.csv"
+    summary = "${sample_sketch_id}__coding_summary.json"
     """
     sencha translate \\
-      --molecule ${alphabet[0]} \\
-      --coding-nucleotide-fasta ${sample_bloom_id}__coding_reads_nucleotides.fasta \\
-      --csv ${sample_bloom_id}__coding_scores.csv \\
-      --json-summary ${sample_bloom_id}__coding_summary.json \\
+      --molecule ${alphabet} \\
+      --peptide-ksize ${ksize} \\
+      --jaccard-threshold ${jaccard_threshold} \\
+      --noncoding-nucleotide-fasta ${noncoding_nucleotides} \\
+      --coding-nucleotide-fasta ${coding_nucleotides} \\
+      --csv ${coding_scores} \\
+      --json-summary ${summary} \\
       --peptides-are-bloom-filter \\
       ${bloom_filter} \\
-      ${reads} > ${sample_bloom_id}__coding_reads_peptides.fasta
+      ${reads} > ${peptides}
     """
   }
 
@@ -858,7 +985,18 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ch_translated_proteins_potentially_empty
     .filter{ it[2].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
+    // [DUMP: ch_translated_proteins_potentially_empty]
+    //    ['NC-033660.1-74563649-74570299-+-516-0',
+    //      molecule-protein,
+    //      NC-033660.1-74563649-74570299-+-516-0__molecule-protein__coding_reads_peptides.fasta]
     .set{ ch_protein_seq_for_diamond }
+
+  // Remove empty files
+  // it[0] = sample bloom id
+  // it[1] = sequence fasta file
+  ch_noncoding_nucleotides_potentially_empty
+    .filter { it[1].size() > 0 }
+    .set { ch_noncoding_nucleotides }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1604,12 +1742,6 @@ if (params.protein_searcher == 'sourmash'){
     """
   }
 
-  ch_hash_sigs
-    .join ( ch_hash_to_group_for_joining_after_hash2sig, remainder: true )
-    .dump ( tag: 'ch_hash_sigs__ch_hash_to_group_for_joining_after_hash2sig' )
-    .set { ch_hash_sig_to_group }
-
-
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1621,9 +1753,9 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 7 - make peptide search database for DIAMOND
    */
-  process sourmash_compute {
+  process sourmash_db_compute {
    tag "${sample_id}"
-   label "process_high"
+   label "process_low"
 
    publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
 
@@ -1654,7 +1786,7 @@ if (params.protein_searcher == 'sourmash'){
    """
  }
 
-  process sourmash_index {
+  process sourmash_db_index {
     tag "${reference_proteome_sig.baseName}"
     label "process_low"
 
@@ -1676,6 +1808,78 @@ if (params.protein_searcher == 'sourmash'){
         ${reference_proteome_sig}
     """
   }
+
+  if ( params.csv_has_is_aligned ) {
+    ch_per_group_unaligned_sig
+      .join( ch_group_to_hash_sig )
+      // [DUMP: ch_group_to_hash_sig]
+      // ['monocyte',
+      //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
+      // '2852067181280790833\n',
+      //  hash-2852067181280790833,
+      //  hash-2852067181280790833.sig]
+      .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
+      .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /* --                                                                     -- */
+    /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
+    /* --                                                                     -- */
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /*
+    * STEP 7 - Filter hashes for only unaligned ones
+    */
+    process is_hash_in_unaligned {
+      tag "${sample_id}"
+      label "process_low"
+
+      publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
+
+      input:
+      set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+
+      output:
+      set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+
+      script:
+      group_cleaned = groupCleaner(group)
+      hash_cleaned = hashCleaner(hash)
+      sample_id = "${group_cleaned}__${hash_id}"
+      matches = "${sample_id}__matches.txt"
+      """
+      rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+      """
+    }
+    ch_hash_sigs_in_unaligned
+      .dump( tag: 'ch_hash_sigs_in_unaligned' )
+      // Check that matches are nonempty
+      .branch{
+        aligned: it[4].size() == 0
+        unaligned: it[4].size() > 0
+      }
+      .set{ ch_hashes_sigs_branched }
+
+      ch_hashes_sigs_branched
+        .unaligned
+        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
+        .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
+        .set { ch_group_hash_sigs_to_query }
+
+      ch_hashes_sigs_branched
+        .aligned
+        .map { it -> tuple(it[0], it[1], it[2]) }
+        .dump ( tag: 'ch_hashes_in_group_aligned' )
+        .set { ch_hashes_in_group_aligned }
+  } else {
+     // Search all hashes
+     ch_group_hash_sigs_to_query = ch_group_to_hash_sig
+   }
 
   process sourmash_search {
    tag "${group}_${hash_id}"
@@ -1707,11 +1911,92 @@ if (params.protein_searcher == 'sourmash'){
    """
  }
 
- ch_hash_to_sourmash_search_results
- // Empty results files just contain a header, which is 30 bytes
-  .filter { it -> it[1].size() > 30 }
-  .map { it -> it[0] }
-  .set { ch_hashes_not_found_by_sourmash }
+
+
+
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --             SEARCH NONCODING RNAS WITH INFERNAL                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 10 - Download/prepare Rfam databse
+ */
+if (params.search_noncoding && params.infernal_db) {
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (hasExtension(params.infernal_db, "gz") ){
+    process gunzip_infernal_cm {
+        tag "$gz"
+        publishDir path: { params.save_reference ? "${params.outdir}/reference/infernal" : params.outdir },
+                   saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
+
+        input:
+        file gz from ch_infernal_db_gz
+
+        output:
+        file "${gz.baseName}" into ch_infernal_cm
+
+        script:
+        """
+        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        """
+    }
+  }
+
+  process prepare_infernal_db {
+      tag "${infernal_cm}"
+      publishDir path: { params.save_reference ? "${params.outdir}/reference/infernal" : params.outdir },
+                 saveAs: { params.save_reference ? it : null }, mode: "${params.publish_dir_mode}"
+
+      input:
+      file infernal_cm from ch_infernal_cm.collect()
+
+      output:
+      set val("${infernal_cm}"), file("${infernal_cm}*") into ch_infernal_db
+
+      script:
+      """
+      cmpress ${infernal_cm}
+      """
+  }
+
+  process search_noncoding {
+      tag "${sample_id}"
+      label "process_high"
+      label "process_long"
+      publishDir "${params.outdir}/infernal", mode: "${params.publish_dir_mode}"
+
+      input:
+      set val(db_name), file(db_index) from ch_infernal_db.collect()
+      file rfam_clan_info from ch_rfam_clan_info.collect()
+      set val(sample_id), file (fasta) from ch_noncoding_nucleotides
+
+      output:
+      file txt into ch_infernal_results
+
+      script:
+      txt = "${sample_id}.txt"
+      """
+      cmscan  \\
+          --cut_ga \\
+          --nohmmonly \\
+          --clanin ${rfam_clan_info} \\
+          --fmt 2 \\
+          --rfam \\
+          --cpu ${task.cpus} \\
+          --tblout ${txt} \\
+          ${db_name} \\
+          ${fasta}
+      """
+  }
 
 }
 
@@ -2025,6 +2310,10 @@ workflow.onComplete {
 
 }
 
+// Check file extension
+def hasExtension(it, extension) {
+    it.toString().toLowerCase().endsWith(extension.toLowerCase())
+}
 
 def nfcoreHeader() {
     // Log colors ANSI codes

@@ -17,13 +17,14 @@ dependencies:
   - conda-forge::r-markdown=1.1
   - conda-forge::r-base=3.6.1
   - bioconda::samtools=1.10
-  - bioconda::diamond=0.9.30
+  - bioconda::sambamba=0.7.1
+  - bioconda::diamond=0.9.35
   - bioconda::fastp=0.20.0
   - bioconda::bedtools=2.29.2
   - pip=20.0.2
   - conda-forge::rust=1.41.0    # Required for building sourmash from source
   - conda-forge::scikit-learn=0.22.1
-  - bioconda::sourmash=3.2.2
+  - bioconda::sourmash=3.3.0
   - conda-forge::pandas=1.0.3
   - conda-forge::tqdm=4.45.0
   - thombashi::pathvalidate=2.2.0
@@ -34,5 +35,7 @@ dependencies:
   - subread=1.6.4
   - bioawk=1.0
   - conda-forge::ripgrep=12.0.1
+  - csvtk=0.20.0
+  - infernal=1.1.2
   - pip:
     - git+https://github.com/czbiohub/sencha.git@master#egg=sencha

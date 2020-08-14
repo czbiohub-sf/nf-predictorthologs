@@ -38,25 +38,14 @@ logger.setLevel(logging.INFO)
 
 
 def make_hash_df(sigs, with_abundance=False):
-    # Ensure all signatures actually have tracked abundances to be able to do
-    # with_abundance
-    actually_has_abundance = all(x.minhash.track_abundance for x in sigs)
-
-    if with_abundance and actually_has_abundance:
-        records = {x.name(): x.minhash.get_mins(with_abundance=True)
+    if with_abundance:
+        records = {x.name(): x.minhash.get_mins(with_abundance=with_abundance)
                    for x in sigs}
     else:
-        if with_abundance and not actually_has_abundance:
-            logger.warning("Set --with_abundance but signatures don't actually"
-                           " have abundances, using binary presence/absence of "
-                           "hashes instead")
         # Set value of each hash abundance to 1
-        records = {x.name(): dict.fromkeys(x.minhash.get_mins(), 1) for x in sigs}
-    df = pd.DataFrame(records)
-    df = df.T
-    df = df.fillna(0)
-    return df
-
+        records = {x.name(): dict.fromkeys(x.minhash.get_mins(with_abundance=with_abundance), 1)
+                   for x in sigs}
+    return pd.DataFrame(records)
 
 
 def make_target_vector(n_group1, n_group2):
@@ -69,17 +58,18 @@ def get_training_data(sigs1, sigs2, with_abundance=False, verbose=False):
     """Create X feature matrix and y target vector for machine learning"""
 
     # Create pandas dataframe of hash abundances
-    hash_df1 = make_hash_df(sigs1.values, with_abundance=with_abundance)
+    hash_df1 = make_hash_df(sigs1, with_abundance=with_abundance)
     logger.info(f"Group1 hash dataframe head: {hash_df1.head()}")
 
-    hash_df2 = make_hash_df(sigs2.values, with_abundance=with_abundance)
+    hash_df2 = make_hash_df(sigs2, with_abundance=with_abundance)
     logger.info(f"Group2 hash dataframe head: {hash_df2.head()}")
 
     logger.info(f'Number of hashes in group1: {len(hash_df1.index)}')
     logger.info(f'Number of hashes in group2: {len(hash_df2.index)}')
 
     # Concatenate to make feature matrix
-    X = pd.concat([hash_df1, hash_df2], ignore_index=False, sort=True)
+    hash_df = pd.concat([hash_df1, hash_df2], axis=1)
+    X = hash_df.T
     X = X.fillna(0)
 
     # Create target vector "group1" is 1s and everything else is 0
@@ -117,8 +107,9 @@ def differential_hash_expression(sigs1, sigs2, with_abundance=False, verbose=Fal
 
 def maybe_subsample(sigs, subsample_groups=MAX_GROUP_SIZE, random_state=0):
     """If number of signatures is larger than specified, subsample to random"""
-    if subsample_groups is not None and len(sigs) > subsample_groups:
-        sigs = sigs.sample(subsample_groups, random_state=random_state)
+    if subsample_groups is not None:
+        if len(sigs) > subsample_groups:
+            sigs = sigs.sample(subsample_groups, random_state=random_state)
     return sigs
 
 
@@ -126,19 +117,18 @@ def get_hashes_enriched_in_group(group1_name, annotations, group_col, sketch_ser
                                  max_group_size=MAX_GROUP_SIZE, random_state=0,
                                  verbose=False, with_abundance=False, **kwargs):
     rows = annotations[group_col] == group1_name
-    logger.info(f'Number of samples in group1 ("{group1_name}"): {rows.sum()}')
 
     group1_samples = annotations.loc[rows].index.intersection(sketch_series.index)
-    logger.info(f'Group1 Samples: {group1_samples}')
+    logger.info(f"\nNumber of samples in {group1_name}: {len(group1_samples)}")
 
     # Everything not in group 1
     group2_samples = annotations.loc[~rows].index.intersection(sketch_series.index)
-    logger.info(f'Group2 Samples: {group2_samples}')
+    logger.info(f"\nNumber of samples in the rest -- aka NOT {group1_name}: {len(group1_samples)}")
 
     group1_sigs = maybe_subsample(sketch_series[group1_samples], max_group_size)
     group2_sigs = maybe_subsample(sketch_series[group2_samples], max_group_size)
-    logger.info(f'Group 1 signatures: {group1_sigs}')
-    logger.info(f'Group 2 signatures: {group2_sigs}')
+    logger.info(f'\nGroup 1 signatures: {group1_sigs}')
+    logger.info(f'\nGroup 2 signatures: {group2_sigs}')
 
     coefficients = differential_hash_expression(group1_sigs, group2_sigs,
                                                 verbose=verbose,
@@ -157,11 +147,11 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
 
     if use_sig_basename:
         metadata[sig_col] = metadata[sig_col].map(os.path.basename)
-    logger.info(f"metadata head: {metadata.head()}")
+    logger.info(f"\nmetadata head:\n---\n{metadata.head()}\n---\n")
 
     # Load all sketches into one object for reference later
     sketches = sourmash_utils.load_sketches(metadata[sig_col], ksize, molecule)
-    logger.info(f"Loaded {len(sketches)} sourmash signatures/sketches")
+    logger.info(f"\nLoaded {len(sketches)} sourmash signatures/sketches")
     if not sketches:
         # If sketches is empty --> something wrong happened
         sketch_filenames = '\n'.join(metadata[sig_col].head())
@@ -169,8 +159,8 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
                          f" {metadata_csv}! These are some of the files we couldn't "
                          f"load:\n---\n{sketch_filenames}\n---\nMaybe the molecule or "
                          f"ksize is wrong? Molecule: {molecule} and ksize: {ksize}")
-    sketch_series = pd.Series(sketches, index=[x.name().split('__coding_reads_peptides')[0] for x in sketches])
-    logger.info(f"Sketch series head: {sketch_series.head()}")
+    sketch_series = pd.Series(sketches, index=[x.name() for x in sketches])
+    logger.info(f"\nSketch series head: {sketch_series.head()}")
 
     # If group1 is provided, only do one hash enrichment
     if group1 is not None:
@@ -289,7 +279,6 @@ sklearn.preprocessing.""")
 
     add_construct_moltype_args(parser)
     args = parser.parse_args()
-    logger.info(f"Args: {args}")
 
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:

@@ -1,40 +1,23 @@
-name: nf-core CI
+name: nf-core CI - download refseq (allowed to fail)
 # This workflow is triggered on pushes and PRs to the repository.
-# It runs the pipeline with the minimal test dataset to check that it completes without any syntax errors
+# This workflow runs a test of downloading the proteome database "other" from
+# NCBI RefSeq but this often fails due to connection errors so this test is
+# separated out from the rest of ci.yml
 on: [push, pull_request]
 
 jobs:
-  test:
+  refseq:
+    continue-on-error: true
+    timeout-minutes: 60
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
       NXF_RUN: "nextflow run -resume"
     runs-on: ubuntu-latest
     strategy:
-      # Do ALL the tests even if one of them fails
-      fail-fast: false
       matrix:
-        # Nextflow versions: check pipeline minimum and current latest
-        nxf_ver: ['19.10.0', '']
         profile_flags: [
-        'test_bam',
-        'test_sambamba',
-        'test_bam --search_noncoding',
-        'test_diff_hash',
-        'test_diff_hash --with_abundance',
-        'test_diff_hash_sourmash',
-        'test_diff_hash_is_aligned',
-        'test_diff_hash_count_hashes_gtf_bam',
-        'test_download_refseq',
-        'test_make_diamond_db',
-        'test_fastq',
-        'test_fastq_paired',
-        'test_hash2kmer',
-        'test_input_is_protein',
-        'test_noncoding',
-        'test_sourmash_search',
-        'test_sencha',
-        'test_sencha_sambamba'
+        'test_download_refseq'
         ]
     steps:
       - uses: actions/checkout@v2
@@ -51,3 +34,4 @@ jobs:
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
           ${NXF_RUN} ${GITHUB_WORKSPACE} -profile docker,${{ matrix.profile_flags }}
+        continue-on-error: true
