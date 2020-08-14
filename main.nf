@@ -1500,7 +1500,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       .dump ( tag: 'ch_group_hashes_fastas' )
       .set { ch_group_hashes_fastas }
 
-} else {
+} else if ( params.hashes ){
   ch_protein_fastas
     .map{ it -> it[1] }  // get only the file, not the sample id
     .collect()           // make a single flat list
