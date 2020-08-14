@@ -963,7 +963,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
    * STEP 3 - sencha translate
    */
   process translate {
-    tag "${sample_id}"
+    tag "${sample_sketch_id}"
     label "process_long"
     publishDir "${params.outdir}/translate/", mode: 'copy'
 
@@ -975,26 +975,32 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     output:
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
-    set val(sample_id), file("${sample_id}__noncoding_reads_nucleotides.fasta") into ch_noncoding_nucleotides_potentially_empty
+    set val(sample_sketch_id), file(noncoding_nucleotides) into ch_noncoding_nucleotides_potentially_empty
     // Set first value to "false" so it's not treated as a differential hash, and only the sample_id is considered
-    set val(sample_id), file("${sample_id}__coding_reads_peptides.fasta") into ch_translated_proteins_potentially_empty
-    set val(sample_id), file("${sample_id}__coding_reads_nucleotides.fasta") into ch_coding_nucleotides
-    set val(sample_id), file("${sample_id}__coding_scores.csv") into ch_coding_scores_csv
-    set val(sample_id), file("${sample_id}__coding_summary.json") into ch_coding_scores_json
+    set val(false), val(sample_sketch_id), file(peptides) into ch_translated_proteins_potentially_empty
+    set val(sample_sketch_id), file(coding_nucleotides) into ch_coding_nucleotides
+    set val(sample_sketch_id), file(coding_scores) into ch_coding_scores_csv
+    set val(sample_sketch_id), file(summary) into ch_coding_scores_json
 
     script:
+    sample_sketch_id = "${sample_id}__${bloom_id}"
+    noncoding_nucleotides = "${sample_sketch_id}__noncoding_reads_nucleotides.fasta"
+    coding_nucleotides = "${sample_sketch_id}__coding_reads_nucleotides.fasta"
+    peptides = "${sample_sketch_id}__coding_reads_peptides.fasta"
+    coding_scores = "${sample_sketch_id}__coding_scores.csv"
+    summary = "${sample_sketch_id}__coding_summary.json"
     """
     sencha translate \\
       --molecule ${alphabet} \\
       --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
-      --noncoding-nucleotide-fasta ${sample_id}__noncoding_reads_nucleotides.fasta \\
-      --coding-nucleotide-fasta ${sample_id}__coding_reads_nucleotides.fasta \\
-      --csv ${sample_id}__coding_scores.csv \\
-      --json-summary ${sample_id}__coding_summary.json \\
+      --noncoding-nucleotide-fasta ${noncoding_nucleotides} \\
+      --coding-nucleotide-fasta ${coding_nucleotides} \\
+      --csv ${coding_scores} \\
+      --json-summary ${summary} \\
       --peptides-are-bloom-filter \\
       ${bloom_filter} \\
-      ${reads} > ${sample_id}__coding_reads_peptides.fasta
+      ${reads} > ${peptides}
     """
   }
 
