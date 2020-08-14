@@ -629,15 +629,6 @@ diff_hash_max_group_size = params.diff_hash_max_group_size
 diff_hash_min_cells = params.diff_hash_min_cells
 diff_hash_min_abundance = params.diff_hash_min_abundance
 
-// Utility functions for sanitizing output
-def groupCleaner(group) {
-  return group.replaceAll(' ', '_').replaceAll('/', '-slash-').toLowerCase()
-}
-
-def hashCleaner(hash) {
-  return hash.replaceAll('\\n', '')
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2642,4 +2633,15 @@ def checkHostname() {
             }
         }
     }
+}
+
+
+
+// Utility functions for sanitizing output
+def groupCleaner(group) {
+  return group.replaceAll(' ', '_').replaceAll('/', '-slash-').toLowerCase()
+}
+
+def hashCleaner(hash) {
+  return hash.replaceAll('\\n', '')
 }
