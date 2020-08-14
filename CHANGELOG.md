@@ -15,6 +15,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--diff_hash_expression`) directly into a sourmash sequence bloom tree index database
 - Added ability to filter `bam` file for reads containing hashes, if the `--csv` contains a column named `bam` and the option `--filter-bam-hashes` is provided
 - Added option for bam deduplication, if you wish to skip deduplication step add the `-skip_remove_duplicates_bam` flag
+- Added ability to search DIAMOND for hashes that were unassigned from sourmash ([#79](https://github.com/czbiohub/nf-predictorthologs/pull/79))
 
 ### `Fixed`
 
@@ -26,6 +27,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Fixed paired-end reads getting removed after trimming ([#75](https://github.com/czbiohub/nf-predictorthologs/pull/75))
 - Fixed number of cpus, memory, time requirements for sambamba processes ([#76](https://github.com/czbiohub/nf-predictorthologs/pull/76))
 - Fixed noncoding search to use `cmscan` instead of `cmsearch` from INFERNAL ([#74](https://github.com/czbiohub/nf-predictorthologs/pull/74))
+- Propagate molecule and k-mer size to sample id after translate
 
 ### `Dependencies`
 
