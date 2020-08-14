@@ -45,7 +45,7 @@ test_diff_hash:
 	${NF_RUN} -profile $@,${CONTAINER} .
 
 test_diff_hash_abundance:
-	${NF_RUN} -profile $@,${CONTAINER} . --with_abundance
+	${NF_RUN} -profile $@,${CONTAINER} .
 
 test_existing_database:
 	${NF_RUN} -profile $@,${CONTAINER} .

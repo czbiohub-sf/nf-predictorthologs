@@ -134,6 +134,10 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 ////////////////////////////////////////////////////
 
 if (params.hashes) {
+  Channel.fromPath(params.hashes, checkIfExists: true)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .set { ch_hashes }
+
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
@@ -443,6 +447,30 @@ if (params.proteome_translate_fasta) {
        .set{ ch_proteome_translate_fasta }
 }
 
+raw_search_reference = params.proteome_search_fasta || params.refseq_release
+searching_hashes = params.protein_searcher == "sourmash" || params.diff_hash_expression || params.hashes
+searching_seqs = params.diff_hash_expression || params.protein_searcher == "diamond"
+
+if (searching_seqs && !(raw_search_reference || params.diamond_database)) {
+  exit 1, "Error! Must provide a search database for searching sequences if using DIAMOND search post diff hash"
+}
+
+if (params.diamond_database){
+  Channel.fromPath(params.diamond_database, checkIfExists: true)
+       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
+       .set{ ch_diamond_db }
+}
+if (searching_hashes && params.sourmash_index){
+  Channel.fromPath(params.sourmash_index, checkIfExists: true)
+       .ifEmpty { exit 1, "Sourmash SBT Index file not found: ${params.sourmash_index}" }
+       .set{ ch_sourmash_index }
+}
+
+if ( searching_hashes && !(raw_search_reference || params.sourmash_index) && !(params.protein_searcher == "diamond") ) {
+  exit 1, "Error! If sourmash is the protein searcher, must provide either a --sourmash_index (.sbt.zip file), a --proteome_search_fasta file, a --refseq_release, "
+}
+
+
 if (params.proteome_search_fasta) {
 Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.proteome_search_fasta}" }
@@ -458,16 +486,7 @@ Channel.fromPath(params.taxdmp_zip, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
-if (params.diamond_database){
-  Channel.fromPath(params.diamond_database, checkIfExists: true)
-       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
-       .set{ ch_diamond_db }
-}
-if (params.sourmash_index){
-  Channel.fromPath(params.sourmash_index, checkIfExists: true)
-       .ifEmpty { exit 1, "Sourmash SBT Index file not found: ${params.sourmash_index}" }
-       .set{ ch_sourmash_index }
-}
+
 
 if (params.search_noncoding && params.infernal_db) {
   if (hasExtension(params.infernal_db, 'gz')) {
@@ -506,15 +525,15 @@ sourmash_scaled = params.sourmash_scaled
 sourmash_searcher = params.sourmash_searcher
 sourmash_search_flags = params.sourmash_search_flags
 
-if (params.diff_hash_expression || params.protein_searcher == "sourmash") {
+if (params.diff_hash_expression || params.hashes || params.protein_searcher == "sourmash") {
   if (!sourmash_scaled) {
-    exit 1, "--sourmash_scaled must be set if --diff_hash_expression or --protein_searcher sourmash"
+    exit 1, "--sourmash_scaled must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
   }
   if (!sourmash_ksize) {
-    exit 1, "--sourmash_ksize must be set if --diff_hash_expression or --protein_searcher sourmash"
+    exit 1, "--sourmash_ksize must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
   }
   if (!sourmash_molecule) {
-    exit 1, "--sourmash_molecule must be set if --diff_hash_expression or --protein_searcher sourmash"
+    exit 1, "--sourmash_molecule must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
   }
 }
 
@@ -1010,11 +1029,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - convert hashes to k-mers
+ * STEP 4 - Find hashes enriched in groups
  */
  if (params.input_is_protein && params.csv && params.diff_hash_expression){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
   process diff_hash {
     tag "${group_cleaned}"
     label "process_medium"
@@ -1122,22 +1139,22 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 }
 
 if (params.hashes) {
-  // Combine the extracted hashes with the known proteins
-  ch_protein_fastas
-    .map{ it -> it[1] }  // get only the file, not the sample id
-    .collect()           // make a single flat list
-    .map{ it -> [it] }   // Nest within a list so the next step does what I want
-    .set{ ch_protein_fastas_flat_list }
-
-  ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_flat_list )
-      .set { ch_hashes_with_fastas_for_hash2kmer }
-      // Desired output:
-      // [1, ["a", "b", "c"]]
-      // [2, ["a", "b", "c"]]
-      // [3, ["a", "b", "c"]]
-      // 1, 2, 3 = hashes
-      // "a", "b", "c" = protein fasta files
+  // // Combine the extracted hashes with the known proteins
+  // ch_protein_fastas
+  //   .map{ it -> it[1] }  // get only the file, not the sample id
+  //   .collect()           // make a single flat list
+  //   .map{ it -> [it] }   // Nest within a list so the next step does what I want
+  //   .set{ ch_protein_fastas_flat_list }
+  //
+  // ch_hashes_for_hash2kmer
+  //     .combine( ch_protein_fastas_flat_list )
+  //     .set { ch_hashes_with_fastas_for_hash2kmer }
+  //     // Desired output:
+  //     // [1, ["a", "b", "c"]]
+  //     // [2, ["a", "b", "c"]]
+  //     // [3, ["a", "b", "c"]]
+  //     // 1, 2, 3 = hashes
+  //     // "a", "b", "c" = protein fasta files
 } else if (params.diff_hash_expression) {
 
   ch_hash_to_group_for_hash2kmer
@@ -1159,7 +1176,7 @@ if (params.hashes) {
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
+if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_expression ){
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1171,9 +1188,8 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
   /*
    * STEP 4 - convert hashes to k-mers
    */
-   if (params.protein_searcher == 'sourmash' && (params.hashes || params.diff_hash_expression)){
-    // No protein fasta provided for searching for orthologs, need to
-    // download refseq
+   if ( params.hashes || params.diff_hash_expression ){
+    // Convert hashes to signatures for sourmash
     process hash2sig {
       tag "${group_cleaned}"
       label "process_low"
@@ -1189,6 +1205,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       script:
       group_cleaned = groupCleaner(group)
       sig = "${group_cleaned}.sig"
+      track_abundance = params.diff_hash_expression ? "--track-abundance" : ""
       """
       hash2sig.py \\
           --ksize ${sourmash_ksize} \\
@@ -1197,7 +1214,7 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
           --input-is-protein \\
           --${sourmash_molecule} \\
           --output ${sig} \\
-          --track-abundance \\
+          ${track_abundance} \\
           ${hashes}
       """
     }
@@ -1514,55 +1531,75 @@ if (params.protein_searcher == 'sourmash' || params.diff_hash_expression){
       // it[2][0] --> hahes.txt (same for everyone so take the first one)
       // it[3] --> fastas (want all as one so flatten)
       .map { it -> tuple(it[1], it[2][0], it[3].flatten())}
-      .dump ( tag: 'ch_sig_to_group_to_fastas' )
-      .set { ch_sig_to_group_to_fastas }
+      .dump ( tag: 'ch_group_hashes_fastas' )
+      .set { ch_group_hashes_fastas }
 
- ///////////////////////////////////////////////////////////////////////////////
- ///////////////////////////////////////////////////////////////////////////////
- /* --                                                                     -- */
- /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
- /* --                                                                     -- */
- ///////////////////////////////////////////////////////////////////////////////
- ///////////////////////////////////////////////////////////////////////////////
- /*
- * STEP 7 - Find signatures containing hashes
- */
-  process unassigned_hash2kmer {
-    tag "${group_cleaned}"
-    label "process_low"
+} else {
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
 
-    publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
+  Channel.from(file(params.hashes).getBaseName())
+    .combine(ch_hashes)
+    .combine(ch_protein_fastas_flat_list)
+    // [ "empty_group_name", hashes.txt, [ sample1.fasta, sample2.fasta, ... ] ]
+    .dump ( tag: 'ch_group_hashes_fastas' )
+    .set { ch_group_hashes_fastas }
+}
 
-    input:
-    set val(group), file(hashes), file(peptide_fastas) from ch_sig_to_group_to_fastas
+if ( (params.diff_hash_expression && params.protein_searcher == "gather") || params.hashes ) {
 
-    output:
-    file(unassigned_kmers)
-    set val(group), file(unassigned_sequences) into ch_protein_seq_for_diamond
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /* --                                                                     -- */
+   /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+   /* --                                                                     -- */
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /*
+   * STEP 7 - Find signatures containing hashes
+   */
+    process hash2kmer {
+      tag "${group_cleaned}"
+      label "process_low"
 
-    script:
-    group_cleaned = groupCleaner(group)
-    unassigned_sequences = "${group_cleaned}__unassigned.fasta"
-    unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
-    """
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${unassigned_sequences} \\
-        --output-kmers ${unassigned_kmers} \\
-        --${sourmash_molecule} \\
-        ${hashes} \\
-        ${peptide_fastas}
-    """
-  }
-  // ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-  //
-  // ch_hash_to_group_for_joining_after_hash2kmer
-  //   .join(ch_seqs_from_hash2kmer)
-  //   .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-  //   .set{ ch_protein_seq_for_diamond }
- }
+      publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
+
+      input:
+      set val(group), file(hashes), file(peptide_fastas) from ch_group_hashes_fastas
+
+      output:
+      file(unassigned_kmers)
+      set val(group), file(unassigned_sequences) into ch_unassigned_seqs_from_hash2kmer
+
+      script:
+      group_cleaned = groupCleaner(group)
+      unassigned_sequences = "${group_cleaned}__unassigned.fasta"
+      unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
+      """
+      hash2kmer.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --input-is-protein \\
+          --output-sequences ${unassigned_sequences} \\
+          --output-kmers ${unassigned_kmers} \\
+          --${sourmash_molecule} \\
+          ${hashes} \\
+          ${peptide_fastas}
+      """
+    }
+    ch_unassigned_seqs_from_hash2kmer
+      .filter { it -> it[1].size() > 0 }
+      .set { ch_protein_seq_for_diamond }
+    // ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+    //
+    // ch_hash_to_group_for_joining_after_hash2kmer
+    //   .join(ch_seqs_from_hash2kmer)
+    //   .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
+    //   .set{ ch_protein_seq_for_diamond }
+   }
 }
 
 

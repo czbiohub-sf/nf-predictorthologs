@@ -95,7 +95,10 @@ def main():
     )
 
     # add hashes with abundances into MinHash!
-    minhash.set_abundances(hashes)
+    if args.track_abundance:
+        minhash.set_abundances(hashes)
+    else:
+        minhash.add_many(hashes.keys())
 
     if len(minhash) < len(hashes):
         notify(
