@@ -1078,68 +1078,68 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     ch_hashes_for_hash2sig = ch_unique_hashes_from_diff_hash
   }
 
-  if ( params.csv_has_is_aligned_col ) {
-    ///////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////
-    /* --                                                                     -- */
-    /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
-    /* --                                                                     -- */
-    ///////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////
-    /*
-    * STEP 7 - Filter hashes for only unaligned ones
-    */
-    process is_hash_in_unaligned {
-      tag "${hash_id}"
-      label "process_low"
-
-      publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
-
-      input:
-      val(hash) from ch_hashes_for_unaligned_sigs_with_hash
-      file(sigs) from ch_unaligned_sigs_flattened_for_finding_matches
-
-      output:
-      set val(hash), file(matches) into ch_is_hash_in_unaligned
-
-      script:
-      hash_cleaned = hashCleaner(hash)
-      hash_id = "hash-${hash_cleaned}"
-      matches = "${hash_id}__matches.txt"
-      """
-      rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
-        > ${matches} \\
-        || touch ${matches}
-      # If no matches found, touch the ${matches} file to avoid an error
-      """
-    }
-    ch_is_hash_in_unaligned
-      .dump( tag: 'ch_hash_sigs_in_unaligned' )
-      // Check that matches are nonempty
-      .branch{
-        // Hash was not present in any unaligned reads
-        aligned: it[1].size() == 0
-        // Hash was present in one or more unaligned reads
-        unaligned: it[1].size() > 0
-      }
-      .set{ ch_hashes_sigs_branched }
-
-
-      ch_hashes_sigs_branched
-        .unaligned
-        .set { ch_hash_to_matching_unaligned_sigs }
-
-      ch_hashes_sigs_branched
-        .aligned
-        .dump ( tag: 'ch_aligned_sigs_with_hash' )
-        .set { ch_aligned_sigs_with_hash }
-
-    ch_hash_to_matching_unaligned_sigs
-      .map { it -> it[0] }
-      .unique()
-      .set { ch_hashes_for_hash2sig }
-
-  }
+  // if ( params.csv_has_is_aligned_col ) {
+  //   ///////////////////////////////////////////////////////////////////////////////
+  //   ///////////////////////////////////////////////////////////////////////////////
+  //   /* --                                                                     -- */
+  //   /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
+  //   /* --                                                                     -- */
+  //   ///////////////////////////////////////////////////////////////////////////////
+  //   ///////////////////////////////////////////////////////////////////////////////
+  //   /*
+  //   * STEP 7 - Filter hashes for only unaligned ones
+  //   */
+  //   process is_hash_in_unaligned {
+  //     tag "${hash_id}"
+  //     label "process_low"
+  //
+  //     publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
+  //
+  //     input:
+  //     val(hash) from ch_hashes_for_unaligned_sigs_with_hash
+  //     file(sigs) from ch_unaligned_sigs_flattened_for_finding_matches
+  //
+  //     output:
+  //     set val(hash), file(matches) into ch_is_hash_in_unaligned
+  //
+  //     script:
+  //     hash_cleaned = hashCleaner(hash)
+  //     hash_id = "hash-${hash_cleaned}"
+  //     matches = "${hash_id}__matches.txt"
+  //     """
+  //     rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
+  //       > ${matches} \\
+  //       || touch ${matches}
+  //     # If no matches found, touch the ${matches} file to avoid an error
+  //     """
+  //   }
+  //   ch_is_hash_in_unaligned
+  //     .dump( tag: 'ch_hash_sigs_in_unaligned' )
+  //     // Check that matches are nonempty
+  //     .branch{
+  //       // Hash was not present in any unaligned reads
+  //       aligned: it[1].size() == 0
+  //       // Hash was present in one or more unaligned reads
+  //       unaligned: it[1].size() > 0
+  //     }
+  //     .set{ ch_hashes_sigs_branched }
+  //
+  //
+  //     ch_hashes_sigs_branched
+  //       .unaligned
+  //       .set { ch_hash_to_matching_unaligned_sigs }
+  //
+  //     ch_hashes_sigs_branched
+  //       .aligned
+  //       .dump ( tag: 'ch_aligned_sigs_with_hash' )
+  //       .set { ch_aligned_sigs_with_hash }
+  //
+  //   ch_hash_to_matching_unaligned_sigs
+  //     .map { it -> it[0] }
+  //     .unique()
+  //     .set { ch_hashes_for_hash2sig }
+  //
+  // }
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
