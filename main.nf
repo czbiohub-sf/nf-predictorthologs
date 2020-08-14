@@ -287,9 +287,15 @@ if (params.featurecounts_hashes) {
 
         ch_csv_is_aligned.unaligned
           .dump( tag: 'ch_csv_is_aligned.unaligned' )
-          .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
-          .dump( tag: 'ch_unaligned_sig_fasta' )
-          .into { ch_unaligned_sig_fasta }
+          .map{ row -> tuple(row.group, row.sample_id, row.fasta) }
+          .dump( tag: 'ch_group_to_id_fasta__unaligned' )
+          .into { ch_group_to_id_fasta }
+      } else {
+        Channel
+          .fromPath ( params.csv )
+          .map{ row -> tuple(row.group, row.sample_id, row.fasta) }
+          .dump( tag: 'ch_group_to_id_fasta' )
+          .into { ch_group_to_id_fasta }
       }
 
       ////////////////////////////////////////////////////
@@ -1025,7 +1031,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files
+    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files, ch_informative_hashes_files_for_featurecounts
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
@@ -1048,198 +1054,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         > '${group_cleaned}.log'
     """
   }
-  ch_informative_hashes_files
-      .dump(tag: 'ch_informative_hashes_files')
-      // [group_name, text_file]
-      .map{ it -> tuple(it[1].splitText(), it[0])}
-      // [['123\n', '456\n', '789\n'], group]
-      .dump(tag: 'ch_informative_hashes_files_split')
-      .transpose()
-      // ['123\n', group]
-      // ['456\n', group]
-      // ['789\n', group]
-      .dump(tag: 'ch_hash_to_group')
-      .into {
-        ch_hash_to_group_for_finding_matches;
-        ch_hash_to_group_for_finding_matches_unaligned;
-        ch_hash_to_group_for_joining_after_hash2kmer;
-        ch_hash_to_group_for_joining_after_hash2sig;
-        ch_hash_to_group_for_hash2kmer;
-        ch_hash_to_group_for_hash2sig }
 
-  ch_hash_to_group_for_finding_matches
-    .map{ it -> it[0] }
-    .unique()
-    .dump ( tag: 'unique_hashes' )
-    .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
-    .into{ ch_hashes_for_sigs_with_hash; ch_unique_hashes_from_diff_hash; ch_hashes_for_unaligned_sigs_with_hash }
-
-  if (!params.featurecounts_hashes) {
-    ch_hashes_for_hash2sig = ch_unique_hashes_from_diff_hash
-  }
-
-  // if ( params.csv_has_is_aligned_col ) {
-  //   ///////////////////////////////////////////////////////////////////////////////
-  //   ///////////////////////////////////////////////////////////////////////////////
-  //   /* --                                                                     -- */
-  //   /* --       SEARCH UNALIGNED HASHES FOR DIFFERENTIAL HASHES               -- */
-  //   /* --                                                                     -- */
-  //   ///////////////////////////////////////////////////////////////////////////////
-  //   ///////////////////////////////////////////////////////////////////////////////
-  //   /*
-  //   * STEP 7 - Filter hashes for only unaligned ones
-  //   */
-  //   process is_hash_in_unaligned {
-  //     tag "${hash_id}"
-  //     label "process_low"
-  //
-  //     publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
-  //
-  //     input:
-  //     val(hash) from ch_hashes_for_unaligned_sigs_with_hash
-  //     file(sigs) from ch_unaligned_sigs_flattened_for_finding_matches
-  //
-  //     output:
-  //     set val(hash), file(matches) into ch_is_hash_in_unaligned
-  //
-  //     script:
-  //     hash_cleaned = hashCleaner(hash)
-  //     hash_id = "hash-${hash_cleaned}"
-  //     matches = "${hash_id}__matches.txt"
-  //     """
-  //     rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
-  //       > ${matches} \\
-  //       || touch ${matches}
-  //     # If no matches found, touch the ${matches} file to avoid an error
-  //     """
-  //   }
-  //   ch_is_hash_in_unaligned
-  //     .dump( tag: 'ch_hash_sigs_in_unaligned' )
-  //     // Check that matches are nonempty
-  //     .branch{
-  //       // Hash was not present in any unaligned reads
-  //       aligned: it[1].size() == 0
-  //       // Hash was present in one or more unaligned reads
-  //       unaligned: it[1].size() > 0
-  //     }
-  //     .set{ ch_hashes_sigs_branched }
-  //
-  //
-  //     ch_hashes_sigs_branched
-  //       .unaligned
-  //       .set { ch_hash_to_matching_unaligned_sigs }
-  //
-  //     ch_hashes_sigs_branched
-  //       .aligned
-  //       .dump ( tag: 'ch_aligned_sigs_with_hash' )
-  //       .set { ch_aligned_sigs_with_hash }
-  //
-  //   ch_hash_to_matching_unaligned_sigs
-  //     .map { it -> it[0] }
-  //     .unique()
-  //     .set { ch_hashes_for_hash2sig }
-  //
-  // }
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-  * STEP 7 - Find signatures containing hashes
-  */
-  process sigs_with_hash {
-    tag "${hash_id}"
-    label "process_low"
-
-    publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
-
-    input:
-    val(hash) from ch_hashes_for_sigs_with_hash
-    file(sigs) from ch_all_signatures_flattened_for_finding_matches
-
-    output:
-    set val(hash), file(matches) into ch_sigs_with_hash
-
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    matches = "${hash_id}__matches.txt"
-    """
-    rg --threads ${task.cpus} --files-with-matches ${hash_cleaned} *.sig \\
-      > ${matches}
-    """
-  }
-
-  ch_sigs_with_hash
-    .map { it -> [it[1].splitText(), it[0]] }
-    .dump ( tag: 'sig_basenames_to_hash' )
-    .transpose()
-    // [DUMP: sig_basenames_to_hash]
-    // [ ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //    'MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //    '10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //    '10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n'],
-    //  '8035688914585273533\n']
-    .dump ( tag: 'sig_basename_to_hash_transposed' )
-    // [DUMP: sig_basename_to_hash_transposed]
-    //    ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //     '8035688914585273533\n']
-    // [DUMP: sig_basename_to_hash_transposed]
-    //    ['MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig\n',
-    //     '8035688914585273533\n']
-    .map { it -> [it[0].replaceAll('\\n', ''), it[1]]}
-    .dump ( tag: 'sig_basename_to_hash_transposed_replace_newlines' )
-    // Newlines were only removed from the signature basename
-    // [DUMP: sig_basename_to_hash_transposed_replace_newlines]
-    //   ['10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig',
-    //    '8035688914585273533\n']
-  .into { ch_sig_basename_to_hash_to_join_with_fastas; ch_sig_basename_to_hash_to_join_with_bams }
-
-  // To do hash2kmer on all combinations of signatures with hashes,
-  // this 'cross' operator must be the small one (signature to id and fasta)
-  // times the "big one" (all signatures with hashes to hash id)
-  ch_sig_basename_to_id_and_fasta
-    .cross ( ch_sig_basename_to_hash_to_join_with_fastas )
-    // [DUMP: sig_basename_to_hash_to_id_and_fasta]
-    //    [['SRR306777_GSM752631_mml_br_F_1_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-    //      'SRR306777_GSM752631_mml_br_F_1',
-    //      SRR306777_GSM752631_mml_br_F_1__coding_reads_peptides.fasta],
-    //    ['SRR306777_GSM752631_mml_br_F_1_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-    //    '17398895598152879\n']]
-    .dump ( tag: 'sig_basename_to_hash_to_id_and_fasta' )
-    // Remove signature basename (item 0) from the channel
-    .map { it -> [it[1][1], it[0][1], it[0][2]] }
-    // [DUMP: ch_hash_to_id_to_fasta_for_hash2kmer]
-    //  ['3528776232794193794\n',
-    //    MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC,
-    //    MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA__coding_reads_peptides.fasta]
-    .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
-    .set { ch_hash_to_id_to_fasta_for_hash2kmer }
-
-  if (params.featurecounts_hashes) {
-    ch_sig_basename_to_id_and_bam
-      .cross ( ch_sig_basename_to_hash_to_join_with_bams )
-      .dump ( tag: 'ch_sig_basename_to_id_and_bam__to_hashes' )
-      // [DUMP: ch_sig_basename_to_id_and_bam__to_hashes]
-      //    [['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-      //      'SRR306827_GSM752680_ppa_br_F_2',
-      //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam],
-      //    ['SRR306827_GSM752680_ppa_br_F_2_molecule-dayhoff_ksize-27_log2sketchsize-14_trackabundance-false.sig',
-      //      '36238050090537373\n']]
-      // Remove signature basename from the channel
-      .map { it -> [it[1][1], it[0][1], it[0][2]] }
-      .dump ( tag: 'ch_hash_to_id_to_bam_for_filter_bam' )
-      // [DUMP: ch_hash_to_id_to_bam_for_filter_bam]
-      //    ['118143868109172351\n',
-      //      'SRR306827_GSM752680_ppa_br_F_2',
-      //       SRR306827_GSM752680_ppa_br_F_2Aligned.sortedByCoord.out.bam]
-      .set { ch_hash_to_id_to_bam_for_filter_bam }
-  }
 }
 
 
@@ -1783,19 +1598,23 @@ if (params.protein_searcher == 'diamond') {
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes || params.protein_searcher == "diamond")
+ do_hash2seqs = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes || params.protein_searcher == "diamond")
  println "do_hash2kmer: ${do_hash2kmer}"
- if (do_hash2kmer){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
+ if (do_hash2seqs){
+
+  ch_group_to_id_fasta
+    .combine(ch_informative_hashes_files_for_featurecounts)
+    .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
+    .set { ch_hash_to_id_to_fasta_for_hash2kmer }
+
+  process hash2seqs {
     tag "${tag_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(hash), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
+    tuple val(group), file(hashes), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
 
     output:
     file(kmers)
