@@ -256,13 +256,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
 ////////////////////////////////////////////////////
-if (params.filter_bam_hashes) {
+if (params.featurecounts_hashes) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .dump( tag: 'filter_bam_hashes_csv' )
+      .dump( tag: 'featurecounts_hashes_csv' )
       .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
       .dump( tag: 'ch_sig_basename_to_id_and_bam' )
@@ -1074,7 +1074,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .ifEmpty { exit 1, "No differential hashes found! Exiting. Try increasing the regularization strength, --diff_hash_inverse_regularization_strength, which is currently ${params.diff_hash_inverse_regularization_strength}" }
     .into{ ch_hashes_for_sigs_with_hash; ch_unique_hashes_from_diff_hash; ch_hashes_for_unaligned_sigs_with_hash }
 
-  if (!params.filter_bam_hashes) {
+  if (!params.featurecounts_hashes) {
     ch_hashes_for_hash2sig = ch_unique_hashes_from_diff_hash
   }
 
@@ -1221,7 +1221,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
-  if (params.filter_bam_hashes) {
+  if (params.featurecounts_hashes) {
     ch_sig_basename_to_id_and_bam
       .cross ( ch_sig_basename_to_hash_to_join_with_bams )
       .dump ( tag: 'ch_sig_basename_to_id_and_bam__to_hashes' )
@@ -1339,7 +1339,7 @@ if (params.hashes) {
 /*
  * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
  */
- do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.filter_bam_hashes || params.protein_searcher == "diamond")
+ do_hash2kmer = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes || params.protein_searcher == "diamond")
  println "do_hash2kmer: ${do_hash2kmer}"
  if (do_hash2kmer){
   // No protein fasta provided for searching for orthologs, need to
@@ -1389,7 +1389,7 @@ if (params.hashes) {
     // .join {  }
     .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
 
-  if (params.filter_bam_hashes) {
+  if (params.featurecounts_hashes) {
     ch_hash_to_id_to_bam_for_filter_bam
       .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
       .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
@@ -1435,7 +1435,7 @@ if (params.hashes) {
 }
 
 
-if (params.filter_bam_hashes) {
+if (params.featurecounts_hashes) {
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
