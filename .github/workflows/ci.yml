@@ -18,7 +18,6 @@ jobs:
         nxf_ver: ['19.10.0', '']
         profile_flags: [
         'test_bam',
-        'test_sambamba',
         'test_bam --search_noncoding',
         'test_diff_hash',
         'test_diff_hash --with_abundance',
@@ -32,9 +31,11 @@ jobs:
         'test_hash2kmer',
         'test_input_is_protein',
         'test_noncoding',
-        'test_sourmash_search',
+        'test_sambamba',
         'test_sencha',
-        'test_sencha_sambamba'
+        'test_sencha_sambamba',
+        'test_sourmash_search',
+        'test_sourmash_makedb',
         ]
     steps:
       - uses: actions/checkout@v2

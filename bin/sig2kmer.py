@@ -1,11 +1,15 @@
 #! /usr/bin/env python3
 """
-Given a list of hash values and a collection of sequences, output
-all of the k-mers that match a hashval.
-NOTE: for now, only implemented for DNA & for seed=42.
+Given a signature file and a collection of sequences, output all of the
+k-mers and sequences that match a hashval in the signature file.
+
+Cribbed from https://github.com/dib-lab/sourmash/pull/724/
 """
 import sys
 import argparse
+import sourmash
+from sourmash import MinHash
+from sourmash import sourmash_args
 from sourmash._minhash import hash_murmur
 import screed
 import csv
@@ -13,6 +17,8 @@ from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash.sourmash_args import calculate_moltype
 from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
+
+
 
 NOTIFY_EVERY_BP = 1e7
 
@@ -72,7 +78,7 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein)
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("hashfile")  # file that contains hashes
+    p.add_argument("query")  # signature file
     p.add_argument(
         "seqfiles", nargs="+"
     )  # sequence files from which to look for matches
@@ -93,13 +99,6 @@ def main():
         action="store_true",
         help="Consume protein sequences - no translation needed.",
     )
-    p.add_argument(
-        "--first",
-        action="store_true",
-        help="Return only the first instance of the found k-mer(s) and "
-        "sequence from each provided sequence file. Useful if you are "
-        "searching for only one k-mer",
-    )
     add_ksize_arg(p)
     add_construct_moltype_args(p)
     args = p.parse_args()
@@ -110,11 +109,6 @@ def main():
         seqout_fp = open(args.output_sequences, "wt")
 
     kmerout_fp = None
-
-    if not (seqout_fp or kmerout_fp):
-        error("No output options given!")
-        return -1
-
     if args.output_kmers:
         kmerout_fp = open(args.output_kmers, "wt")
         kmerout_w = csv.writer(kmerout_fp)
@@ -127,22 +121,18 @@ def main():
             error("bad ksizes: {}", ", ".join(args.ksize))
             sys.exit(-1)
 
-    # load in all the hashes
-    hashes = set()
-    for line in open(args.hashfile, "rt"):
-        line = line.strip()
-        # Skip empty lines
-        if line:
-            hashval = int(line)
-            hashes.add(hashval)
-
-    moltype = calculate_moltype(args)
-
-    if not hashes:
-        error("ERROR, no hashes loaded from {}!", args.hashfile)
+    if not (seqout_fp or kmerout_fp):
+        error("No output options given!")
         return -1
 
-    notify("loaded {} distinct hashes from {}", len(hashes), args.hashfile)
+    # first, load the signature and extract the hashvals
+    moltype = calculate_moltype(args)
+    sigobj = sourmash.load_one_signature(args.query, ksize=args.ksize, select_moltype=moltype)
+    query_hashvals = set(sigobj.minhash.get_mins())
+    query_ksize = sigobj.minhash.ksize
+
+    # track found kmers
+    found_kmers = {}
 
     # now, iterate over the input sequences and output those that overlap
     # with hashes!
@@ -150,69 +140,33 @@ def main():
     n = 0  # bp loaded
     m = 0  # bp in found sequences
     p = 0  # number of k-mers found
-    found_kmers = {}
     watermark = NOTIFY_EVERY_BP
     for filename in args.seqfiles:
-        m, n = get_matching_hashes_in_file(
-            filename,
-            args.ksize,
-            moltype,
-            args.input_is_protein,
-            hashes,
-            found_kmers,
-            m,
-            n,
-            n_seq,
-            seqout_fp,
-            watermark,
-            args.first,
-        )
-        if args.first and m > 0:
-            break
+        for record in screed.open(filename):
+            n += len(record.sequence)
+            n_seq += 1
+            while n >= watermark:
+                sys.stderr.write("... {} {} {}\r".format(n_seq, watermark, filename))
+                watermark += NOTIFY_EVERY_BP
+
+            # now do the hard work of finding the matching k-mers!
+            for kmer, hashval in get_kmers_for_hashvals(
+                record.sequence, query_hashvals, query_ksize, moltype, input_is_protein
+            ):
+                found_kmers[kmer] = hashval
+
+                # write out sequence
+                if seqout_fp:
+                    seqout_fp.write(">{}\n{}\n".format(record.name, record.sequence))
+                    m += len(record.sequence)
 
     if seqout_fp:
         notify("read {} bp, wrote {} bp in matching sequences", n, m)
 
-    if kmerout_fp and found_kmers:
+    if kmerout_fp:
         for kmer, hashval in found_kmers.items():
             kmerout_w.writerow([kmer, str(hashval)])
         notify("read {} bp, found {} kmers matching hashvals", n, len(found_kmers))
-
-
-def get_matching_hashes_in_file(
-    filename,
-    ksize,
-    moltype,
-    input_is_protein,
-    hashes,
-    found_kmers,
-    m,
-    n,
-    n_seq,
-    seqout_fp,
-    watermark,
-    first=False,
-):
-    for record in screed.open(filename):
-        n += len(record.sequence)
-        n_seq += 1
-        while n >= watermark:
-            sys.stderr.write("... {} {} {}\r".format(n_seq, watermark, filename))
-            watermark += NOTIFY_EVERY_BP
-
-        # now do the hard work of finding the matching k-mers!
-        for kmer, hashval in get_kmers_for_hashvals(
-            record.sequence, hashes, ksize, moltype, input_is_protein
-        ):
-            found_kmers[kmer] = hashval
-
-            # write out sequence
-            if seqout_fp:
-                seqout_fp.write(">{}\n{}\n".format(record.name, record.sequence))
-                m += len(record.sequence)
-            if first:
-                return m, n
-    return m, n
 
 
 if __name__ == "__main__":

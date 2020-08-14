@@ -132,6 +132,10 @@ ch_output_docs = file("$baseDir/docs/output.md", checkIfExists: true)
 ////////////////////////////////////////////////////
 
 if (params.hashes) {
+  Channel.fromPath(params.hashes, checkIfExists: true)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .set { ch_hashes }
+
   Channel.fromPath(params.hashes)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
@@ -183,6 +187,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
       .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -199,8 +204,6 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // No hashes - just do a diamond blastp search for each peptide fasta
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
-      // add "hash" text for now
-      .map { it -> tuple(false, it[0], it[1])}
       .set { ch_protein_seq_for_diamond }
   }
 } else {
@@ -211,6 +214,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     if (params.single_end) {
       Channel
         .fromPath(params.csv)
+        .ifEmpty { exit 1, "params.csv was empty" }
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -219,6 +223,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     } else {
       Channel
         .fromPath(params.csv)
+        .ifEmpty { exit 1, "params.csv was empty" }
         .splitCsv(header:true)
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
@@ -251,6 +256,23 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   }
 }
 
+if (params.hashes){
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .map { it -> tuple(it.getBaseName(), file(it)) }
+      .set { ch_informative_hashes_files_for_grouped_search }
+
+
+  Channel.fromPath(params.hashes)
+      .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
+      .splitText()
+      .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
+      .transpose()
+      .into { ch_hash_to_group_for_joining_after_hash2kmer;
+        ch_hash_to_group_for_joining_after_hash2sig;
+        ch_hash_to_group_for_hash2kmer;
+        ch_hash_to_group_for_hash2sig
+       }
 
 
 ////////////////////////////////////////////////////
@@ -328,6 +350,7 @@ if (params.csv_has_is_aligned_col) {
   if (params.csv) {
     Channel
       .fromPath ( params.csv )
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv ( header:true )
       .branch { row ->
         aligned: row.is_aligned == "aligned"
@@ -338,21 +361,14 @@ if (params.csv_has_is_aligned_col) {
       // Create channel of signatures per group
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
-      .filter{ row -> row.is_aligned == 'unaligned' }
-      .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
+      // .filter{ row -> row.is_aligned == 'unaligned' }
+      // .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
       .dump( tag: 'csv_unaligned' )
-      .map{ row -> file(row.sig, checkIfExists: true) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .collect()
-      .dump( tag: 'ch_unaligned_sigs_flattened_for_finding_matches' )
-      .set{ ch_unaligned_sigs_flattened_for_finding_matches }
-
-    Channel
-      .fromPath(params.csv)
-      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
+      .map{ row -> tuple(row.group, row.is_aligned, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
-      .groupTuple()
+      .groupTuple( by: [0, 1] )
       .dump( tag: 'ch_per_group_unaligned_sig' )
       .set{ ch_per_group_unaligned_sig }
 
@@ -380,26 +396,43 @@ unStranded = params.unStranded
 if (params.diff_hash_expression) {
   if (params.csv) {
     // Create metadata csv channel
-    ch_csv = Channel.fromPath(params.csv)
+    Channel
+      .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
+      .set { ch_csv }
+
 
     // Create channel of all signatures
     Channel
       .fromPath(params.csv)
+      .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .map{ row -> file(row.sig) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
-      .map{ it -> [it] }   // Nest within a list so the next step does what I want
-      .set{ ch_all_signatures_flat_list }
+      .map{ it -> [it] }   // Nest within a list so the combine() step keeps all the signatures together
+      // [DUMP: ch_all_signatures_flat_list_for_diff_hash]
+      //    [[MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //      10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      .dump( tag: "ch_all_signatures_flat_list_for_diff_hash" )
+      .set{ ch_all_signatures_flat_list_for_diff_hash }
 
     // Create channel of all signatures, completely flattened
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> file(row.sig, checkIfExists: true) }
+      .map{ row -> tuple(row.group, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
-      .collect()
-      .into{ ch_all_signatures_flattened_for_finding_matches }
+      .groupTuple()
+      .set{ ch_group_to_signatures }
 
     // Create channel of all signatures, completely flattened
     Channel
@@ -424,6 +457,15 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
+    // Create channel of fastas for each signature name
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(file(row.sig).getBaseName(), file(row.fasta, checkIfExists: true) ) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
+      .groupTuple()
+      .dump( tag: 'ch_sig_filename_to_fasta' )
+      .set{  ch_sig_filename_to_fasta }
 
     // Create channel of signatures per group
     Channel
@@ -433,9 +475,35 @@ if (params.diff_hash_expression) {
       .unique()
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' column was empty" }
       .dump(tag: 'csv_unique_groups')
-      .combine( ch_all_signatures_flat_list )
-      .dump(tag: 'ch_groups_with_signatures_for_diff_hash')
-      .set { ch_groups_with_signatures_for_diff_hash }
+      // [DUMP: csv_unique_groups] ['Mostly marrow unaligned']
+      // [DUMP: csv_unique_groups] ['Liver unaligned']
+      .combine( ch_all_signatures_flat_list_for_diff_hash )
+      .dump(tag: 'ch_groups_with_all_signatures_for_diff_hash')
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //    ['Mostly marrow unaligned',
+      //      [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //       10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      // [DUMP: ch_groups_with_all_signatures_for_diff_hash]
+      //  ['Liver unaligned',
+      //    [MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_60__unaligned__AGTTGGTCAAATCCGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P1_14__unaligned__ACGGCCAAGCGTTGCC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_BM_58__unaligned__CTAGTGAGTCCAACTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__GACGTTACACCCATGG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
+      //     10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
+      .set { ch_groups_with_all_signatures_for_diff_hash }
     // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
@@ -452,6 +520,30 @@ if (params.proteome_translate_fasta) {
        .set{ ch_proteome_translate_fasta }
 }
 
+raw_search_reference = params.proteome_search_fasta || params.refseq_release
+searching_hashes = params.protein_searcher == "sourmash" || params.diff_hash_expression || params.hashes
+searching_seqs = params.diff_hash_expression || params.protein_searcher == "diamond"
+
+if (searching_seqs && !(raw_search_reference || params.diamond_database)) {
+  exit 1, "Error! Must provide a search database for searching sequences if using DIAMOND search post diff hash"
+}
+
+if (params.diamond_database){
+  Channel.fromPath(params.diamond_database, checkIfExists: true)
+       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
+       .set{ ch_diamond_db }
+}
+if (searching_hashes && params.sourmash_index){
+  Channel.fromPath(params.sourmash_index, checkIfExists: true)
+       .ifEmpty { exit 1, "Sourmash SBT Index file not found: ${params.sourmash_index}" }
+       .set{ ch_sourmash_index }
+}
+
+if ( searching_hashes && !(raw_search_reference || params.sourmash_index) && !(params.protein_searcher == "diamond") ) {
+  exit 1, "Error! If sourmash is the protein searcher, must provide either a --sourmash_index (.sbt.zip file), a --proteome_search_fasta file, a --refseq_release, "
+}
+
+
 if (params.proteome_search_fasta) {
 Channel.fromPath(params.proteome_search_fasta, checkIfExists: true)
      .ifEmpty { exit 1, "Reference proteome fasta file not found: ${params.proteome_search_fasta}" }
@@ -467,11 +559,7 @@ Channel.fromPath(params.taxdmp_zip, checkIfExists: true)
      .ifEmpty { exit 1, "Diamond taxon dump file not found: ${params.taxdmp_zip}" }
      .set{ ch_diamond_taxdmp_zip }
 }
-if (params.diamond_database){
-  Channel.fromPath(params.diamond_database, checkIfExists: true)
-       .ifEmpty { exit 1, "Diamond database file not found: ${params.diamond_database}" }
-       .set{ ch_diamond_db }
-}
+
 
 if (params.search_noncoding && params.infernal_db) {
   if (hasExtension(params.infernal_db, 'gz')) {
@@ -505,6 +593,22 @@ tablesize = params.translate_tablesize
 //////////////////////////////////////////////////////////////////
 sourmash_ksize = params.sourmash_ksize
 sourmash_molecule = params.sourmash_molecule
+sourmash_log2_sketch_size = params.sourmash_log2_sketch_size
+sourmash_scaled = params.sourmash_scaled
+sourmash_searcher = params.sourmash_searcher
+sourmash_search_flags = params.sourmash_search_flags
+
+if (params.diff_hash_expression || params.hashes || params.protein_searcher == "sourmash") {
+  if (!sourmash_scaled) {
+    exit 1, "--sourmash_scaled must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
+  }
+  if (!sourmash_ksize) {
+    exit 1, "--sourmash_ksize must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
+  }
+  if (!sourmash_molecule) {
+    exit 1, "--sourmash_molecule must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
+  }
+}
 
 //////////////////////////////////////////////////////////////////
 /* -        Summarize reference proteome parameters          -- */
@@ -522,7 +626,8 @@ diff_hash_inverse_regularization_strength = params.diff_hash_inverse_regularizat
 diff_hash_solver = params.diff_hash_solver
 diff_hash_penalty = params.diff_hash_penalty
 diff_hash_max_group_size = params.diff_hash_max_group_size
-
+diff_hash_min_cells = params.diff_hash_min_cells
+diff_hash_min_abundance = params.diff_hash_min_abundance
 
 // Utility functions for sanitizing output
 def groupCleaner(group) {
@@ -532,6 +637,7 @@ def groupCleaner(group) {
 def hashCleaner(hash) {
   return hash.replaceAll('\\n', '')
 }
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -555,10 +661,9 @@ if (params.csv) summary['CSV of input reads']                               = pa
 if (!params.input_is_protein) summary['sencha translate Ref']               = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
-if (params.hashes) summary['Hashes']                                        = params.hashes
-if (using_hashes) summary['sourmash ksize']                                 = params.sourmash_ksize
-if (using_hashes) summary['sourmash molecule']                              = params.sourmash_molecule
 if (params.diff_hash_expression) summary['Diff Hash abundance?']            = params.diff_hash_with_abundance
+if (params.diff_hash_expression) summary['Diff Hash min cells']             = params.diff_hash_min_cells
+if (params.diff_hash_expression) summary['Diff Hash min abundance']         = params.diff_hash_min_abundance
 if (params.diff_hash_expression) summary['Diff Hash C']                     = params.diff_hash_inverse_regularization_strength
 if (params.diff_hash_expression) summary['Diff Hash solver']                = params.diff_hash_solver
 if (params.diff_hash_expression) summary['Diff Hash penalty']               = params.diff_hash_penalty
@@ -568,8 +673,10 @@ if (params.protein_fastas) summary['Input protein fastas']                  = pa
 if (params.proteome_search_fasta) summary['Proteome search ref']            = params.proteome_search_fasta
 summary['Protein searcher']                                                 = params.protein_searcher
 if (params.hashes) summary['Hashes']                                        = params.hashes
-if (params.hashes) summary['sourmash ksize']                                = params.sourmash_ksize
-if (params.hashes) summary['sourmash molecule']                             = params.sourmash_molecule
+if (using_hashes) summary['sourmash searcher']                                = params.sourmash_searcher
+if (using_hashes) summary['sourmash ksize']                                = params.sourmash_ksize
+if (using_hashes) summary['sourmash molecule']                             = params.sourmash_molecule
+if (using_hashes) summary['sourmash scaled']                             = params.sourmash_scaled
 if (need_refseq_download) summary['Refseq release']        = params.refseq_release
 if (params.diamond_database) summary['DIAMOND pre-build database']     = params.diamond_database
 if (params.protein_searcher == 'diamond') summary['Map sequences to taxon']     = params.taxonmap_gz
@@ -989,7 +1096,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   // it[1] = bloom id
   // it[2] = sequence fasta file
   ch_translated_proteins_potentially_empty
-    .filter{ it[2].size() > 0 }
+    .filter{ it[1].size() > 0 }
     .dump(tag: "ch_translated_proteins_potentially_empty")
     // [DUMP: ch_translated_proteins_potentially_empty]
     //    ['NC-033660.1-74563649-74570299-+-516-0',
@@ -1013,11 +1120,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - convert hashes to k-mers
+ * STEP 4 - Find hashes enriched in groups
  */
  if (params.input_is_protein && params.csv && params.diff_hash_expression){
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
   process diff_hash {
     tag "${group_cleaned}"
     label "process_medium"
@@ -1031,7 +1136,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.txt") into ch_informative_hashes_files, ch_informative_hashes_files_for_featurecounts
+    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search, ch_informative_hashes_for_find_unaligned
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
@@ -1048,12 +1153,38 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         --use-sig-basename \\
         --penalty ${diff_hash_penalty} \\
         --solver ${diff_hash_solver} \\
-        --max-group-size ${diff_hash_max_group_size} \\
+        --max-group-size 100 \\
+        --min-cells ${diff_hash_min_cells} \\
+        --min-abundance ${diff_hash_min_abundance} \\
         ${abundance_flag} \\
         --inverse-regularization-strength ${diff_hash_inverse_regularization_strength} \\
         > '${group_cleaned}.log'
     """
   }
+
+  ch_informative_hashes_for_individual_search
+      .dump(tag: 'ch_informative_hashes_for_individual_search')
+      // [group_name, text_file]
+      .map{ it -> tuple(it[1].splitText(), it[0])}
+      // [['123\n', '456\n', '789\n'], group]
+      .dump(tag: 'ch_informative_hashes_files_split')
+      .transpose()
+      // ['123\n', group]
+      // ['456\n', group]
+      // ['789\n', group]
+      .dump(tag: 'ch_hash_to_group')
+      .into {
+        ch_hash_to_group_for_finding_matches
+        ch_hash_to_group_for_joining_after_hash2kmer;
+        ch_hash_to_group_for_joining_after_hash2sig;
+        ch_hash_to_group_for_hash2kmer;
+        ch_hash_to_group_for_hash2sig }
+
+  ch_hash_to_group_for_finding_matches
+    .map{ it -> it[0] }
+    .unique()
+    .set { ch_informative_hashes_flattened }
+
 
 }
 
@@ -1098,51 +1229,19 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 }
 
+if (params.diff_hash_expression) {
 
+  ch_hash_to_group_for_hash2kmer
+    .join( ch_group_to_fasta )
+    .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
+    .set { ch_hashes_with_fastas_for_hash2kmer }
 
-if (params.hashes) {
-  // Combine the extracted hashes with the known proteins
-  ch_protein_fastas
-    // Get just the fasta file
-    .map { it -> it[1] }
-    .collect()           // make a single flat list
-    .dump ( tag: 'ch_protein_fastas_collected' )
-    // [DUMP: ch_protein_fastas_collected]
-    //    ['10X_P4_2__unaligned__TCAGCTCGTATGCTTG',
-    //        [10X_P4_2__unaligned__TCAGCTCGTATGCTTG__coding_reads_peptides.fasta],
-    //    '10X_P4_2__unaligned__AGTAGTCGTGCACCAC',
-    //        [10X_P4_2__unaligned__AGTAGTCGTGCACCAC__coding_reads_peptides.fasta],
-    //    '10X_P4_2__unaligned__TAAGTGCGTGTGAATA',
-    //        [10X_P4_2__unaligned__TAAGTGCGTGTGAATA__coding_reads_peptides.fasta],
-    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__ATCTGCCCATAGAAAC',
-    //        [MACA_24m_M_HEPATOCYTES_58__unaligned__ATCTGCCCATAGAAAC__coding_reads_peptides.fasta],
-    //    'MACA_24m_M_HEPATOCYTES_58__unaligned__AACGTTGCAATAAGCA',
-    //        [MACA_24m_M_HEPATOCYTES_58__unaligned__AACGTTGCAATAAGCA__coding_reads_peptides.fasta],
-    //    '10X_P4_2__unaligned__GGTATTGAGCAGCGTA',
-    //        [10X_P4_2__unaligned__GGTATTGAGCAGCGTA__coding_reads_peptides.fasta],
-    //    '10X_P4_2__unaligned__ACACCAACAGGCAGTA',
-    //         [10X_P4_2__unaligned__ACACCAACAGGCAGTA__coding_reads_peptides.fasta],
-    //    '10X_P7_0__unaligned__GTGAAGGCAAACAACA',
-    //        [10X_P7_0__unaligned__GTGAAGGCAAACAACA__coding_reads_peptides.fasta],
-    //    '10X_P4_2__unaligned__GAAACTCAGCGTTCCG',
-    //        [10X_P4_2__unaligned__GAAACTCAGCGTTCCG__coding_reads_peptides.fasta]]
-    .map{ it -> [it] }   // Nest within a list so the join/combine does it on all
-    .dump ( tag: 'ch_protein_fastas_collected_transposed_nested' )
-    .set{ ch_protein_fastas_nested_list }
-
-  ch_hashes_for_hash2kmer
-      .combine( ch_protein_fastas_nested_list )
-      .dump ( tag: 'hashes_combined_with_fastas' )
-      .map { it -> tuple(it[0], 'allfastas', it[1])}
-      .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
-      .set { ch_hash_to_id_to_fasta_for_hash2kmer }
-      // Desired output:
-      // [1, "allfastas", ["a", "b", "c"]]
-      // [2, "allfastas", ["a", "b", "c"]]
-      // [3, "allfastas", ["a", "b", "c"]]
-      // 1, 2, 3 = hashes
-      // "a", "b", "c" = protein fasta files
+  ch_hash_to_group_for_hash2sig
+    .map{ it -> it[0] }
+    .set{ ch_hashes_for_hash2sig }
 }
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1151,7 +1250,7 @@ if (params.hashes) {
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'sourmash'){
+if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_expression ){
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1163,105 +1262,52 @@ if (params.protein_searcher == 'sourmash'){
   /*
    * STEP 4 - convert hashes to k-mers
    */
-  process hash2sig {
-    tag "${hash_id}"
-    label "process_low"
+   if ( params.hashes || params.diff_hash_expression ){
+    // Convert hashes to signatures for sourmash
+    process hash2sig {
+      tag "${group_cleaned}"
+      label "process_low"
 
-    publishDir "${params.outdir}/hash2sig/", mode: 'copy'
+      publishDir "${params.outdir}/hash2sig/", mode: 'copy'
 
-    input:
-    val(hash) from ch_hashes_for_hash2sig
+      input:
+      set val(group), file(hashes) from ch_informative_hashes_files_for_grouped_search
 
-    output:
-    set val(hash), file("${sig}") into ch_hash_sigs
+      output:
+      set val(group), file("${sig}") into ch_group_hash_sigs_to_query, ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
 
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    sig = "${hash_id}.sig"
-    """
-    echo ${hash_cleaned} >> hash.txt
-    hash2sig.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --scaled 1 \\
-        --input-is-protein \\
-        --${sourmash_molecule} \\
-        --output ${sig} \\
-        hash.txt
-    """
-  }
-
-
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /* --                                                                     -- */
-  /* --                  MAKE SOURMASH INDEX                      -- */
-  /* --                                                                     -- */
-  ///////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  /*
-   * STEP 7 - make peptide search database for DIAMOND
-   */
-  process sourmash_db_compute {
-   tag "${sample_id}"
-   label "process_low"
-
-   publishDir "${params.outdir}/sourmash/compute", mode: 'copy'
-
-   input:
-   file(reference_proteome) from ch_sourmash_reference_fasta
-
-   output:
-   file(output_log)
-   file(sig) into ch_proteome_sig_for_sourmash_index
-
-   script:
-   sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-   sample_id = "${reference_proteome.simpleName}__${sketch_id}"
-   sig = "${sample_id}.sig"
-   output_log = "${sample_id}.log"
-   """
-   sourmash compute \\
-      --ksizes ${sourmash_ksize} \\
-      --input-is-protein \\
-      --track-abundance \\
-      --singleton \\
-      --scaled 1 \\
-      --no-dna \\
-      --${sourmash_molecule} \\
-      --output ${sig}\\
-      ${reference_proteome} \\
-      2> ${output_log}
-   """
- }
-
-  process sourmash_db_index {
-    tag "${reference_proteome_sig.baseName}"
-    label "process_low"
-
-    publishDir "${params.outdir}/sourmash/index", mode: 'copy'
-
-    input:
-    file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
-
-    output:
-    set file(".sbt*"), file("*.sbt.json") into ch_sourmash_index
-
-    script:
-    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-    """
-    sourmash index \\
-        --ksize ${sourmash_ksize} \\
-        --${sourmash_molecule} \\
-        ${reference_proteome_sig.simpleName} \\
-        ${reference_proteome_sig}
-    """
+      script:
+      group_cleaned = groupCleaner(group)
+      sig = "${group_cleaned}.sig"
+      track_abundance = params.diff_hash_expression ? "--track-abundance" : ""
+      """
+      hash2sig.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --scaled ${sourmash_scaled} \\
+          --input-is-protein \\
+          --${sourmash_molecule} \\
+          --output ${sig} \\
+          ${track_abundance} \\
+          ${hashes}
+      """
+    }
+    // ch_hash_sigs_from_hash2sig_to_print.dump(tag: 'ch_hash_sigs_from_hash2sig_to_print')
+    //
+    ch_hash_to_group_for_joining_after_hash2sig
+      .join( ch_hash_sigs_from_hash2sig_to_join )
+      // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
+      // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
+      .dump( tag: 'ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join' )
+      .map{ it -> tuple(it[1], it[0], it[2], it[3]) }
+      .dump( tag: 'ch_group_to_hash_sig' )
+      // ['monocyte', '4406535782145158631\n', hash-4406535782145158631, hash-4406535782145158631.sig]
+      .set{ ch_group_to_hash_sig }
   }
 
   if ( params.csv_has_is_aligned ) {
     ch_per_group_unaligned_sig
-      .join( ch_group_to_hash_sig )
+      .combine( ch_informative_hashes_for_find_unaligned, by: 0 )
       // [DUMP: ch_group_to_hash_sig]
       // ['monocyte',
       //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
@@ -1272,8 +1318,8 @@ if (params.protein_searcher == 'sourmash'){
       // '2852067181280790833\n',
       //  hash-2852067181280790833,
       //  hash-2852067181280790833.sig]
-      .dump( tag: 'ch_group_to_hash_sig_with_group_unaligned_sigs' )
-      .into{ ch_group_to_hash_sig_with_group_unaligned_sigs }
+      .dump( tag: 'ch_group_to_unaligned_sigs_with_diffhashes' )
+      .set{ ch_group_to_unaligned_sigs_with_diffhashes }
 
     ///////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////
@@ -1292,78 +1338,498 @@ if (params.protein_searcher == 'sourmash'){
       publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
 
       input:
-      set val(group), file(group_unaligned_sigs), val(hash), val(hash_id), file(query_sig) from ch_group_to_hash_sig_with_group_unaligned_sigs
+      set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
-      set val(group), val(hash), val(hash_id), file(query_sig), file(matches) into ch_hash_sigs_in_unaligned
+      file(hashes_only)
+      set val(group), val(is_aligned), file(matches) into ch_hash_sigs_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
-      hash_cleaned = hashCleaner(hash)
-      sample_id = "${group_cleaned}__${hash_id}"
+      sample_id = "${group_cleaned}__${is_aligned}"
+      hashes_only = "${group_cleaned}__hashes_only.txt"
       matches = "${sample_id}__matches.txt"
       """
-      rg --files-with-matches ${hash_cleaned} ${group_unaligned_sigs} > ${matches}
+      # Isolate hashes only --> Take first column
+      cut -f1 ${diffhashes} -d, > ${hashes_only}
+      rg \\
+          --threads ${task.cpus} \\
+          --files-with-matches \\
+          --file ${hashes_only} \\
+          ${sigs} \\
+          > ${matches}
       """
     }
     ch_hash_sigs_in_unaligned
       .dump( tag: 'ch_hash_sigs_in_unaligned' )
       // Check that matches are nonempty
       .branch{
-        aligned: it[4].size() == 0
-        unaligned: it[4].size() > 0
+        aligned: it[1] == 'aligned'
+        unaligned: it[1] == 'unaligned'
       }
       .set{ ch_hashes_sigs_branched }
+  }
 
-      ch_hashes_sigs_branched
-        .unaligned
-        .map { it -> tuple(it[0], it[1], it[2], it[3]) }
-        .dump ( tag: 'ch_hashes_in_group_unaligned_sigs' )
-        .set { ch_group_hash_sigs_to_query }
 
-      ch_hashes_sigs_branched
-        .aligned
-        .map { it -> tuple(it[0], it[1], it[2]) }
-        .dump ( tag: 'ch_hashes_in_group_aligned' )
-        .set { ch_hashes_in_group_aligned }
-  } else {
-     // Search all hashes
-     ch_group_hash_sigs_to_query = ch_group_to_hash_sig
+  if (!params.sourmash_index) {
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /* --                                                                     -- */
+    /* --                  MAKE SOURMASH INDEX                      -- */
+    /* --                                                                     -- */
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /*
+     * STEP 7 - make peptide search database for DIAMOND
+     */
+    process sourmash_db_compute {
+     tag "${sample_id}"
+     label "process_low"
+
+     // publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
+
+     input:
+     file(reference_proteome) from ch_sourmash_reference_fasta
+
+     output:
+     file(output_log)
+     file(sig) into ch_proteome_sig_for_sourmash_index
+
+     script:
+     sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-${sourmash_scaled}__track_abundance-true"
+     sample_id = "${reference_proteome.simpleName}__${sketch_id}"
+     sig = "${sample_id}.sig"
+     output_log = "${sample_id}.log"
+     """
+     sourmash compute \\
+        --ksizes ${sourmash_ksize} \\
+        --input-is-protein \\
+        --track-abundance \\
+        --singleton \\
+        --scaled ${sourmash_scaled} \\
+        --no-dna \\
+        --${sourmash_molecule} \\
+        --output ${sig}\\
+        ${reference_proteome} \\
+        2> ${output_log}
+     """
    }
 
-  process sourmash_search {
-   tag "${group}_${hash_id}"
+    process sourmash_db_index {
+      tag "${prefix}"
+      label "process_medium"
+
+      publishDir "${params.outdir}/reference/sourmash", mode: 'copy'
+
+      input:
+      file(reference_proteome_sig) from ch_proteome_sig_for_sourmash_index.collect()
+
+      output:
+      file(sbt_zip) into ch_sourmash_index
+
+      script:
+      prefix = "${reference_proteome_sig.simpleName}"
+      sbt_zip = "${prefix}.sbt.zip"
+      """
+      sourmash index \\
+          --ksize ${sourmash_ksize} \\
+          --${sourmash_molecule} \\
+          ${sbt_zip} \\
+          ${reference_proteome_sig}
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --          ITERATIVELY SEARCH FOR HASHES IN DATABASE                  -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+  * STEP 7 - Find hashes in database
+  */
+  process sourmash {
+   tag "${sourmash_searcher}__${group_cleaned}"
    label "process_low"
 
-   publishDir "${params.outdir}/sourmash/search/${group}", mode: 'copy'
+   publishDir "${params.outdir}/sourmash/", mode: 'copy'
 
    input:
-   set file(sbt_hidden_files), file(reference_sbt_json) from ch_sourmash_index.collect()
-   set val(hash), file(query_sig), val(group) from ch_hash_sig_to_group
+   file(sourmash_sbt_index) from ch_sourmash_index.collect()
+   set val(group), file(query_sig) from ch_group_hash_sigs_to_query
 
    output:
-   set val(hash), file("${hash_id}.csv") into ch_hash_to_sourmash_search_results
+   file(csv_output)
+   file(matches)
+   set val(group), file(unassigned) into ch_unassigned_sig_for_seqs, ch_unassigned_sig_for_search_sigs
 
    script:
-   hash_cleaned = hashCleaner(hash)
-   hash_id = "hash-${hash_cleaned}"
    group_cleaned = groupCleaner(group)
+   csv_output = "${group_cleaned}.csv"
+   unassigned = "${group_cleaned}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
+   matches = "${group_cleaned}__matches.sig"
+   generated_search_flag = sourmash_searcher == "search" ? ""  : "--debug --output-unassigned ${unassigned}"
+   user_search_flags = sourmash_search_flags ? "${sourmash_search_flags}" : ""
    """
-   sourmash search \\
-       --containment \\
+   sourmash ${sourmash_searcher} \\
+      ${user_search_flags} \\
+      ${generated_search_flag} \\
        --threshold 1e-100 \\
-       --output ${hash_id}.csv \\
+       --output ${csv_output} \\
        --ksize ${sourmash_ksize} \\
        --${sourmash_molecule} \\
+       --save-matches ${matches} \\
        ${query_sig} \\
-       ${reference_sbt_json} \\
+       ${sourmash_sbt_index}
+
+   # Create empty files in case there were no matches so pipeline doesn't die
+   touch ${unassigned}
+   touch ${csv_output}
+   touch ${matches}
    """
  }
 
+ if ( params.diff_hash_expression && params.sourmash_searcher == "gather" ) {
+
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /* --                                                                     -- */
+   /* --     CONVERT SIGNATURE TO PLAIN TEXT HASHES                 -- */
+   /* --                                                                     -- */
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /*
+   * STEP 7 - Find signatures containing hashes
+   */
+   process sig2hash {
+     tag "${group}"
+     label "process_low"
+
+     publishDir "${params.outdir}/sig2hash", mode: 'copy'
+
+     input:
+     set val(group), file(sig) from ch_unassigned_sig_for_seqs
+
+     output:
+     set val(group), file(hashes) into ch_unassigned_hashes_for_ripgrep, ch_unassigned_hashes_for_hash2kmer
+
+     script:
+     group_cleaned = groupCleaner(group)
+     hashes = "${group_cleaned}__hashes.txt"
+     """
+     sig2hashes.py \\
+         --output-hashes ${hashes} \\
+         ${sig} \\
+     """
+   }
+
+   ch_unassigned_hashes_for_ripgrep
+      .join( ch_group_to_signatures )
+      .set { ch_group_to_unassigned_hashes_and_sigs }
+
+
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /* --                                                                     -- */
+    /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+    /* --                                                                     -- */
+    ///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    /*
+    * STEP 7 - Find signatures containing hashes
+    */
+    process samples_with_unassigned {
+     tag "${group_cleaned}"
+     label "process_low"
+
+     publishDir "${params.outdir}/samples_with_unassigned/", mode: 'copy'
+
+     input:
+     set val(group), file(hashes), file(sigs) from ch_group_to_unassigned_hashes_and_sigs
+
+     output:
+     set val(group), file(matches), file(hashes) into ch_sample_sigs_with_unassigned
+
+     script:
+     group_cleaned = groupCleaner(group)
+     matches = "${group_cleaned}__samples_with_unassigned_hashes.txt"
+     """
+     rg \\
+        --threads ${task.cpus} \\
+        --files-with-matches \\
+        --file ${hashes} \\
+        ${sigs} \\
+        > ${matches}
+     """
+    }
+
+    ch_sample_sigs_with_unassigned
+      .dump ( tag: 'ch_sample_sigs_with_unassigned' )
+      .map { it -> tuple(it[1].splitText(), it[0], it[2]) }
+      // [ [sample1.sig, sample2, sample3.sig], group1]
+      // [ [sample4.sig, sample5, sample6.sig], group2]
+      .transpose()
+      // [ sample1.sig, group1]
+      // [ sample2.sig, group1]
+      // [ sample3.sig, group1]
+      // [ sample4.sig, group2]
+      // [ sample5.sig, group2]
+      // [ sample6.sig, group2]
+      // Relies on sourmash signatures ending in .sig, which is currently true..
+      .map { it -> tuple(it[0].replaceAll('.sig\\s+', ''), it[1], it[2])}
+      .dump ( tag: 'ch_sample_sigs_with_unassigned__tuple_splittext')
+      .join ( ch_sig_filename_to_fasta, by: 0 )
+      .dump ( tag: 'ch_sample_sigs_with_unassigned__tuple_splittext__join_fastas' )
+      .groupTuple ( by: 1 )
+      // it[0] --> sample ids, skip this
+      // it[1] --> group name
+      // it[2][0] --> hahes.txt (same for everyone so take the first one)
+      // it[3] --> fastas (want all as one so flatten)
+      .map { it -> tuple(it[1], it[2][0], it[3].flatten())}
+      .dump ( tag: 'ch_group_hashes_fastas' )
+      .set { ch_group_hashes_fastas }
+
+} else if ( params.hashes ){
+  ch_protein_fastas
+    .map{ it -> it[1] }  // get only the file, not the sample id
+    .collect()           // make a single flat list
+    .map{ it -> [it] }   // Nest within a list so the next step does what I want
+    .set{ ch_protein_fastas_flat_list }
+
+  Channel.from(file(params.hashes).getBaseName())
+    .combine(ch_hashes)
+    .combine(ch_protein_fastas_flat_list)
+    // [ "empty_group_name", hashes.txt, [ sample1.fasta, sample2.fasta, ... ] ]
+    .dump ( tag: 'ch_group_hashes_fastas' )
+    .set { ch_group_hashes_fastas }
+}
+
+if ( (params.diff_hash_expression && (params.sourmash_searcher == "gather")) || params.hashes ) {
+
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /* --                                                                     -- */
+   /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+   /* --                                                                     -- */
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /*
+   * STEP 7 - Find signatures containing hashes
+   */
+    process hash2kmer {
+      tag "${group_cleaned}"
+      label "process_low"
+
+      publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
+
+      input:
+      set val(group), file(hashes), file(peptide_fastas) from ch_group_hashes_fastas
+
+      output:
+      file(unassigned_kmers)
+      set val(group), file(unassigned_sequences) into ch_unassigned_seqs_from_hash2kmer
+
+      script:
+      group_cleaned = groupCleaner(group)
+      unassigned_sequences = "${group_cleaned}__unassigned.fasta"
+      unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
+      """
+      hash2kmer.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --input-is-protein \\
+          --output-sequences ${unassigned_sequences} \\
+          --output-kmers ${unassigned_kmers} \\
+          --${sourmash_molecule} \\
+          ${hashes} \\
+          ${peptide_fastas}
+      """
+    }
+    ch_unassigned_seqs_from_hash2kmer
+      .filter { it -> it[1].size() > 0 }
+      .set { ch_protein_seq_for_diamond }
+   }
+}
 
 
 
+if ( (params.diff_hash_expression && (params.sourmash_searcher == "gather")) || params.hashes ) {
+
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /* --                                                                     -- */
+   /* --                 FIND SIGNATURES CONTAINING HASHES                   -- */
+   /* --                                                                     -- */
+   ///////////////////////////////////////////////////////////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////
+   /*
+   * STEP 7 - Find signatures containing hashes
+   */
+    process hash2kmer {
+      tag "${group_cleaned}"
+      label "process_low"
+
+      publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
+
+      input:
+      set val(group), file(hashes), file(peptide_fastas) from ch_group_hashes_fastas
+
+      output:
+      file(unassigned_kmers)
+      set val(group), file(unassigned_sequences) into ch_unassigned_seqs_from_hash2kmer
+
+      script:
+      group_cleaned = groupCleaner(group)
+      unassigned_sequences = "${group_cleaned}__unassigned.fasta"
+      unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
+      """
+      hash2kmer.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --input-is-protein \\
+          --output-sequences ${unassigned_sequences} \\
+          --output-kmers ${unassigned_kmers} \\
+          --${sourmash_molecule} \\
+          ${hashes} \\
+          ${peptide_fastas}
+      """
+    }
+    ch_unassigned_seqs_from_hash2kmer
+      .filter { it -> it[1].size() > 0 }
+      .set { ch_protein_seq_for_diamond }
+   }
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --       PREPARE PROTEIN SEQUENCES FOR SEARCHING WITH DIAMOND          -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+if (params.protein_searcher == 'diamond' || (params.diff_hash_expression && (params.sourmash_searcher == "gather"))) {
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                      PREPARE TAXA FOR DIAMOND                       -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 6 - unzip taxonomy information files for input to DIAMOND
+   */
+  if (!params.diamond_database ){
+    process diamond_prepare_taxa {
+      tag "${taxondmp_zip.baseName}"
+      label "process_low"
+
+      publishDir "${params.outdir}/ncbi_refseq/", mode: 'copy'
+
+      input:
+      file(taxondmp_zip) from ch_diamond_taxdmp_zip
+
+      output:
+      file("nodes.dmp") into ch_diamond_taxonnodes
+      file("names.dmp") into ch_diamond_taxonnames
+
+      script:
+      """
+      7z x ${taxondmp_zip}
+      """
+    }
+  }
+
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 7 - make peptide search database for DIAMOND
+   */
+  if (!params.diamond_database && (params.proteome_search_fasta || params.refseq_release)){
+    process diamond_makedb {
+     tag "${reference_proteome.baseName}"
+     label "process_medium"
+
+     publishDir "${params.outdir}/reference/diamond/", mode: 'copy'
+
+     input:
+     file(reference_proteome) from ch_diamond_reference_fasta
+     file(taxonnodes) from ch_diamond_taxonnodes
+     file(taxonnames) from ch_diamond_taxonnames
+     file(taxonmap_gz) from ch_diamond_taxonmap_gz
+
+     output:
+     file("${reference_proteome.simpleName}_db.dmnd") into ch_diamond_db
+
+     script:
+     """
+     diamond makedb \\
+         --threads ${task.cpus} \\
+         -d ${reference_proteome.simpleName}_db \\
+         --taxonmap ${taxonmap_gz} \\
+         --taxonnodes ${taxonnodes} \\
+         --taxonnames ${taxonnames} \\
+         --in ${reference_proteome}
+     """
+   }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /* --                                                                     -- */
+  /* --                  MAKE DIAMOND PEPTIDE DATABASE                      -- */
+  /* --                                                                     -- */
+  ///////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  /*
+   * STEP 8 - Search DIAMOND database for closest match to
+   */
+  process diamond_blastp {
+    tag "${sample_id}"
+    label "process_low"
+
+    publishDir "${params.outdir}/diamond/", mode: 'copy'
+
+    input:
+    // Basenames from dumped channel:
+    // [DUMP: ch_query_protein_sequences_with_diamond_db]
+    //   [ENSPPYT00000000455__molecule-dayhoff,
+    //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
+    //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
+    file(diamond_db) from ch_diamond_db.collect()
+    set val(group), file(coding_peptides) from ch_protein_seq_for_diamond
+
+    output:
+    file(tsv) into ch_diamond_blastp_output
+
+    script:
+    group_cleaned = groupCleaner(group)
+    sample_id = "${group_cleaned}"
+    tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
+    output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
+    """
+    diamond blastp \\
+        ${output_format} \\
+        --threads ${task.cpus} \\
+        --max-target-seqs 3 \\
+        --db ${diamond_db} \\
+        --evalue 0.00001  \\
+        --query ${coding_peptides} \\
+        > ${tsv}
+    """
+  }
 }
 
 
