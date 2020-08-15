@@ -290,7 +290,7 @@ if (params.featurecounts_hashes) {
       .dump( tag: 'ch_sig_basename_to_id_and_bam' )
       .into { ch_sig_basename_to_id_and_bam }
 
-      if ( params.csv_has_is_aligned_col ) {
+      if ( params.csv_has_is_aligned ) {
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
           .fromPath ( params.csv, checkIfExists: true )
@@ -305,20 +305,20 @@ if (params.featurecounts_hashes) {
           .dump( tag: 'ch_csv_is_aligned.aligned' )
           .map{ row -> tuple(row.group, row.sample_id, row.sig, file(row.fasta), file(row.bam)) }
           .dump( tag: 'ch_aligned_sig_fasta_bam' )
-          .into { ch_aligned_sig_fasta_bam }
+          .set { ch_aligned_sig_fasta_bam }
 
         ch_csv_is_aligned.unaligned
           .dump( tag: 'ch_csv_is_aligned.unaligned' )
           .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta__unaligned' )
-          .into { ch_group_to_id_fasta }
+          .set { ch_group_to_id_fasta }
       } else {
         Channel
           .fromPath ( params.csv, checkIfExists: true )
-          .splitCsv()
+          .splitCsv( header: true )
           .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta' )
-          .into { ch_group_to_id_fasta }
+          .set { ch_group_to_id_fasta }
       }
 
       ////////////////////////////////////////////////////
@@ -347,7 +347,7 @@ if (params.featurecounts_hashes) {
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
 ////////////////////////////////////////////////////
-if (params.csv_has_is_aligned_col) {
+if (params.csv_has_is_aligned) {
   if (params.csv) {
     Channel
       .fromPath ( params.csv )
@@ -2103,7 +2103,7 @@ if (params.featurecounts_hashes) {
     .dump ( tag: 'unaligned_hashes' )
     .into { ch_hashes_for_hash2sig_maybe ; ch_unaligned_hashes_for_concatenate_seqs }
 
-  if ( !params.csv_has_is_aligned_col ) {
+  if ( !params.csv_has_is_aligned ) {
     ch_hashes_for_hash2sig_maybe
       .set { ch_hashes_for_hash2sig }
   }
