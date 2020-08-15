@@ -136,7 +136,7 @@ if (params.hashes) {
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .set { ch_hashes }
 
-  Channel.fromPath(params.hashes)
+  Channel.fromPath(params.hashes, checkIfExists: true)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash")}
@@ -154,14 +154,14 @@ if (params.hashes) {
 if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths )) {
     // params needed for intersection
     log.info "supplied bam, not looking at any supplied --reads"
-    Channel.fromPath(params.bai)
+    Channel.fromPath(params.bai, checkIfExists: true)
         .ifEmpty { exit 1, "params.bai was empty - no input files supplied" }
         .set { ch_bai }
-    Channel.fromPath(params.bam)
+    Channel.fromPath(params.bam, checkIfExists: true)
         .ifEmpty { exit 1, "params.bam was empty - no input files supplied" }
         .combine(ch_bai)
         .set { ch_bam_bai }
-    Channel.fromPath(params.bed)
+    Channel.fromPath(params.bed, checkIfExists: true)
         .ifEmpty { exit 1, "params.bed was empty - no input files supplied" }
         .splitText()
         .map {row -> row.split()}
@@ -171,7 +171,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 } else if (params.bam && !params.skip_remove_duplicates_bam && !params.bai) {
     // deciding if sambamba steps are needed
     log.info "supplied bam and no skip_remove_duplicates flag specified"
-    Channel.fromPath(params.bam)
+    Channel.fromPath(params.bam, checkIfExists: true)
         .ifEmpty { exit 1, "params.bam was empty, no input file supplied" }
         .into { ch_bam_for_dedup }
 } else if (params.input_is_protein) {
@@ -180,13 +180,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   /* --          Parse protein fastas            -- */
   ////////////////////////////////////////////////////
   if (params.protein_fastas){
-    Channel.fromPath(params.protein_fastas)
+    Channel.fromPath(params.protein_fastas, checkIfExists: true)
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
         .set { ch_protein_fastas }
   } else if (params.csv && params.input_is_protein) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
-      .fromPath(params.csv)
+      .fromPath(params.csv, checkIfExists: true)
       .ifEmpty { exit 1, "params.csv was empty" }
       .splitCsv(header:true)
       .map{ row -> tuple(row.sample_id, tuple(file(row.fasta)))}
@@ -194,7 +194,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       .set { ch_protein_fastas }
   } else if (params.protein_fasta_paths){
     Channel
-      .from(params.protein_fasta_paths)
+      .from(params.protein_fasta_paths, checkIfExists: true)
       .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
       .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
       .dump(tag: "protein_fasta_paths")
@@ -257,13 +257,13 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
 }
 
 if (params.hashes){
-  Channel.fromPath(params.hashes)
+  Channel.fromPath(params.hashes, checkIfExists: true)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .map { it -> tuple(it.getBaseName(), file(it)) }
       .set { ch_informative_hashes_files_for_grouped_search }
 
 
-  Channel.fromPath(params.hashes)
+  Channel.fromPath(params.hashes, checkIfExists: true)
       .ifEmpty { exit 1, "params.hashes was empty - no input files supplied" }
       .splitText()
       .map{ row -> tuple(row.replaceAll("\\s+", ""), "hash" )}
@@ -282,7 +282,7 @@ if (params.featurecounts_hashes) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
     Channel
-      .fromPath(params.csv)
+      .fromPath(params.csv, checkIfExists: true)
       .splitCsv(header:true)
       .dump( tag: 'featurecounts_hashes_csv' )
       .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
@@ -293,7 +293,7 @@ if (params.featurecounts_hashes) {
       if ( params.csv_has_is_aligned_col ) {
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
-          .fromPath ( params.csv )
+          .fromPath ( params.csv, checkIfExists: true )
           .splitCsv ( header:true )
           .branch { row ->
             aligned: row.is_aligned == "aligned"
@@ -303,19 +303,19 @@ if (params.featurecounts_hashes) {
 
         ch_csv_is_aligned.aligned
           .dump( tag: 'ch_csv_is_aligned.aligned' )
-          .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta, row.bam) }
+          .map{ row -> tuple(row.group, row.sample_id, row.sig, file(row.fasta), file(row.bam)) }
           .dump( tag: 'ch_aligned_sig_fasta_bam' )
           .into { ch_aligned_sig_fasta_bam }
 
         ch_csv_is_aligned.unaligned
           .dump( tag: 'ch_csv_is_aligned.unaligned' )
-          .map{ row -> tuple(row.group, row.sample_id, row.fasta) }
+          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta__unaligned' )
           .into { ch_group_to_id_fasta }
       } else {
         Channel
-          .fromPath ( params.csv )
-          .map{ row -> tuple(row.group, row.sample_id, row.fasta) }
+          .fromPath ( params.csv, checkIfExists: true )
+          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta' )
           .into { ch_group_to_id_fasta }
       }
@@ -327,7 +327,7 @@ if (params.featurecounts_hashes) {
       if (!params.skip_orthology_qc && params.csv_has_gtf_col) {
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
-          .fromPath(params.csv)
+          .fromPath(params.csv, checkIfExists: true)
           .splitCsv(header:true)
           .map{ row -> tuple(row.sample_id, file(row.gtf, checkIfExists: true)) }
           .ifEmpty { exit 1, "params.csv (${params.csv}) 'gtf' column was empty - no input files supplied" }
@@ -648,7 +648,6 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
-if (params.csv) summary['CSV of input reads']                               = params.csv
 if (!params.input_is_protein) summary['sencha translate Ref']               = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
 summary['Diff Hash']                                                        = params.diff_hash_expression
