@@ -288,7 +288,7 @@ if (params.featurecounts_hashes) {
       .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
       .dump( tag: 'ch_sig_basename_to_id_and_bam' )
-      .into { ch_sig_basename_to_id_and_bam }
+      .set { ch_sig_basename_to_id_and_bam }
 
       if ( params.csv_has_is_aligned ) {
         // Provided a csv file mapping sample_id to protein fasta path
@@ -336,7 +336,7 @@ if (params.featurecounts_hashes) {
           // [DUMP: ch_sample_id_to_gtf]
           //    ['SRR306827_GSM752680_ppa_br_F_2',
           //     Pan_paniscus.panpan1.1.97.gtf]
-          .into { ch_sample_id_to_gtf }
+          .set { ch_sample_id_to_gtf }
 
         }
   } else {
@@ -377,7 +377,7 @@ if (params.csv_has_is_aligned) {
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
       .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
       .dump( tag: 'ch_unaligned_sig_fasta' )
-      .into { ch_unaligned_sig_fasta }
+      .set { ch_unaligned_sig_fasta }
 
   } else {
     exit 1, "Must provide --csv when doing filtering for aligned/unaligned hashes"
@@ -446,7 +446,7 @@ if (params.diff_hash_expression) {
       //     MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA,
       //     /czbiohub/test-datasets/predictorthologs/testdata/diff-hash/fasta/MACA_24m_M_BM_60__unaligned__CCACCTAAGTCCAGGA__coding_reads_peptides.fasta]
       .dump ( tag: 'ch_sig_basename_to_id_and_fasta' )
-      .into{ ch_sig_basename_to_id_and_fasta }
+      .set{ ch_sig_basename_to_id_and_fasta }
 
     // Create channel of fastas per group
     Channel
