@@ -273,7 +273,7 @@ if (params.hashes){
         ch_hash_to_group_for_hash2kmer;
         ch_hash_to_group_for_hash2sig
        }
-
+}
 
 ////////////////////////////////////////////////////
 /* --         Parse gene counting       -- */
