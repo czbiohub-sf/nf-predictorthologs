@@ -315,6 +315,7 @@ if (params.featurecounts_hashes) {
       } else {
         Channel
           .fromPath ( params.csv, checkIfExists: true )
+          .splitCsv()
           .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta' )
           .into { ch_group_to_id_fasta }
