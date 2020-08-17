@@ -1961,12 +1961,9 @@ if (params.featurecounts_hashes) {
     set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    tag_id = "${hash_id}__${sample_id}"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
-    reads_in_hashes_bam = "${tag_id}__reads_in_shared_hashes.bam"
-    read_ids_mapped = "${tag_id}__aligned_read_ids.txt"
+    reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
+    read_ids_mapped = "${sample_id}__reads_in_shared_hashes_ids.txt"
     """
     samtools view -H ${bam} \\
       > header.sam
