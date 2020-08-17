@@ -14,7 +14,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added option for `--differential_hash_expression` performed by scikit-learn's Logistic Regression
 - Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--differential_hash_expression`) directly into a sourmash sequence bloom tree index database
 - Added option for bam deduplication, if you wish to skip deduplication step add the `-skip_remove_duplicates_bam` flag
-- For differential hash expression (when `--diff_hash_expression` is provided), first use `sourmash gather` to search, then extract k-mers for unassigned hashes, then convert hashes to kmers and sequences, and search via DIAMOND for the unassigned hashes ([#79](https://github.com/czbiohub/nf-predictorthologs/pull/79))
+- For differential hash expression (when `--diff_hash_expression` is provided), first use `sourmash gather` to search, then extract k-mers for unassigned hashes, then convert hashes to kmers and sequences, and search via DIAMOND for the unassigned hashes ([#79](https://github.com/czbiohub/nf-predictorthologs/pull/79), addresses [#63](https://github.com/czbiohub/nf-predictorthologs/issues/63) and [#47](https://github.com/czbiohub/nf-predictorthologs/issues/47))
 
 ### `Fixed`
 
