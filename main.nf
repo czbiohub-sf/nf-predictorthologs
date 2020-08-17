@@ -2024,7 +2024,8 @@ if (params.featurecounts_hashes) {
          tag "${sample_id}"
          publishDir "${params.outdir}/featureCounts", mode: "copy",
              saveAs: {filename ->
-                 if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
+                 if (filename.indexOf("orthology.featureCounts*") > 0) "orthology_counts/$filename"
+                 else if (filename.indexOf("_orthology_counts_mqc.txt") > 0) "orthology_multiqc/$filename"
                  else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
                  else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
                  else "$filename"
