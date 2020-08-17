@@ -1872,7 +1872,6 @@ if (params.search_noncoding && params.infernal_db) {
     kmers = "${sample_id}__kmer.txt"
     sequences = "${sample_id}__sequences.fasta"
     """
-    echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
         --ksize ${sourmash_ksize} \\
         --no-dna \\
@@ -1880,7 +1879,7 @@ if (params.search_noncoding && params.infernal_db) {
         --output-sequences ${sequences} \\
         --output-kmers ${kmers} \\
         --${sourmash_molecule} \\
-        hash.txt \\
+        ${hashes} \\
         ${fasta}
     """
   }
