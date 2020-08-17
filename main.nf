@@ -1914,11 +1914,8 @@ if (params.featurecounts_hashes) {
     set val(sample_id), file(read_headers_with_hashes) into ch_id_to_read_headers_with_hashes
 
     script:
-    hash_cleaned = hash.replaceAll('\\n', '')
-    hash_id = "hash-${hash_cleaned}"
-    tag_id = "${hash_id}__${sample_id}"
-    read_ids_with_hash = "${tag_id}__reads_ids_with_hash__regex_pattern.txt"
-    read_headers_with_hash = "${tag_id}__reads_headers_with_hash.txt"
+    read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
     """
     bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
       | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
