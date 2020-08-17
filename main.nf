@@ -1561,7 +1561,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
     .set { ch_group_hashes_fastas }
 }
 
-if ( (params.diff_hash_expression || params.hashes ) {
+if ( params.diff_hash_expression || params.hashes ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
