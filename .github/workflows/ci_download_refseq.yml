@@ -8,17 +8,12 @@ on: [push, pull_request]
 jobs:
   refseq:
     continue-on-error: true
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
       NXF_RUN: "nextflow run -resume"
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        profile_flags: [
-        'test_download_refseq'
-        ]
     steps:
       - uses: actions/checkout@v2
       - name: Install Nextflow
@@ -29,9 +24,9 @@ jobs:
       - name: Pull docker image
         run: |
           docker pull czbiohub/predictorthologs:dev && docker tag czbiohub/predictorthologs:dev czbiohub/predictorthologs:dev
-      - name: Run pipeline with ${{ matrix.profile_flags }}
+      - name: Run pipeline with downloading refseq
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required
           # (eg. adding multiple test runs with different parameters)
-          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile docker,${{ matrix.profile_flags }}
+          ${NXF_RUN} ${GITHUB_WORKSPACE} -profile docker,test_download_refseq
         continue-on-error: true
