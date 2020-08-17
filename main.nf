@@ -2054,7 +2054,7 @@ if (params.featurecounts_hashes) {
          orthology_counts_stats = "${sample_id}_orthology_counts_gs_mqc.tsv"
 
          // Flags for samples
-         sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
+         sample_name = sample_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
          orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${orthology_txt} -p -s $featureCounts_direction $bam"
          mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${orthology_txt} | tail -n +3 | cat $orthology_header - >>  && mqc_features_stat.py ${orthology_counts} -s $sample_name -f rRNA -o orthology_counts_stats"
          """
