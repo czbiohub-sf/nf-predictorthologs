@@ -19,9 +19,9 @@ jobs:
         profile_flags: [
         'test_bam',
         'test_bam --search_noncoding',
-        'test_diff_hash',
-        'test_diff_hash --with_abundance',
-        'test_diff_hash_sourmash',
+        'test_diff_hash_gather',
+        'test_diff_hash_search',
+        'test_diff_hash_abundance',
         'test_diff_hash_is_aligned',
         'test_download_refseq',
         'test_make_diamond_db',
