@@ -1127,7 +1127,11 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_hash2kmer, ch_informative_hashes_files_for_grouped_search, ch_informative_hashes_for_find_unaligned
+    set val(group), file("*__informative_hashes.csv") into \
+      ch_informative_hashes_for_hash2kmer, \
+      ch_informative_hashes_files_for_grouped_search, \
+      ch_informative_hashes_for_find_unaligned, \
+      ch_informative_hashes_files_for_featurecounts
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
