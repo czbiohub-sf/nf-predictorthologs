@@ -285,10 +285,10 @@ if (params.featurecounts_hashes) {
       .fromPath(params.csv, checkIfExists: true)
       .splitCsv(header:true)
       .dump( tag: 'featurecounts_hashes_csv' )
-      .map{ row -> tuple(row.sig.split(File.separator)[-1], row.sample_id, file(row.bam, checkIfExists: true)) }
+      .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
-      .dump( tag: 'ch_sig_basename_to_id_and_bam' )
-      .set { ch_sig_basename_to_id_and_bam }
+      .dump( tag: 'ch_sample_id_and_bam' )
+      .set { ch_sample_id_and_bam }
 
       if ( params.csv_has_is_aligned ) {
         // Provided a csv file mapping sample_id to protein fasta path
@@ -1859,22 +1859,18 @@ if (params.search_noncoding && params.infernal_db) {
     tag "${tag_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+    publishDir "${params.outdir}/hash2kmer_all/${hash_id}", mode: 'copy'
 
     input:
     tuple val(group), val(sample_id), file(fasta), file(hashes) from ch_hash_to_id_to_fasta_for_hash2kmer
 
     output:
     file(kmers)
-    set val(group), val(sample_id), file(sequences) into \
-      ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, \
-      ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond, \
-      ch_hash_to_id_to_fasta_for_filter_unaligned_reads
+    set val(group), val(sample_id), file(sequences) into ch_id_to_seqs_with_hashes_for_bioawk
 
     script:
-    tag_id = "${hash_id}__${sample_id}"
-    kmers = "${tag_id}__kmer.txt"
-    sequences = "${tag_id}__sequences.fasta"
+    kmers = "${sample_id}__kmer.txt"
+    sequences = "${sample_id}__sequences.fasta"
     """
     echo ${hash_cleaned} >> hash.txt
     hash2kmer.py \\
@@ -1888,58 +1884,6 @@ if (params.search_noncoding && params.infernal_db) {
         ${fasta}
     """
   }
-  //
-  // ch_hash_to_id_to_fasta_for_filter_unaligned_reads
-  //   .map { it -> [it[0], it[2]] }
-  //   .set { ch_hash_to_seq_for_filter_unaligned_reads }
-
-  ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam
-    .dump( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids' )
-    // .join {  }
-    .into { ch_seqs_from_hash2kmer; ch_seqs_from_hash2kmer_to_print; ch_seqs_from_hash2kmer_for_bam_of_hashes }
-
-  if (params.featurecounts_hashes) {
-    ch_hash_to_id_to_bam_for_filter_bam
-      .combine ( ch_seqs_from_hash2kmer_for_bam_of_hashes, by: [0, 1])
-      .dump ( tag: 'ch_hash_to_id_to_bam__join__hash2kmer' )
-      .into { ch_bams_for_map_then_bioawk; ch_bams_for_map_then_filter_bams }
-
-    ch_bams_for_map_then_bioawk
-      .map { it -> [it[0], it[1], it[3]] }
-      .dump ( tag: 'ch_bams_for_filter_reads_with_hashes_for_bioawak' )
-      .set { ch_bams_for_filter_reads_with_hashes_for_bioawak }
-
-    ch_bams_for_map_then_filter_bams
-      .map { it -> [it[0], it[1], it[2]] }
-      .set { ch_bams_for_filter_reads_with_hashes_for_filter_bam }
-  }
-
-  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
-
-  ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond
-    // Remove fasta id to make groupTuple easier
-    .map { it -> [it[0], it[2]] }
-    .dump ( tag: 'ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond__no_fasta_id' )
-    .groupTuple()
-    .join ( ch_hash_to_group_for_joining_after_hash2kmer, remainder: true )
-    // [DUMP: ch_protein_seq_for_diamond]
-    //    ['4122771730240801637\n',
-    //      [hash-4122771730240801637__MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC__sequences.fasta,
-    //       hash-4122771730240801637__10X_P4_2__unaligned__GACGTTACACCCATGG__sequences.fasta,
-    //       hash-4122771730240801637__MACA_24m_M_HEPATOCYTES_58__unaligned__GCAGCCAAGTAGCGGT__sequences.fasta,
-    //       hash-4122771730240801637__10X_P5_0__unaligned__TCCACACCACATTTCT__sequences.fasta,
-    //       hash-4122771730240801637__10X_P4_2__unaligned__ATCGAGTCACCAGTTA__sequences.fasta],
-    //     'Liver unaligned']
-    .dump ( tag: 'ch_hash_to_fastas_to_group' )
-    .transpose()
-    // [DUMP: ch_protein_seq_for_diamond]
-    //    ['15007113384290734478\n',
-    //      hash-15007113384290734478__MACA_24m_M_SPLEEN_59__unaligned__GCGACCAGTCATCGGC__sequences.fasta,
-    //      'Mostly marrow unaligned']
-    .dump ( tag: 'ch_hash_to_single_fasta_to_group' )
-    .map { it -> [it[0], it[2], it[1]] }
-    .dump ( tag: 'ch_protein_seq_for_diamond' )
-    .set { ch_protein_seq_for_diamond }
 
 }
 
@@ -1963,11 +1907,11 @@ if (params.featurecounts_hashes) {
 
     input:
     // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
-    set val(hash), val(sample_id), file(seqs_with_hash) from ch_bams_for_filter_reads_with_hashes_for_bioawak
+    set val(sample_id), file(seqs_with_hashes) from ch_id_to_seqs_with_hashes_for_bioawk
 
     output:
-    set val(hash), val(sample_id), file(read_ids_with_hash) into ch_read_ids_with_hash
-    set val(hash), val(sample_id), file(read_headers_with_hash) into ch_read_headers_with_hash
+    set val(sample_id), file(read_ids_with_hashes) into ch_id_to_read_ids_with_hashes
+    set val(sample_id), file(read_headers_with_hashes) into ch_id_to_read_headers_with_hashes
 
     script:
     hash_cleaned = hash.replaceAll('\\n', '')
@@ -1982,8 +1926,8 @@ if (params.featurecounts_hashes) {
     """
   }
 
-  ch_read_ids_with_hash
-    .join ( ch_bams_for_filter_reads_with_hashes_for_filter_bam, by: [0, 1], remainder: true )
+  ch_id_to_read_ids_with_hashes
+    .join ( ch_sample_id_and_bam )
     // [DUMP: ch_hash_sample_id_read_ids_bam_for_filter_bam]
     //    ['117030662087159\n',
     //     'SRR306777_GSM752631_mml_br_F_1',
@@ -2010,11 +1954,11 @@ if (params.featurecounts_hashes) {
     publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
 
     input:
-    set val(hash), val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
+    set val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
 
     output:
-    set val(sample_id), val(hash), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
-    set val(hash), val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
+    set val(sample_id), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
+    set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
 
     script:
     hash_cleaned = hashCleaner(hash)
