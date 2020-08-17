@@ -2048,7 +2048,7 @@ if (params.featurecounts_hashes) {
              featureCounts_direction = 2
          }
          // Try to get real sample name
-         gene_txt = "${featurecounts_id}_gene.featureCounts.txt"
+         gene_txt = "${sample_id}_gene.featureCounts.txt"
          orthology_txt = "${sample_id}_orthology.featureCounts.txt"
          orthology_counts = "${sample_id}_orthology_counts_mqc.txt"
          orthology_counts_stats = "${sample_id}_orthology_counts_gs_mqc.tsv"
