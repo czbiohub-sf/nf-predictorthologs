@@ -977,7 +977,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     // TODO also extract nucleotide sequence of coding reads and do sourmash compute using only DNA on that?
     set val(sample_sketch_id), file(noncoding_nucleotides) into ch_noncoding_nucleotides_potentially_empty
     // Set first value to "false" so it's not treated as a differential hash, and only the sample_id is considered
-    set val(false), val(sample_sketch_id), file(peptides_fasta) into ch_translated_proteins_potentially_empty
+    set val(sample_sketch_id), file(peptides_fasta) into ch_translated_proteins_potentially_empty
     set val(sample_sketch_id), file(coding_nucleotides) into ch_coding_nucleotides
     set val(sample_sketch_id), file(coding_scores) into ch_coding_scores_csv
     set val(sample_sketch_id), file(summary_json) into ch_coding_scores_json
