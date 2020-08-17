@@ -1950,7 +1950,6 @@ if (params.featurecounts_hashes) {
   process filter_bam_for_reads_with_hashes {
     tag "${sample_id}"
     label "process_medium"
-
     publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy'
 
     input:
