@@ -1856,7 +1856,7 @@ if (params.search_noncoding && params.infernal_db) {
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
   process hash2seqs_all {
-    tag "${tag_id}"
+    tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer_all/${group_cleaned}", mode: 'copy'
