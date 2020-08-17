@@ -1963,7 +1963,7 @@ if (params.featurecounts_hashes) {
     script:
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
     reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
-    read_ids_mapped = "${sample_id}__reads_in_shared_hashes_ids.txt"
+    read_ids_with_hashes = "${sample_id}__reads_in_shared_hashes_ids.txt"
     """
     samtools view -H ${bam} \\
       > header.sam
