@@ -1951,7 +1951,10 @@ if (params.featurecounts_hashes) {
     tag "${sample_id}"
     label "process_medium"
 
-    publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
+    publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy',
+      saveAs: {filename ->
+          if (filename.size > 0) "$filename"
+      }
 
     input:
     set val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
@@ -2070,7 +2073,7 @@ if (params.featurecounts_hashes) {
             $bam
          # Potentially count reads in orthologous gene features
          $orthology_qc
-         # Summarize orthologous genes for multqic
+         # Summarize orthologous genes for multiqc
          $mod_orthology
          """
      }
