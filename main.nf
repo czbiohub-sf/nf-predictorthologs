@@ -1851,7 +1851,7 @@ if (params.search_noncoding && params.infernal_db) {
 
   ch_group_to_id_fasta
     // do combine, not join, for all combinasion
-    .combine( ch_informative_hashes_files_for_featurecounts )
+    .combine( ch_informative_hashes_files_for_featurecounts, by: 0 )
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
