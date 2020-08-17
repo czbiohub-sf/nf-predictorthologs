@@ -610,6 +610,10 @@ sourmash_scaled = params.sourmash_scaled
 sourmash_searcher = params.sourmash_searcher
 sourmash_search_flags = params.sourmash_search_flags
 
+if ((params.protein_searcher == "diamond") && (params.sourmash_searcher == "search")) {
+  exit 1, "Can only search with DIAMOND as a backup for unassigned hashes in sourmash if using --sourmash_searcher 'gather'"
+}
+
 if (params.diff_hash_expression || params.hashes || params.protein_searcher == "sourmash") {
   if (!sourmash_scaled) {
     exit 1, "--sourmash_scaled must be set if --diff_hash_expression, --hashes or --protein_searcher sourmash are set"
