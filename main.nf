@@ -1859,7 +1859,7 @@ if (params.search_noncoding && params.infernal_db) {
     tag "${tag_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer_all/${hash_id}", mode: 'copy'
+    publishDir "${params.outdir}/hash2kmer_all/${group_cleaned}", mode: 'copy'
 
     input:
     tuple val(group), val(sample_id), file(fasta), file(hashes) from ch_hash_to_id_to_fasta_for_hash2kmer
@@ -1869,6 +1869,7 @@ if (params.search_noncoding && params.infernal_db) {
     set val(group), val(sample_id), file(sequences) into ch_id_to_seqs_with_hashes_for_bioawk
 
     script:
+    group_cleaned = groupCleaner(group)
     kmers = "${sample_id}__kmer.txt"
     sequences = "${sample_id}__sequences.fasta"
     """
