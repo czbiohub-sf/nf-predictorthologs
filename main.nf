@@ -325,7 +325,7 @@ if (params.featurecounts_hashes) {
       /* --            Parse GTF info                -- */
       ////////////////////////////////////////////////////
 
-      if (!params.skip_orthology_qc && params.csv_has_gtf_col) {
+      if (!params.skip_orthology_qc && params.csv_has_gtf) {
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
           .fromPath(params.csv, checkIfExists: true)
@@ -1127,7 +1127,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     output:
     file("${group_cleaned}.log")
     file("*__hash_coefficients.csv")
-    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_individual_search, ch_informative_hashes_files_for_grouped_search, ch_informative_hashes_for_find_unaligned
+    set val(group), file("*__informative_hashes.csv") into ch_informative_hashes_for_hash2kmer, ch_informative_hashes_files_for_grouped_search, ch_informative_hashes_for_find_unaligned
 
     script:
     group_cleaned = group.replaceAll(" ", "_").replaceAll("/", '-').toLowerCase()
@@ -1152,29 +1152,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         > '${group_cleaned}.log'
     """
   }
-
-  ch_informative_hashes_for_individual_search
-      .dump(tag: 'ch_informative_hashes_for_individual_search')
-      // [group_name, text_file]
-      .map{ it -> tuple(it[1].splitText(), it[0])}
-      // [['123\n', '456\n', '789\n'], group]
-      .dump(tag: 'ch_informative_hashes_files_split')
-      .transpose()
-      // ['123\n', group]
-      // ['456\n', group]
-      // ['789\n', group]
-      .dump(tag: 'ch_hash_to_group')
-      .into {
-        ch_hash_to_group_for_finding_matches
-        ch_hash_to_group_for_joining_after_hash2kmer;
-        ch_hash_to_group_for_joining_after_hash2sig;
-        ch_hash_to_group_for_hash2kmer;
-        ch_hash_to_group_for_hash2sig }
-
-  ch_hash_to_group_for_finding_matches
-    .map{ it -> it[0] }
-    .unique()
-    .set { ch_informative_hashes_flattened }
 
 
 }
@@ -1218,18 +1195,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     zcat *.protein.faa.gz | gzip -c - > ${refseq_release}.fa.gz
     """
   }
-}
-
-if (params.diff_hash_expression) {
-
-  ch_hash_to_group_for_hash2kmer
-    .join( ch_group_to_fasta )
-    .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-    .set { ch_hashes_with_fastas_for_hash2kmer }
-
-  ch_hash_to_group_for_hash2sig
-    .map{ it -> it[0] }
-    .set{ ch_hashes_for_hash2sig }
 }
 
 
@@ -1584,7 +1549,14 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       .dump ( tag: 'ch_group_hashes_fastas__diffhash' )
       .set { ch_group_hashes_fastas }
 
-} else if ( params.hashes ){
+} else if (params.diff_hash_expression && sourmash_searcher == "search") {
+  // Use ALL hashes to convert to sequences and search with diamond
+  ch_informative_hashes_for_hash2kmer
+    .join( ch_group_to_fasta )
+    .dump ( tag: 'ch_group_hashes_fastas' )
+    .set { ch_group_hashes_fastas }
+
+  } else if ( params.hashes ){
   ch_protein_fastas
     .map{ it -> it[1] }  // get only the file, not the sample id
     .collect()           // make a single flat list
@@ -2159,8 +2131,8 @@ if (params.featurecounts_hashes) {
   /*
    * STEP 11 - Filter per-sample bams for aligned read ids
    */
-  if (params.csv_has_gtf_col && ! params.skip_orthology_qc) {
-    println "In params.csv_has_gtf_col"
+  if (params.csv_has_gtf && ! params.skip_orthology_qc) {
+    println "In params.csv_has_gtf"
 
     ch_sample_id_to_gtf
       // Use cross, not join, so there are many hash-bam pairs
