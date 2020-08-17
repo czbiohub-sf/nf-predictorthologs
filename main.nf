@@ -281,14 +281,7 @@ if (params.hashes){
 if (params.featurecounts_hashes) {
   if (params.csv) {
     // Provided a csv file mapping sample_id to protein fasta path
-    Channel
-      .fromPath(params.csv, checkIfExists: true)
-      .splitCsv(header:true)
-      .dump( tag: 'featurecounts_hashes_csv' )
-      .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true)) }
-      .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
-      .dump( tag: 'ch_sample_id_and_bam' )
-      .set { ch_sample_id_and_bam }
+
 
       if ( params.csv_has_is_aligned ) {
         // Provided a csv file mapping sample_id to protein fasta path
@@ -303,9 +296,9 @@ if (params.featurecounts_hashes) {
 
         ch_csv_is_aligned.aligned
           .dump( tag: 'ch_csv_is_aligned.aligned' )
-          .map{ row -> tuple(row.group, row.sample_id, row.sig, file(row.fasta), file(row.bam)) }
-          .dump( tag: 'ch_aligned_sig_fasta_bam' )
-          .set { ch_aligned_sig_fasta_bam }
+          .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true))}
+          .dump( tag: 'ch_sample_id_and_bam' )
+          .set { ch_sample_id_and_bam }
 
         ch_csv_is_aligned.unaligned
           .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -319,6 +312,15 @@ if (params.featurecounts_hashes) {
           .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
           .dump( tag: 'ch_group_to_id_fasta' )
           .set { ch_group_to_id_fasta }
+
+          Channel
+            .fromPath(params.csv, checkIfExists: true)
+            .splitCsv(header:true)
+            .dump( tag: 'featurecounts_hashes_csv' )
+            .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true)) }
+            .ifEmpty { exit 1, "params.csv (${params.csv}) 'bam' column was empty - no input files supplied" }
+            .dump( tag: 'ch_sample_id_and_bam' )
+            .set { ch_sample_id_and_bam }
       }
 
       ////////////////////////////////////////////////////
