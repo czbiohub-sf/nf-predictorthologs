@@ -1957,8 +1957,8 @@ if (params.featurecounts_hashes) {
     set val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
 
     output:
-    set val(sample_id), file(read_ids_mapped), file(reads_in_hashes_bam) into ch_bam_filtered
-    set val(sample_id), file(read_ids_mapped) into ch_read_ids_mapped
+    set val(sample_id), file(read_ids_with_hashes), file(reads_in_hashes_bam) into ch_bam_filtered
+    set val(sample_id), file(read_ids_with_hashes) into ch_read_ids_mapped
 
     script:
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
@@ -1979,17 +1979,17 @@ if (params.featurecounts_hashes) {
     # touch a decoy file in case it fails, which means no reads were found
     samtools view ${reads_in_hashes_bam} \\
       | cut -f 1 \\
-      > ${read_ids_mapped} \\
-        || touch ${reads_in_hashes_bam}
+      > ${read_ids_with_hashes} \\
+        || touch ${read_ids_with_hashes}
     # touch a decoy file in case it fails, which means no reads were found
     """
   }
 
   ch_bam_filtered
     // At least 1 aligned read
-    .filter { it -> it[2].size() > 0 }
+    .filter { it -> it[1].size() > 0 }
     // Remove read ids (item 2)
-    .map { it -> [it[0], it[1] ]}
+    .map { it -> tuple(it[0], it[2]) }
     .dump ( tag: 'ch_bam_filtered_for_featurecounts' )
     .set { ch_bam_filtered_for_featurecounts }
 
