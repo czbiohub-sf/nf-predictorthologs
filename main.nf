@@ -1917,9 +1917,10 @@ if (params.featurecounts_hashes) {
     read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
     read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
     """
-    bioawk -c fastx '{ print \$name }' ${seqs_with_hash} \\
+    bioawk -c fastx '{ print \$name }' ${seqs_with_hashes} \\
       | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
-    bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hash} > ${read_headers_with_hash}
+    bioawk -c fastx '{ print \$name" "\$comment }' ${seqs_with_hashes} \\
+      > ${read_headers_with_hash}
     """
   }
 
