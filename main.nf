@@ -458,6 +458,17 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
+
+    // Create channel of fastas per group, per sample id
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(row.group, row.sample_id, file(row.fasta, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
+      .dump( tag: 'ch_group_to_id_fasta' )
+      .set{ ch_group_to_id_fasta }
+
+
     // Create channel of fastas for each signature name
     Channel
       .fromPath(params.csv)
@@ -1543,14 +1554,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       .dump ( tag: 'ch_group_hashes_fastas__diffhash' )
       .set { ch_group_hashes_fastas }
 
-} else if (params.diff_hash_expression && sourmash_searcher == "search") {
-  // Use ALL hashes to convert to sequences and search with diamond
-  ch_informative_hashes_for_hash2kmer
-    .join( ch_group_to_fasta )
-    .dump ( tag: 'ch_group_hashes_fastas' )
-    .set { ch_group_hashes_fastas }
-
-  } else if ( params.hashes ){
+} else if ( params.hashes ){
   ch_protein_fastas
     .map{ it -> it[1] }  // get only the file, not the sample id
     .collect()           // make a single flat list
@@ -1565,7 +1569,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
     .set { ch_group_hashes_fastas }
 }
 
-if ( params.diff_hash_expression || params.hashes ) {
+if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher == "gather") ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
@@ -1577,14 +1581,14 @@ if ( params.diff_hash_expression || params.hashes ) {
    /*
    * STEP 7 - Find signatures containing hashes
    */
-    process hash2kmer {
+    process hash2kmer_unassigned {
       tag "${group_cleaned}"
       label "process_low"
 
       publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
 
       input:
-      set val(group), file(hashes), file(peptide_fastas) from ch_group_hashes_fastas
+      set val(group), file(hashes), file(group_fastas) from ch_group_hashes_fastas
 
       output:
       file(unassigned_kmers)
@@ -1603,7 +1607,7 @@ if ( params.diff_hash_expression || params.hashes ) {
           --output-kmers ${unassigned_kmers} \\
           --${sourmash_molecule} \\
           ${hashes} \\
-          ${peptide_fastas}
+          ${group_fastas}
       """
     }
     ch_unassigned_seqs_from_hash2kmer
@@ -1835,36 +1839,35 @@ if (params.search_noncoding && params.infernal_db) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+ * STEP 4 - Get all reads containing hashes from each asmple
  */
  do_hash2seqs = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes)
  println "do_hash2seqs: ${do_hash2seqs}"
  if (do_hash2seqs){
 
   ch_group_to_id_fasta
-    .combine(ch_informative_hashes_files_for_featurecounts)
+    // do combine, not join, for all combinasion
+    .combine( ch_informative_hashes_files_for_featurecounts )
     .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
     .set { ch_hash_to_id_to_fasta_for_hash2kmer }
 
-  process hash2seqs {
+  process hash2seqs_all {
     tag "${tag_id}"
     label "process_low"
 
     publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
     input:
-    tuple val(group), file(hashes), val(sample_id), file(fasta) from ch_hash_to_id_to_fasta_for_hash2kmer
+    tuple val(group), val(sample_id), file(fasta), file(hashes) from ch_hash_to_id_to_fasta_for_hash2kmer
 
     output:
     file(kmers)
-    set val(hash), val(sample_id), file(sequences) into \
+    set val(group), val(sample_id), file(sequences) into \
       ch_hash_to_seq_from_hash2kmer_to_join_on_sample_ids_for_filter_bam, \
       ch_hash_to_seq_from_hash2kmer_to_join_on_groups_for_diamond, \
       ch_hash_to_id_to_fasta_for_filter_unaligned_reads
 
     script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
     tag_id = "${hash_id}__${sample_id}"
     kmers = "${tag_id}__kmer.txt"
     sequences = "${tag_id}__sequences.fasta"
