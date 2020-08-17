@@ -2037,7 +2037,7 @@ if (params.featurecounts_hashes) {
          file(gene_txt) into geneCounts, featureCounts_to_merge
          file(orthology_counts) into ch_orthology_counts, ch_orthology_counts_to_merge
          file "${featurecounts_id}_gene.featureCounts.txt.summary" into featureCounts_logs
-         file("*orthology_counts*mqc*}") optional true into featureCounts_orthology_multiqc
+         file("*orthology_counts*mqc*") optional true into featureCounts_orthology_multiqc
 
          script:
          def featureCounts_direction = 0
@@ -2099,6 +2099,7 @@ process multiqc {
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
+    file ('featureCounts/*') from featureCounts_orthology_multiqc.collect()
     file workflow_summary from create_workflow_summary(summary)
 
     output:
