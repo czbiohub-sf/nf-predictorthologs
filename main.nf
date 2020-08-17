@@ -1248,17 +1248,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
           ${hashes}
       """
     }
-    // ch_hash_sigs_from_hash2sig_to_print.dump(tag: 'ch_hash_sigs_from_hash2sig_to_print')
-    //
-    ch_hash_to_group_for_joining_after_hash2sig
-      .join( ch_hash_sigs_from_hash2sig_to_join )
-      // [DUMP: ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join]
-      // ['4406535782145158631\n', 'monocyte', hash-4406535782145158631, hash-4406535782145158631.sig]
-      .dump( tag: 'ch_hash_to_group_for_joining_after_hash2sig__ch_hash_sigs_from_hash2sig_to_join' )
-      .map{ it -> tuple(it[1], it[0], it[2], it[3]) }
-      .dump( tag: 'ch_group_to_hash_sig' )
-      // ['monocyte', '4406535782145158631\n', hash-4406535782145158631, hash-4406535782145158631.sig]
-      .set{ ch_group_to_hash_sig }
+
   }
 
   if ( params.csv_has_is_aligned ) {
