@@ -2036,8 +2036,8 @@ if (params.featurecounts_hashes) {
          output:
          file(gene_txt) into (geneCounts, featureCounts_to_merge)
          file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_to_merge)
-         file("${featurecounts_id}_gene.featureCounts.txt.summary") into featureCounts_logs
-         file('*orthology_counts*mqc*') optional true into featureCounts_orthology_multiqc
+         file("*.featureCounts.txt.summary") into featureCounts_logs
+         file("*orthology_counts*mqc*") optional true into featureCounts_orthology_multiqc
 
          script:
          def featureCounts_direction = 0
