@@ -1901,7 +1901,7 @@ if (params.featurecounts_hashes) {
    * STEP 9 - Extract sequence ids of reads containing hashes
    */
   process bioawk_read_ids_with_hash {
-    tag "${tag_id}"
+    tag "${sample_id}"
     label "process_low"
 
     publishDir "${params.outdir}/read_ids_with_hashes/${group_cleaned}", mode: 'copy'
@@ -1916,8 +1916,8 @@ if (params.featurecounts_hashes) {
 
     script:
     group_cleaned = groupCleaner(group)
-    read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
-    read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
+    read_ids_with_hashes = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
+    read_headers_with_hashes = "${sample_id}__reads_headers_with_hash.txt"
     """
     bioawk -c fastx '{ print \$name }' ${seqs_with_hashes} \\
       | awk ' { print "^" \$0 "\\s+" } '> ${read_ids_with_hash}
