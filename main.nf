@@ -1948,7 +1948,7 @@ if (params.featurecounts_hashes) {
    * STEP 9 - Filter per-sample bams for aligned read ids
    */
   process filter_bam_for_reads_with_hashes {
-    tag "${tag_id}"
+    tag "${sample_id}"
     label "process_medium"
 
     publishDir "${params.outdir}/filter_bam_for_reads_with_hashes/", mode: 'copy'
