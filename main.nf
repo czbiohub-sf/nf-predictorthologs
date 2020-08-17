@@ -1989,7 +1989,7 @@ if (params.featurecounts_hashes) {
     // At least 1 aligned read
     .filter { it -> it[2].size() > 0 }
     // Remove read ids (item 2)
-    .map { it -> [it[0], it[1], it[3]]}
+    .map { it -> [it[0], it[1] ]}
     .dump ( tag: 'ch_bam_filtered_for_featurecounts' )
     .set { ch_bam_filtered_for_featurecounts }
 
@@ -2020,7 +2020,7 @@ if (params.featurecounts_hashes) {
 
      process featureCounts {
          label 'process_high'
-         tag "${featurecounts_id}"
+         tag "${sample_id}"
          publishDir "${params.outdir}/featureCounts", mode: "copy",
              saveAs: {filename ->
                  if (filename.indexOf("orthology_counts") > 0) "orthology_counts/$filename"
@@ -2030,19 +2030,16 @@ if (params.featurecounts_hashes) {
              }
 
          input:
-         set val(sample_id), file(gtf), val(hash), file(bam) from ch_sample_id_to_hash_to_bam_to_gtf
+         set val(sample_id), file(gtf), file(bam) from ch_sample_id_to_hash_to_bam_to_gtf
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
-         file "${featurecounts_id}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
+         file(gene_txt) into geneCounts, featureCounts_to_merge
+         file(orthology_counts) into ch_orthology_counts, ch_orthology_counts_to_merge
          file "${featurecounts_id}_gene.featureCounts.txt.summary" into featureCounts_logs
-         file "${featurecounts_id}_orthology_counts*mqc.{txt,tsv}" optional true into featureCounts_orthology
+         file(orthology_counts), file(orthology_counts_stats) optional true into featureCounts_orthology
 
          script:
-         hash_cleaned = hashCleaner(hash)
-         hash_id = "hash-${hash_cleaned}"
-         featurecounts_id = "${hash_id}__${sample_id}"
-
          def featureCounts_direction = 0
          def extraAttributes = params.fc_extra_attributes ? "--extraAttributes ${params.fc_extra_attributes}" : ''
          if (forwardStranded && !unStranded) {
@@ -2051,15 +2048,21 @@ if (params.featurecounts_hashes) {
              featureCounts_direction = 2
          }
          // Try to get real sample name
+         gene_txt = "${featurecounts_id}_gene.featureCounts.txt"
+         orthology_txt = "${sample_id}_orthology.featureCounts.txt"
+         orthology_counts = "${sample_id}_orthology_counts_mqc.txt"
+         orthology_counts_stats = "${sample_id}_orthology_counts_gs_mqc.tsv"
+
+         // Flags for samples
          sample_name = featurecounts_id - 'Aligned.sortedByCoord.out' - '_subsamp.sorted'
-         orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${featurecounts_id}_orthology.featureCounts.txt -p -s $featureCounts_direction $bam"
-         mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${featurecounts_id}_orthology.featureCounts.txt | tail -n +3 | cat $orthology_header - >> ${featurecounts_id}_orthology_counts_mqc.txt && mqc_features_stat.py ${featurecounts_id}_orthology_counts_mqc.txt -s $sample_name -f rRNA -o ${featurecounts_id}_orthology_counts_gs_mqc.tsv"
+         orthology_qc = params.skip_orthology_qc ? '' : "featureCounts -a $gtf -g $orthology_type -o ${orthology_txt} -p -s $featureCounts_direction $bam"
+         mod_orthology = params.skip_orthology_qc ? '' : "cut -f 1,7 ${orthology_txt} | tail -n +3 | cat $orthology_header - >>  && mqc_features_stat.py ${orthology_counts} -s $sample_name -f rRNA -o orthology_counts_stats"
          """
          featureCounts \\
             -a $gtf \\
             -g ${params.fc_group_features} \\
             -t ${params.fc_count_type} \\
-            -o ${featurecounts_id}_gene.featureCounts.txt \\
+            -o ${gene_txt} \\
             $extraAttributes \\
             -T ${task.cpus} \\
             -p \\
