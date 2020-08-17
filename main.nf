@@ -1904,17 +1904,18 @@ if (params.featurecounts_hashes) {
     tag "${tag_id}"
     label "process_low"
 
-    publishDir "${params.outdir}/bioawk_get_read_ids_with_hash/", mode: 'copy'
+    publishDir "${params.outdir}/read_ids_with_hashes/${group_cleaned}", mode: 'copy'
 
     input:
     // ['13825713583252246154\n', 'Mostly marrow unaligned', hash-13825713583252246154__sequences.fasta]
-    set val(sample_id), file(seqs_with_hashes) from ch_id_to_seqs_with_hashes_for_bioawk
+    set val(group), val(sample_id), file(seqs_with_hashes) from ch_id_to_seqs_with_hashes_for_bioawk
 
     output:
     set val(sample_id), file(read_ids_with_hashes) into ch_id_to_read_ids_with_hashes
     set val(sample_id), file(read_headers_with_hashes) into ch_id_to_read_headers_with_hashes
 
     script:
+    group_cleaned = groupCleaner(group)
     read_ids_with_hash = "${sample_id}__reads_ids_with_hash__regex_pattern.txt"
     read_headers_with_hash = "${sample_id}__reads_headers_with_hash.txt"
     """
