@@ -2034,7 +2034,7 @@ if (params.featurecounts_hashes) {
          file orthology_header from ch_orthology_types_header.collect()
 
          output:
-         file(gene_txt) into geneCounts, featureCounts_to_merge
+         file(gene_txt) into (geneCounts, featureCounts_to_merge)
          file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_to_merge)
          file("${featurecounts_id}_gene.featureCounts.txt.summary") into featureCounts_logs
          file('*orthology_counts*mqc*') optional true into featureCounts_orthology_multiqc
