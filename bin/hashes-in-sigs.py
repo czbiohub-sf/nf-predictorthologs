@@ -153,7 +153,7 @@ def main():
     # Get hashes contained in signatures
     hashes_in_sigs = set([])
     for sig in siglist:
-        this_sig_hashes = set(sig.minhash.get_hashes()).intersection(hashes.keys())
+        this_sig_hashes = set(sig.minhash.hashes).intersection(hashes.keys())
         hashes_in_sigs.update(this_sig_hashes)
 
     # Add abundances
