@@ -156,17 +156,7 @@ def main():
 
     notify("loaded {} distinct hashes from {}", len(hashes), args.hashfile)
 
-    # now, iterate over the input sequences and output those that overlap
-    # with hashes!
-    n_seq = 0
-    n = 0  # bp loaded
-    m = 0  # bp in found sequences
-    p = 0  # number of k-mers found
-
-    inp_files = list(args.signatures)
-    if args.from_file:
-        more_files = sourmash_args.load_file_list_of_signatures(args.from_file)
-        inp_files.extend(more_files)
+    progress = sourmash_args.SignatureLoadingProgress()
 
     # Read and error check signature files
     # load in the various signatures
