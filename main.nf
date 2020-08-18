@@ -369,11 +369,10 @@ if (params.csv_has_is_aligned) {
       // .filter{ row -> row.is_aligned == 'unaligned' }
       // .ifEmpty { exit 1, "is_aligned column can contain only aligned/unaligned values"}
       .dump( tag: 'csv_unaligned' )
-      .map{ row -> tuple(row.group, row.is_aligned, file(row.sig, checkIfExists: true)) }
+      .map{ row -> tuple(row.group, row.sample_id, row.is_aligned, file(row.sig, checkIfExists: true)) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'group' or 'sig' column was empty" }
-      .groupTuple( by: [0, 1] )
-      .dump( tag: 'ch_per_group_unaligned_sig' )
-      .set{ ch_per_group_unaligned_sig }
+      .dump( tag: 'ch_group_id_isaligned_sig' )
+      .set{ ch_group_id_isaligned_sig }
 
     ch_csv_is_aligned.unaligned
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
@@ -1273,18 +1272,14 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
   }
 
   if ( params.csv_has_is_aligned ) {
-    ch_per_group_unaligned_sig
+    ch_group_id_isaligned_sig
       .combine( ch_informative_hashes_for_find_unaligned, by: 0 )
       // [DUMP: ch_group_to_hash_sig]
       // ['monocyte',
-      //  [10X_P1_14__unaligned__GACTAACAGCATGGCA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__AACTGGTAGGTTCCTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__CTAATGGCAGCATACT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   10X_P1_14__unaligned__ACACCCTGTAGCGTGA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
-      //   MACA_18m_M_LUNG_53__unaligned__TAAGTGCAGTGTCCCG_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig],
-      // '2852067181280790833\n',
-      //  hash-2852067181280790833,
-      //  hash-2852067181280790833.sig]
+      //  'sample1',
+      //  'unaligned',
+      //  'sample1.sig',
+      //  'hashes.csv']
       .dump( tag: 'ch_group_to_unaligned_sigs_with_diffhashes' )
       .set{ ch_group_to_unaligned_sigs_with_diffhashes }
 
