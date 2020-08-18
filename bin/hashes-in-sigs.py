@@ -156,6 +156,12 @@ def main():
 
     notify("loaded {} distinct hashes from {}", len(hashes), args.hashfile)
 
+    # Get all signature files
+    inp_files = list(args.signatures)
+    if args.from_file:
+        more_files = sourmash_args.load_file_list_of_signatures(args.from_file)
+        inp_files.extend(more_files)
+
     progress = sourmash_args.SignatureLoadingProgress()
 
     # Read and error check signature files
