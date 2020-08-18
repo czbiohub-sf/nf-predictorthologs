@@ -75,7 +75,6 @@ def main():
     if args.output_sig:
         hashout_fp = open(args.output_hashes, "wt")
         hashout_w = csv.writer(hashout_fp)
-        hashout_w.writerow(["hashval", "abundance"])
 
     if not (sigout_fp or hashout_fp):
         error("No output options given!")
