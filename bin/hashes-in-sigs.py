@@ -6,10 +6,11 @@ NOTE: for now, only implemented for DNA & for seed=42.
 """
 import sys
 import argparse
-from sourmash.minhash import hash_murmur
 import screed
 import csv
 from sourmash.logging import notify, error
+from sourmash.minhash import hash_murmur
+from sourmash import MinHash
 from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash import sourmash_args
 from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
