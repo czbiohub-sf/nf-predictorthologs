@@ -1308,14 +1308,12 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
-      file(hashes_only)
       set val(group), val(is_aligned), file(output_sig) into ch_hash_sigs_in_unaligned
       set val(group), val(is_aligned), file(output_hashes) into ch_hash_txt_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
       sample_id = "${group_cleaned}__${is_aligned}"
-      hashes_only = "${group_cleaned}__hashes_only.txt"
       output_hashes = "${group_cleaned}__${is_aligned}__hashes.csv"
       output_sig = "${group_cleaned}__${is_aligned}.sig"
       output_log = "${group_cleaned}__${is_aligned}.log"
