@@ -1464,7 +1464,7 @@ if (do_sourmash){
    """
  }
 
- if ( params.diff_hash_expression && params.sourmash_searcher == "gather" ) {
+ if ( do_sourmash_gather ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
@@ -1608,7 +1608,7 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
       set val(sample_id), val(group), val(is_aligned), file(hashes), file(fastas) from ch_group_hashes_fastas
 
       output:
-      file(unassigned_kmers)
+      file(kmers)
       set val(group), file(sequences) into ch_hash_seqs_from_hash2kmer
 
       script:
@@ -1621,8 +1621,8 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
           --ksize ${sourmash_ksize} \\
           --no-dna \\
           --input-is-protein \\
-          --output-sequences ${unassigned_sequences} \\
-          --output-kmers ${unassigned_kmers} \\
+          --output-sequences ${sequences} \\
+          --output-kmers ${kmers} \\
           --${sourmash_molecule} \\
           ${hashes} \\
           ${fastas}
