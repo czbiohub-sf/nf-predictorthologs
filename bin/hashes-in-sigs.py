@@ -227,7 +227,7 @@ def main():
         else:
             notify("setting --num automatically from the number of hashes.")
             num = len(hashes)
-            
+
         # construct empty MinHash object according to args
         minhash = MinHash(
             n=num,
@@ -240,7 +240,7 @@ def main():
         )
         # add hashes with abundances into MinHash!
         if args.track_abundance:
-            minhash.set_abundances(hashes_in_sigs_abundances)
+            minhash.set_abundances(hashes_in_sigs)
         else:
             minhash.add_many(hashes_in_sigs.keys())
 
