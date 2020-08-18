@@ -1303,7 +1303,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       set val(group), val(sample_id), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
-      set val(group), val(is_aligned), file(output_sig) into ch_group_hash_sigs_to_query
+      set val(group), val(sample_id), val(is_aligned), file(output_sig) into ch_group_hash_sigs_to_query
       set val(group), val(is_aligned), file(output_hashes) into ch_hash_txt_in_unaligned
 
       script:
@@ -1421,7 +1421,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
    input:
    file(sourmash_sbt_index) from ch_sourmash_index.collect()
-   set val(group), val(is_aligned), file(query_sig) from ch_group_hash_sigs_to_query
+   set val(group), val(sample_id), val(is_aligned), file(query_sig) from ch_group_hash_sigs_to_query
 
    output:
    file(csv_output)
@@ -1430,7 +1430,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
    script:
    group_cleaned = groupCleaner(group)
-   tag_id = "${group_cleaned}__${is_aligned}"
+   tag_id = "${group_cleaned}__${sample_id}"
    csv_output = "${tag_id}.csv"
    unassigned = "${tag_id}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
