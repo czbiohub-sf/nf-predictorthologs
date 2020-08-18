@@ -11,7 +11,7 @@ import screed
 import csv
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
-from sourmash.sourmash_args import calculate_moltype
+from sourmash import sourmash_args
 from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
 NOTIFY_EVERY_BP = 1e7
@@ -27,9 +27,7 @@ def get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein):
     elif input_is_protein:
         kmer = encode_peptide(kmer, moltype)
     elif not input_is_protein:
-        raise NotImplementedError(
-            "Currently cannot translate DNA to protein sequence"
-        )
+        raise NotImplementedError("Currently cannot translate DNA to protein sequence")
     return kmer
 
 
@@ -73,9 +71,7 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein)
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("hashfile")  # file that contains hashes
-    p.add_argument(
-        "signatures", nargs="+"
-    )  # Signatures to look for matching hashes
+    p.add_argument("signatures", nargs="+")  # Signatures to look for matching hashes
     p.add_argument(
         "--output-sig",
         type=str,
@@ -94,14 +90,13 @@ def main():
         help="Consume protein sequences - no translation needed.",
     )
     p.add_argument(
-        '--from-file',
-        help='a file containing a list of signatures file to compare'
+        "--from-file", help="a file containing a list of signatures file to compare"
     )
     p.add_argument(
         "--track-abundance",
         action="store_true",
         help="The hashfile is a csv containing the hashval,abundance on each line. "
-             "Use this abundance as the abundance for each hash",
+        "Use this abundance as the abundance for each hash",
     )
     p.add_argument("--scaled", default=None, type=int)
 
@@ -135,7 +130,7 @@ def main():
     hashes = {}
     for line in open(args.hashfile, "rt"):
         if args.track_abundance:
-            hashval, abundance = map(int, line.strip().split(','))
+            hashval, abundance = map(int, line.strip().split(","))
         else:
             hashval = int(line.strip())
             abundance = 1
@@ -145,7 +140,7 @@ def main():
         error("ERROR, no hashes loaded from {}!", args.hashfile)
         return -1
 
-    moltype = calculate_moltype(args)
+    moltype = sourmash_args.calculate_moltype(args)
 
     if not hashes:
         error("ERROR, no hashes loaded from {}!", args.hashfile)
@@ -171,16 +166,21 @@ def main():
     ksizes = set()
     moltypes = set()
     for filename in inp_files:
-        notify("loading '{}'", filename, end='\r')
-        loaded = sourmash_args.load_file_as_signatures(filename,
-                                                       ksize=args.ksize,
-                                                       select_moltype=moltype,
-                                                       traverse=args.traverse_directory,
-                                                       yield_all_files=args.force,
-                                                       progress=progress)
+        notify("loading '{}'", filename, end="\r")
+        loaded = sourmash_args.load_file_as_signatures(
+            filename,
+            ksize=args.ksize,
+            select_moltype=moltype,
+            traverse=args.traverse_directory,
+            yield_all_files=args.force,
+            progress=progress,
+        )
         loaded = list(loaded)
         if not loaded:
-            notify('\nwarning: no signatures loaded at given ksize/molecule type from {}', filename)
+            notify(
+                "\nwarning: no signatures loaded at given ksize/molecule type from {}",
+                filename,
+            )
         siglist.extend(loaded)
 
         # track ksizes/moltypes
@@ -205,8 +205,12 @@ def main():
         hashes_in_sigs = dict.fromkeys(hashes_in_sigs, 1)
 
     n_intersecting_hashes = len(hashes_in_sigs)
-    notify("Read {} hashes, found {} of them present in {} signatures",
-           len(hashes), n_intersecting_hashes, len(siglist))
+    notify(
+        "Read {} hashes, found {} of them present in {} signatures",
+        len(hashes),
+        n_intersecting_hashes,
+        len(siglist),
+    )
     if sigout_fp:
         # construct empty MinHash object according to args
         minhash = MinHash(
@@ -242,8 +246,9 @@ def main():
                 len(minhash),
             )
 
-        sigobj = sourmash.SourmashSignature(minhash, name=args.name,
-                                            filename=args.filename)
+        sigobj = sourmash.SourmashSignature(
+            minhash, name=args.name, filename=args.filename
+        )
 
         with open(args.output, "wt") as fp:
             sourmash.save_signatures([sigobj], fp)
