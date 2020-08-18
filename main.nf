@@ -1332,7 +1332,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
           --output-hashes ${output_hashes} \\
           ${diffhashes} \\
           ${sigs} \\
-          2> ${output_log}
+          2> >(tee -a ${output_log} >&2)
       """
     }
     ch_hash_sigs_in_unaligned
