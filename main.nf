@@ -1386,7 +1386,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
         --${sourmash_molecule} \\
         --output ${sig}\\
         ${reference_proteome} \\
-        2> ${output_log}
+        2> >(tee -a ${output_log} >&2)
      """
    }
 
