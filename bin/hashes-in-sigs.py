@@ -164,6 +164,13 @@ def main():
 
     n_intersecting_hashes = len(hashes_in_sigs)
 
+    notify(
+        "Read {} hashes, found {} of them present in {} signatures",
+        len(hashes),
+        n_intersecting_hashes,
+        len(siglist),
+    )
+
     if sigout_fp:
         # now, create the MinHash object that we'll use.
         scaled = 0
@@ -222,12 +229,6 @@ def main():
     if hashout_fp:
         for hashval, abundance in hashes_in_sigs.items():
             hashout_w.writerow([str(hashval), str(abundance)])
-        notify(
-            "Read {} hashes, found {} of them present in {} signatures",
-            len(hashes),
-            n_intersecting_hashes,
-            len(siglist),
-        )
         hashout_fp.close()
 
 
