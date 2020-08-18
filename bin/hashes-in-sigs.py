@@ -98,6 +98,10 @@ def main():
         help="The hashfile is a csv containing the hashval,abundance on each line. "
         "Use this abundance as the abundance for each hash",
     )
+    p.add_argument(
+        '--traverse-directory', action='store_true',
+        help='compare all signatures underneath directories'
+    )
     p.add_argument("--scaled", default=None, type=int)
 
     add_ksize_arg(p)
