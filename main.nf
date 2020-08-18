@@ -1330,8 +1330,9 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
           ${track_abundance} \\
           --output-sig ${output_sig} \\
           --output-hashes ${output_hashes} \\
+          --traverse-directory \\
           ${diffhashes} \\
-          ${sigs} \\
+          . \\
           2> >(tee -a ${output_log} >&2)
       """
     }
