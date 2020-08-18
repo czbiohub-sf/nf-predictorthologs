@@ -133,7 +133,11 @@ def main():
         line = line.strip()
         # Skip empty lines
         if line:
-            hashval = int(line)
+            try:
+                hashval = int(line)
+            except ValueError:
+                # Assume this is a csv and the first item is the hashval
+                hashval = int(line.split(',')[0])
             hashes.add(hashval)
 
     moltype = calculate_moltype(args)
