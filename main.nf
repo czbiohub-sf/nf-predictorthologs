@@ -537,6 +537,13 @@ raw_search_reference = params.proteome_search_fasta || params.refseq_release
 searching_hashes = params.protein_searcher == "sourmash" || params.diff_hash_expression || params.hashes
 searching_seqs = params.diff_hash_expression || params.protein_searcher == "diamond"
 
+do_diamond_search = params.diamond_db || (raw_search_reference && params.taxonmap_gz && params.taxdmp_zip) && !params.skip_diamond
+do_sourmash_search = params.sourmash_index || raw_search_reference && !params.skip_sourmash
+
+if (do_sourmash_search && !(params.hashes && params.diff_hash_expression)) {
+  exit 1, "Error! Must provide either --hashes or --diff_hash_expression if provided sourmash index. Can skip with --skip_sourmash"
+}
+
 if (searching_seqs && !(raw_search_reference || params.diamond_database)) {
   exit 1, "Error! Must provide a search database for searching sequences if using DIAMOND search post diff hash"
 }
@@ -1226,7 +1233,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_expression ){
+if (do_sourmash_search){
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1304,7 +1311,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
       output:
       set val(group), val(sample_id), val(is_aligned), file(output_sig) into ch_group_hash_sigs_to_query
-      set val(group), val(is_aligned), file(output_hashes) into ch_hash_txt_in_unaligned
+      set val(sample_id), val(group), val(is_aligned), file(output_hashes) into ch_hashes_in_sigs_for_hash2kmer
 
       script:
       group_cleaned = groupCleaner(group)
@@ -1426,7 +1433,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
    output:
    file(csv_output)
    file(matches)
-   set val(group), file(unassigned) into ch_unassigned_sig_for_seqs, ch_unassigned_sig_for_search_sigs
+   set val(group), val(sample_id), val(is_aligned), file(unassigned) into ch_unassigned_sig_for_seqs, ch_unassigned_sig_for_search_sigs
 
    script:
    group_cleaned = groupCleaner(group)
@@ -1556,7 +1563,12 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       .dump ( tag: 'ch_group_hashes_fastas__diffhash' )
       .set { ch_group_hashes_fastas }
 
-} else if ( params.hashes ){
+} else if (params.sourmash_searcher == "search") {
+
+  ch_hashes_in_sigs_for_hash2kmer
+    .join( ch_protein_fastas, by: 0 )
+
+  } else if ( params.hashes ){
   ch_protein_fastas
     .map{ it -> it[1] }  // get only the file, not the sample id
     .collect()           // make a single flat list
@@ -1583,23 +1595,24 @@ if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher
    /*
    * STEP 7 - Find signatures containing hashes
    */
-    process hash2kmer_unassigned {
+    process hash2kmer {
       tag "${group_cleaned}"
       label "process_low"
 
-      publishDir "${params.outdir}/unassigned_seqs/", mode: 'copy'
+      publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
 
       input:
-      set val(group), file(hashes), file(group_fastas) from ch_group_hashes_fastas
+      set val(sample_id), val(group), val(is_aligned), file(hashes), file(fastas) from ch_group_hashes_fastas
 
       output:
       file(unassigned_kmers)
-      set val(group), file(unassigned_sequences) into ch_unassigned_seqs_from_hash2kmer
+      set val(group), file(sequences) into ch_unassigned_seqs_from_hash2kmer
 
       script:
       group_cleaned = groupCleaner(group)
-      unassigned_sequences = "${group_cleaned}__unassigned.fasta"
-      unassigned_kmers = "${group_cleaned}__unassigned_kmers.csv"
+      tag_id = "${group_cleaned}__${sample_id}"
+      sequences = "${tag_id}.fasta"
+      kmers = "${tag_id}__kmers.csv"
       """
       hash2kmer.py \\
           --ksize ${sourmash_ksize} \\
@@ -1609,7 +1622,7 @@ if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher
           --output-kmers ${unassigned_kmers} \\
           --${sourmash_molecule} \\
           ${hashes} \\
-          ${group_fastas}
+          ${fastas}
       """
     }
     ch_unassigned_seqs_from_hash2kmer
@@ -1627,7 +1640,7 @@ if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if ((params.protein_searcher == 'diamond') || (params.diff_hash_expression && (params.sourmash_searcher == "gather"))) {
+if (do_diamond_search) {
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
