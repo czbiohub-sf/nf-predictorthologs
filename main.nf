@@ -1334,14 +1334,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
           2> >(tee -a ${output_log} >&2)
       """
     }
-    ch_hash_sigs_in_unaligned
-      .dump( tag: 'ch_hash_sigs_in_unaligned' )
-      // Check that matches are nonempty
-      .branch{
-        aligned: it[1] == 'aligned'
-        unaligned: it[1] == 'unaligned'
-      }
-      .set{ ch_hashes_sigs_branched }
+
   }
 
 
