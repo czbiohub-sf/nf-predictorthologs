@@ -6,7 +6,7 @@ NOTE: for now, only implemented for DNA & for seed=42.
 """
 import sys
 import argparse
-from sourmash._minhash import hash_murmur
+from sourmash.minhash import hash_murmur
 import screed
 import csv
 from sourmash.logging import notify, error
