@@ -214,7 +214,7 @@ def main():
             )
 
         sigobj = sourmash.SourmashSignature(
-            minhash, name=args.name, filename=args.filename
+            minhash, name=args.name, filename=args.output_sig
         )
 
         with open(args.output, "wt") as fp:
