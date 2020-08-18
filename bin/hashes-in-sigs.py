@@ -195,7 +195,7 @@ def main():
         if len(minhash) < n_intersecting_hashes:
             notify(
                 "WARNING: loaded {} hashes, but only {} made it into MinHash.",
-                len(output_sig),
+                len(hashes_in_sigs),
                 len(minhash),
             )
             if scaled:
