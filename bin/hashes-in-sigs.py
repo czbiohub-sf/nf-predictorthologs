@@ -102,6 +102,10 @@ def main():
         '--traverse-directory', action='store_true',
         help='compare all signatures underneath directories'
     )
+    p.add_argument(
+        '-f', '--force', action='store_true',
+        help='continue past errors in file loading'
+    )
     p.add_argument("--scaled", default=None, type=int)
 
     add_ksize_arg(p)
