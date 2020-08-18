@@ -2002,7 +2002,6 @@ if (params.featurecounts_hashes) {
    * STEP 11 - Filter per-sample bams for aligned read ids
    */
   if (params.csv_has_gtf && ! params.skip_orthology_qc) {
-    println "In params.csv_has_gtf"
 
     ch_sample_id_to_gtf
       // Use cross, not join, so there are many hash-bam pairs
