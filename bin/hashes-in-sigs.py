@@ -97,6 +97,14 @@ def main():
         '--from-file',
         help='a file containing a list of signatures file to compare'
     )
+    p.add_argument(
+        "--track-abundance",
+        action="store_true",
+        help="The hashfile is a csv containing the hashval,abundance on each line. "
+             "Use this abundance as the abundance for each hash",
+    )
+    p.add_argument("--scaled", default=None, type=int)
+
     add_ksize_arg(p)
     add_construct_moltype_args(p)
     args = p.parse_args()
