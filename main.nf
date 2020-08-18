@@ -2037,7 +2037,7 @@ if (params.featurecounts_hashes) {
 
          output:
          file(gene_txt) into (geneCounts, featureCounts_to_merge)
-         file(gtf), file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_and_gtfs)
+         set file(gtf), file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_and_gtfs)
          file("*.featureCounts.txt.summary") into featureCounts_logs
          file("*orthology_counts*mqc*") optional true into featureCounts_orthology_multiqc
 
