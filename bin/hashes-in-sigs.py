@@ -217,6 +217,17 @@ def main():
         len(siglist),
     )
     if sigout_fp:
+        # now, create the MinHash object that we'll use.
+        scaled = 0
+        num = 0
+        if args.scaled:
+            scaled = args.scaled
+        elif args.num:
+            num = args.num
+        else:
+            notify("setting --num automatically from the number of hashes.")
+            num = len(hashes)
+            
         # construct empty MinHash object according to args
         minhash = MinHash(
             n=num,
