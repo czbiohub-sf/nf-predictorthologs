@@ -1609,7 +1609,7 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
 
       output:
       file(kmers)
-      set val(group), file(sequences) into ch_hash_seqs_from_hash2kmer
+      set val(group), val(sample_id), val(is_aligned), file(sequences) into ch_hash_seqs_from_hash2kmer, ch_hash_seqs_from_hash2kmer_for_bioawk
 
       script:
       group_cleaned = groupCleaner(group)
@@ -1629,9 +1629,16 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
       """
     }
     ch_hash_seqs_from_hash2kmer
-      .filter { it -> it[1].size() > 0 }
+      .filter { it -> it[3].size() > 0 }
       .set { ch_protein_seq_for_diamond }
    }
+
+   ch_hash_seqs_from_hash2kmer_for_bioawk
+      .filter { it -> it[2] == "aligned" }
+      // Since everything is aligned, skip it[2] which says "aligned"
+      .map { it -> [it[0], it[1], it[3]] }
+      .set { ch_id_to_seqs_with_hashes_for_bioawk }
+
 }
 
 
@@ -1727,7 +1734,7 @@ if (do_diamond_search) {
    * STEP 8 - Search DIAMOND database for closest match to
    */
   process diamond_blastp {
-    tag "${sample_id}"
+    tag "${tag_id}"
     label "process_low"
 
     publishDir "${params.outdir}/diamond/", mode: 'copy'
@@ -1739,15 +1746,15 @@ if (do_diamond_search) {
     //   ENSPPYT00000000455__molecule-dayhoff__coding_reads_peptides.fasta,
     //   ncbi_refseq_vertebrate_mammalian_ptprc_db.dmnd]
     file(diamond_db) from ch_diamond_db.collect()
-    set val(group), file(coding_peptides) from ch_protein_seq_for_diamond
+    set val(group), val(sample_id), val(is_aligned), file(coding_peptides) from ch_protein_seq_for_diamond
 
     output:
     file(tsv) into ch_diamond_blastp_output
 
     script:
     group_cleaned = groupCleaner(group)
-    sample_id = "${group_cleaned}"
-    tsv = "${sample_id}__diamond__${diamond_db.simpleName}.tsv"
+    tag_id = "${group_cleaned}__${sample_id}"
+    tsv = "${tag_id}__diamond__${diamond_db.simpleName}.tsv"
     output_format = "--outfmt 6 qseqid sseqid pident evalue bitscore stitle staxids sscinames sskingdoms sphylums"
     """
     diamond blastp \\
@@ -1859,47 +1866,6 @@ if (params.search_noncoding && params.infernal_db) {
 /*
  * STEP 4 - Get all reads containing hashes from each asmple
  */
- do_hash2seqs = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes)
- if (do_hash2seqs){
-
-  ch_group_to_id_fasta
-    // do combine, not join, for all combinasion
-    .combine( ch_informative_hashes_files_for_featurecounts, by: 0 )
-    .dump ( tag: 'ch_hash_to_id_to_fasta_for_hash2kmer' )
-    .set { ch_hash_to_id_to_fasta_for_hash2kmer }
-
-  process hash2seqs_all {
-    tag "${sample_id}"
-    label "process_low"
-
-    publishDir "${params.outdir}/hash2kmer_all/${group_cleaned}", mode: 'copy'
-
-    input:
-    tuple val(group), val(sample_id), file(fasta), file(hashes) from ch_hash_to_id_to_fasta_for_hash2kmer
-
-    output:
-    file(kmers)
-    set val(group), val(sample_id), file(sequences) into ch_id_to_seqs_with_hashes_for_bioawk
-
-    script:
-    group_cleaned = groupCleaner(group)
-    kmers = "${sample_id}__kmer.txt"
-    sequences = "${sample_id}__sequences.fasta"
-    """
-    cut -f 1 -d, ${hashes} > hashes.txt
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${sourmash_molecule} \\
-        hashes.txt \\
-        ${fasta}
-    """
-  }
-
-}
 
 
 if (params.featurecounts_hashes) {
