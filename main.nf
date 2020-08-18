@@ -1426,7 +1426,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
   * STEP 7 - Find hashes in database
   */
   process sourmash {
-   tag "${sourmash_searcher}__${group_cleaned}"
+   tag "${sourmash_searcher}__${tag_id}"
    label "process_low"
 
    publishDir "${params.outdir}/sourmash/", mode: 'copy'
