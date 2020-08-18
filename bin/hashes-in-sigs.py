@@ -217,9 +217,9 @@ def main():
             minhash, name=args.name, filename=args.output_sig
         )
 
-        with open(args.output, "wt") as fp:
+        with open(args.output_sig, "wt") as fp:
             sourmash.save_signatures([sigobj], fp)
-        notify("wrote signature to {}", args.output)
+        notify("wrote signature to {}", args.output_sig)
         sigout_fp.close()
 
     if hashout_fp:
