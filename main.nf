@@ -2037,7 +2037,7 @@ if (params.featurecounts_hashes) {
 
          output:
          file(gene_txt) into (geneCounts, featureCounts_to_merge)
-         file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_to_merge)
+         file(gtf), file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_and_gtfs)
          file("*.featureCounts.txt.summary") into featureCounts_logs
          file("*orthology_counts*mqc*") optional true into featureCounts_orthology_multiqc
 
@@ -2076,6 +2076,38 @@ if (params.featurecounts_hashes) {
          $mod_orthology
          """
      }
+     ch_orthology_counts_and_gtfs
+     // Group by GTFs so the ids are the same
+      .groupTuple ( by: 0 )
+      .map { it -> it[1] }
+      .set { featureCounts_to_merge }
+
+     /*
+      * STEP 10 - Merge featurecounts
+      */
+      process merge_featureCounts {
+          label "mid_memory"
+          tag "${gtf.baseName}"
+          publishDir "${params.outdir}/featureCounts", mode: "${params.publish_dir_mode}"
+
+          input:
+          set file(gtf), file(input_files) from featureCounts_to_merge.collect()
+
+          output:
+          file(txt) into featurecounts_merged
+
+          script:
+          // Redirection (the `<()`) for the win!
+          // Geneid in 1st column and gene_name in 7th
+          gene_ids = "<(tail -n +2 ${input_files[0]} | cut -f1,7 )"
+          counts = input_files.collect{filename ->
+              // Remove first line and take third column
+              "<(tail -n +2 ${filename} | sed 's:.sorted.bam::' | cut -f8)"}.join(" ")
+          txt = "${gtf.baseName}__merged_gene_counts.txt"
+          """
+          paste $gene_ids $counts > ${txt}
+          """
+      }
    }
 }
 
