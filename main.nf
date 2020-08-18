@@ -1239,7 +1239,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
   /*
    * STEP 4 - convert hashes to k-mers
    */
-   if ( params.hashes || params.diff_hash_expression ){
+   if ( (params.hashes || params.diff_hash_expression) && !params.csv_has_is_aligned ){
     // Convert hashes to signatures for sourmash
     process hash2sig {
       tag "${group_cleaned}"
@@ -1251,7 +1251,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       set val(group), file(hashes) from ch_informative_hashes_files_for_grouped_search
 
       output:
-      set val(group), file("${sig}") into ch_group_hash_sigs_to_query, ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
+      set val(group), val("alignment_unknown"), file("${sig}") into ch_group_hash_sigs_to_query, ch_hash_sigs_from_hash2sig_to_print, ch_hash_sigs_from_hash2sig_to_join
 
       script:
       group_cleaned = groupCleaner(group)
@@ -1308,7 +1308,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
-      set val(group), val(is_aligned), file(output_sig) into ch_hash_sigs_in_unaligned
+      set val(group), val(is_aligned), file(output_sig) into ch_group_hash_sigs_to_query
       set val(group), val(is_aligned), file(output_hashes) into ch_hash_txt_in_unaligned
 
       script:
@@ -1433,7 +1433,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
    input:
    file(sourmash_sbt_index) from ch_sourmash_index.collect()
-   set val(group), file(query_sig) from ch_group_hash_sigs_to_query
+   set val(group), val(is_aligned), file(query_sig) from ch_group_hash_sigs_to_query
 
    output:
    file(csv_output)
@@ -1442,10 +1442,11 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
    script:
    group_cleaned = groupCleaner(group)
-   csv_output = "${group_cleaned}.csv"
-   unassigned = "${group_cleaned}__unassigned.sig"
+   tag_id = "${group_cleaned}__${is_aligned}"
+   csv_output = "${tag_id}.csv"
+   unassigned = "${tag_id}__unassigned.sig"
    sketch_id = "molecule-${sourmash_molecule}__ksize-${sourmash_ksize}__scaled-1__track_abundance-true"
-   matches = "${group_cleaned}__matches.sig"
+   matches = "${tag_id}__matches.sig"
    generated_search_flag = sourmash_searcher == "search" ? ""  : "--debug --output-unassigned ${unassigned}"
    user_search_flags = sourmash_search_flags ? "${sourmash_search_flags}" : ""
    """
