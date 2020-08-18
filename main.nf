@@ -1568,6 +1568,8 @@ if (do_sourmash){
 
   ch_hashes_in_sigs_for_hash2kmer
     .join( ch_protein_fastas, by: 0 )
+    .dump ( tag: 'ch_hashes_in_sigs_for_hash2kmer__ch_protein_fastas' )
+    .set { ch_group_hashes_fastas }
 
   } else if ( params.hashes ){
   ch_protein_fastas
