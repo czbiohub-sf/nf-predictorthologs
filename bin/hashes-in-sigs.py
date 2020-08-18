@@ -93,7 +93,7 @@ def main():
         action="store_true",
         help="Consume protein sequences - no translation needed.",
     )
-    subparser.add_argument(
+    p.add_argument(
         '--from-file',
         help='a file containing a list of signatures file to compare'
     )
