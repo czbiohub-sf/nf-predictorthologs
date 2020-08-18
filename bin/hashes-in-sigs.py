@@ -8,6 +8,7 @@ import sys
 import argparse
 import screed
 import csv
+import sourmash
 from sourmash.logging import notify, error
 from sourmash.minhash import hash_murmur
 from sourmash import MinHash
