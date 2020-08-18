@@ -1294,13 +1294,13 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
     * STEP 7 - Filter hashes for only unaligned ones
     */
     process hashes_in_sigs {
-      tag "${sample_id}"
+      tag "${tag_id}"
       label "process_low"
 
       publishDir "${params.outdir}/hashes_in_sigs", mode: 'copy'
 
       input:
-      set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
+      set val(group), val(sample_id), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
 
       output:
       set val(group), val(is_aligned), file(output_sig) into ch_group_hash_sigs_to_query
@@ -1308,10 +1308,10 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
       script:
       group_cleaned = groupCleaner(group)
-      sample_id = "${group_cleaned}__${is_aligned}"
-      output_hashes = "${group_cleaned}__${is_aligned}__hashes.csv"
-      output_sig = "${group_cleaned}__${is_aligned}.sig"
-      output_log = "${group_cleaned}__${is_aligned}.log"
+      tag_id = "${group_cleaned}__${sample_id}"
+      output_hashes = "${tag_id}__hashes.csv"
+      output_sig = "${tag_id}.sig"
+      output_log = "${tag_id}.log"
       track_abundance = params.diff_hash_expression ? "--track-abundance" : ""
       """
       hashes-in-sigs.py \\
