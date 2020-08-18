@@ -1298,7 +1298,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
     /*
     * STEP 7 - Filter hashes for only unaligned ones
     */
-    process is_hash_in_unaligned {
+    process hashes_in_sigs {
       tag "${sample_id}"
       label "process_low"
 
@@ -1309,22 +1309,30 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
 
       output:
       file(hashes_only)
-      set val(group), val(is_aligned), file(matches) into ch_hash_sigs_in_unaligned
+      set val(group), val(is_aligned), file(output_sig) into ch_hash_sigs_in_unaligned
+      set val(group), val(is_aligned), file(output_hashes) into ch_hash_txt_in_unaligned
 
       script:
       group_cleaned = groupCleaner(group)
       sample_id = "${group_cleaned}__${is_aligned}"
       hashes_only = "${group_cleaned}__hashes_only.txt"
-      matches = "${sample_id}__matches.txt"
+      output_hashes = "${group_cleaned}__${is_aligned}__hashes.csv"
+      output_sig = "${group_cleaned}__${is_aligned}.sig"
+      output_log = "${group_cleaned}__${is_aligned}.log"
+      track_abundance = params.diff_hash_expression ? "--track-abundance" : ""
       """
-      # Isolate hashes only --> Take first column
-      cut -f1 ${diffhashes} -d, > ${hashes_only}
-      rg \\
-          --threads ${task.cpus} \\
-          --files-with-matches \\
-          --file ${hashes_only} \\
+      hashes-in-sigs.py \\
+          --ksize ${sourmash_ksize} \\
+          --no-dna \\
+          --scaled ${sourmash_scaled} \\
+          --input-is-protein \\
+          --${sourmash_molecule} \\
+          ${track_abundance} \\
+          --output-sig ${output_sig} \\
+          --output-hashes ${output_hashes} \\
+          ${diffhashes} \\
           ${sigs} \\
-          > ${matches}
+          2> ${output_log}
       """
     }
     ch_hash_sigs_in_unaligned
