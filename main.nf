@@ -537,10 +537,11 @@ raw_search_reference = params.proteome_search_fasta || params.refseq_release
 searching_hashes = params.protein_searcher == "sourmash" || params.diff_hash_expression || params.hashes
 searching_seqs = params.diff_hash_expression || params.protein_searcher == "diamond"
 
-do_diamond_search = params.diamond_database || (raw_search_reference && params.taxonmap_gz && params.taxdmp_zip) && !params.skip_diamond
-do_sourmash_search = (params.sourmash_index || raw_search_reference) && !params.skip_sourmash
+do_sourmash = (params.sourmash_index || raw_search_reference) && !params.skip_sourmash
+do_sourmash_gather = do_sourmash && (params.sourmash_searcher == "gather")
+do_diamond_search = params.diamond_database || (raw_search_reference && params.taxonmap_gz && params.taxdmp_zip) && !params.skip_diamond && do_sourmash_gather
 
-if (do_sourmash_search && !(params.hashes || params.diff_hash_expression)) {
+if (do_sourmash && !(params.hashes || params.diff_hash_expression)) {
   exit 1, "Error! Must provide either --hashes or --diff_hash_expression if provided sourmash index. Can skip with --skip_sourmash"
 }
 
@@ -1233,7 +1234,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (do_sourmash_search){
+if (do_sourmash){
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1583,7 +1584,7 @@ if (do_sourmash_search){
     .set { ch_group_hashes_fastas }
 }
 
-if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher == "gather") ) {
+if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
 
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
@@ -1606,7 +1607,7 @@ if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher
 
       output:
       file(unassigned_kmers)
-      set val(group), file(sequences) into ch_unassigned_seqs_from_hash2kmer
+      set val(group), file(sequences) into ch_hash_seqs_from_hash2kmer
 
       script:
       group_cleaned = groupCleaner(group)
@@ -1625,7 +1626,7 @@ if ( (params.diff_hash_expression || params.hashes) && (params.sourmash_searcher
           ${fastas}
       """
     }
-    ch_unassigned_seqs_from_hash2kmer
+    ch_hash_seqs_from_hash2kmer
       .filter { it -> it[1].size() > 0 }
       .set { ch_protein_seq_for_diamond }
    }
