@@ -2108,7 +2108,11 @@ if (params.featurecounts_hashes) {
           paste $gene_ids $counts > ${txt}
           """
       }
+   } else {
+     featureCounts_orthology_multiqc = Channel.empty()
    }
+} else {
+  featureCounts_orthology_multiqc = Channel.empty()
 }
 
 
@@ -2133,7 +2137,7 @@ process multiqc {
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('software_versions/*') from ch_software_versions_yaml.collect()
     file ("fastp/*") from ch_fastp_results.collect().ifEmpty([])
-    file ('featureCounts/*') from featureCounts_orthology_multiqc.collect()
+    file ('featureCounts/*') from featureCounts_orthology_multiqc.collect().ifEmpty([])
     file workflow_summary from create_workflow_summary(summary)
 
     output:
