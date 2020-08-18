@@ -18,7 +18,6 @@ from sourmash import sourmash_args
 NOTIFY_EVERY_BP = 1e7
 
 
-
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("hashfile")  # file that contains hashes
@@ -51,12 +50,15 @@ def main():
         "Use this abundance as the abundance for each hash",
     )
     p.add_argument(
-        '--traverse-directory', action='store_true',
-        help='compare all signatures underneath directories'
+        "--traverse-directory",
+        action="store_true",
+        help="compare all signatures underneath directories",
     )
     p.add_argument(
-        '-f', '--force', action='store_true',
-        help='continue past errors in file loading'
+        "-f",
+        "--force",
+        action="store_true",
+        help="continue past errors in file loading",
     )
     p.add_argument("--scaled", default=None, type=int)
 
@@ -227,42 +229,6 @@ def main():
             hashout_w.writerow([str(hashval), str(abundance)])
         notify("read {} bp, found {} kmers matching hashvals", n, len(found_kmers))
         hashout_fp.close()
-
-
-def get_matching_hashes_in_file(
-    filename,
-    ksize,
-    moltype,
-    input_is_protein,
-    hashes,
-    found_kmers,
-    m,
-    n,
-    n_seq,
-    seqout_fp,
-    watermark,
-    first=False,
-):
-    for record in screed.open(filename):
-        n += len(record.sequence)
-        n_seq += 1
-        while n >= watermark:
-            sys.stderr.write("... {} {} {}\r".format(n_seq, watermark, filename))
-            watermark += NOTIFY_EVERY_BP
-
-        # now do the hard work of finding the matching k-mers!
-        for kmer, hashval in get_kmers_for_hashvals(
-            record.sequence, hashes, ksize, moltype, input_is_protein
-        ):
-            found_kmers[kmer] = hashval
-
-            # write out sequence
-            if seqout_fp:
-                seqout_fp.write(">{}\n{}\n".format(record.name, record.sequence))
-                m += len(record.sequence)
-            if first:
-                return m, n
-    return m, n
 
 
 if __name__ == "__main__":
