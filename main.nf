@@ -1848,7 +1848,6 @@ if (params.search_noncoding && params.infernal_db) {
  * STEP 4 - Get all reads containing hashes from each asmple
  */
  do_hash2seqs = (params.diff_hash_expression || params.hashes) && (params.featurecounts_hashes)
- println "do_hash2seqs: ${do_hash2seqs}"
  if (do_hash2seqs){
 
   ch_group_to_id_fasta
