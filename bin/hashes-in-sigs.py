@@ -14,60 +14,9 @@ from sourmash.minhash import hash_murmur
 from sourmash import MinHash
 from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash import sourmash_args
-from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
 NOTIFY_EVERY_BP = 1e7
 
-
-def get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein):
-    kmer = sequence[start : start + ksize]
-    if moltype == "DNA":
-        # Get reverse complement
-        kmer_rc = screed.rc(kmer)
-        if kmer > kmer_rc:  # choose fwd or rc
-            kmer = kmer_rc
-    elif input_is_protein:
-        kmer = encode_peptide(kmer, moltype)
-    elif not input_is_protein:
-        raise NotImplementedError("Currently cannot translate DNA to protein sequence")
-    return kmer
-
-
-def revise_ksize(ksize, moltype, input_is_protein):
-    """If input is protein, then divide the ksize by three"""
-    if moltype == "DNA":
-        return ksize
-    elif input_is_protein:
-        # Ksize includes codons
-        return int(ksize / 3)
-    else:
-        return ksize
-
-
-def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein):
-    "Return k-mers from 'sequence' that yield hashes in 'hashvals'."
-    # uppercase!
-    sequence = sequence.upper()
-
-    # Divide ksize by 3 if sequence is protein
-    ksize = revise_ksize(ksize, moltype, input_is_protein)
-
-    for start in range(0, len(sequence) - ksize + 1):
-        # Skip protein sequences with invalid input
-        # (workaround for sencha bug that wrote "Writing translate
-        # summary to coding_summary.json" to standard output and thus to the
-        # protein fasta)
-        if input_is_protein:
-            if not all(x in AMINO_ACID_SINGLE_LETTERS for x in sequence):
-                continue
-
-        kmer = get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein)
-
-        # NOTE: we do not avoid non-ACGT characters, because those k-mers,
-        # when hashed, shouldn't match anything that sourmash outputs.
-        hashval = hash_murmur(kmer)
-        if hashval in hashvals:
-            yield kmer, hashval
 
 
 def main():
@@ -80,6 +29,7 @@ def main():
         default=None,
         help="save matching signatures to this file.",
     )
+    p.add_argument("--name", default="", help="signature name")
     p.add_argument(
         "--output-hashes",
         type=str,

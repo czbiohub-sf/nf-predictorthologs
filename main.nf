@@ -1302,7 +1302,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
       tag "${sample_id}"
       label "process_low"
 
-      publishDir "${params.outdir}/is_hash_in_unaligned", mode: 'copy'
+      publishDir "${params.outdir}/hashes_in_sigs", mode: 'copy'
 
       input:
       set val(group), val(is_aligned), file(sigs), file(diffhashes) from ch_group_to_unaligned_sigs_with_diffhashes
@@ -1330,6 +1330,7 @@ if (params.protein_searcher == 'sourmash' || params.hashes || params.diff_hash_e
           ${track_abundance} \\
           --output-sig ${output_sig} \\
           --output-hashes ${output_hashes} \\
+          --name ${sample_id} \\
           ${diffhashes} \\
           ${sigs} \\
           2> >(tee -a ${output_log} >&2)
