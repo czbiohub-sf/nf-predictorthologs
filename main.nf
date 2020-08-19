@@ -2005,6 +2005,7 @@ if (params.featurecounts_hashes) {
                  else if (filename.indexOf("_orthology_counts_mqc.txt") > 0) "orthology_multiqc/$filename"
                  else if (filename.indexOf(".summary") > 0) "gene_count_summaries/$filename"
                  else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+                 else if (filename.indexOf("bam") > 0) "bams/$filename"
                  else "$filename"
              }
 
