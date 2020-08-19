@@ -2014,6 +2014,7 @@ if (params.featurecounts_hashes) {
 
          output:
          file(gene_txt) into (geneCounts, featureCounts_to_merge)
+         file("*.featureCounts.bam") into ch_bam_from_featurecounts
          set file(gtf), file(orthology_counts) into (ch_orthology_counts, ch_orthology_counts_and_gtfs)
          file("*.featureCounts.txt.summary") into featureCounts_logs
          file("*orthology_counts*mqc*") optional true into featureCounts_orthology_multiqc
@@ -2046,6 +2047,7 @@ if (params.featurecounts_hashes) {
             -T ${task.cpus} \\
             -p \\
             -s $featureCounts_direction \\
+            -R BAM \\
             $bam
          # Potentially count reads in orthologous gene features
          $orthology_qc
