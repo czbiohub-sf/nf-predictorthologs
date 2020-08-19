@@ -1940,7 +1940,6 @@ if (params.featurecounts_hashes) {
     set val(sample_id), file(read_ids_with_hashes) into ch_read_ids_mapped
 
     script:
-    sam = "${bam.baseName}.sam"
     reads_in_hashes_sam = 'reads_in_shared_hashes.sam'
     reads_in_hashes_bam = "${sample_id}__reads_in_shared_hashes.bam"
     read_ids_with_hashes = "${sample_id}__reads_in_shared_hashes_ids.txt"
@@ -1950,8 +1949,8 @@ if (params.featurecounts_hashes) {
     # Use -F 4 to only show aligned reads, just in case bam has unaligned
     # Use pipes for everything instead of writing to disk as the bams could be
     # VERY large and want to avoid the cost of file I/O and writing to disk
-    samtools view --threads ${task.cpus} -F 4 ${bam} > ${sam}
-    rg --file ${read_ids_with_hash} --threads ${task.cpus} ${sam} \\
+    samtools view --threads ${task.cpus} -F 4 ${bam} \\
+      | rg --file ${read_ids_with_hash} --threads ${task.cpus} - \\
       | cat header.sam - \\
       | samtools view --threads ${task.cpus} -1b - \\
       > ${reads_in_hashes_bam} \\
