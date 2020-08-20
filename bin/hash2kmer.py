@@ -118,7 +118,7 @@ def main():
     if args.output_kmers:
         kmerout_fp = open(args.output_kmers, "wt")
         kmerout_w = csv.writer(kmerout_fp)
-        kmerout_w.writerow(["kmer", "hashval"])
+        kmerout_w.writerow(["kmer", "hashval", "read_id"])
 
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
@@ -154,7 +154,7 @@ def main():
     n = 0  # bp loaded
     m = 0  # bp in found sequences
     p = 0  # number of k-mers found
-    found_kmers = {}
+    found_kmers = []
     watermark = NOTIFY_EVERY_BP
     for filename in args.seqfiles:
         m, n = get_matching_hashes_in_file(
@@ -178,8 +178,8 @@ def main():
         notify("read {} bp, wrote {} bp in matching sequences", n, m)
 
     if kmerout_fp and found_kmers:
-        for kmer, hashval in found_kmers.items():
-            kmerout_w.writerow([kmer, str(hashval)])
+        for kmer, hashval, read_id in found_kmers:
+            kmerout_w.writerow([kmer, str(hashval), read_id])
         notify("read {} bp, found {} kmers matching hashvals", n, len(found_kmers))
 
 
@@ -208,7 +208,7 @@ def get_matching_hashes_in_file(
         for kmer, hashval in get_kmers_for_hashvals(
             record.sequence, hashes, ksize, moltype, input_is_protein
         ):
-            found_kmers[kmer] = hashval
+            found_kmers.append([kmer, hashval, record['name'])
 
             # write out sequence
             if seqout_fp:
