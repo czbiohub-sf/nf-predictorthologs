@@ -1930,7 +1930,12 @@ if (params.featurecounts_hashes) {
     tag "${sample_id}"
     label "process_high"
     label "process_long"
-    publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy'
+    publishDir "${params.outdir}/bams_with_hashes/", mode: 'copy',
+      saveAs: {filename ->
+          if (filename.indexOf("txt") > 0) "read_ids/$filename"
+          else if (filename.indexOf("bam") > 0) "bams/$filename"
+          else "$filename"
+      }
 
     input:
     set val(sample_id), file(read_ids_with_hash), file(bam) from ch_hash_sample_id_read_ids_bam_for_filter_bam
