@@ -1602,7 +1602,13 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
       tag "${group_cleaned}"
       label "process_low"
 
-      publishDir "${params.outdir}/hash2kmer/", mode: 'copy'
+      publishDir "${params.outdir}/hash2kmer/", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf("fasta") > 0) "fastas/$filename"
+            else if (filename.indexOf("csv") > 0) "csvs/$filename"
+            else "$filename"
+        }
+
 
       input:
       set val(sample_id), val(group), val(is_aligned), file(hashes), file(fastas) from ch_group_hashes_fastas
@@ -1615,7 +1621,7 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
       group_cleaned = groupCleaner(group)
       tag_id = "${group_cleaned}__${sample_id}"
       sequences = "${tag_id}.fasta"
-      kmers = "${tag_id}__kmers.csv"
+      kmers = "${tag_id}.csv"
       """
       hash2kmer.py \\
           --ksize ${sourmash_ksize} \\
