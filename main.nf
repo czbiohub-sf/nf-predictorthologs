@@ -1951,10 +1951,9 @@ if (params.featurecounts_hashes) {
     """
     samtools view -H ${bam} \\
       > header.sam
-    # Use -F 4 to only show aligned reads, just in case bam has unaligned
     # Use pipes for everything instead of writing to disk as the bams could be
     # VERY large and want to avoid the cost of file I/O and writing to disk
-    samtools view --threads ${task.cpus} -F 4 ${bam} \\
+    samtools view --threads ${task.cpus} ${bam} \\
       | rg --file ${read_ids_with_hash} --threads ${task.cpus} - \\
       | cat header.sam - \\
       | samtools view --threads ${task.cpus} -1b - \\
