@@ -208,7 +208,7 @@ def get_matching_hashes_in_file(
         for kmer, hashval in get_kmers_for_hashvals(
             record.sequence, hashes, ksize, moltype, input_is_protein
         ):
-            found_kmers.append([kmer, hashval, record['name'])
+            found_kmers.append([kmer, hashval, record['name']])
 
             # write out sequence
             if seqout_fp:
