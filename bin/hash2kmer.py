@@ -118,7 +118,7 @@ def main():
     if args.output_kmers:
         kmerout_fp = open(args.output_kmers, "wt")
         kmerout_w = csv.writer(kmerout_fp)
-        kmerout_w.writerow(["kmer", "hashval", "read_id"])
+        kmerout_w.writerow(["kmer", "hashval", "read_name"])
 
     # Ensure that protein ksizes are divisible by 3
     if (args.protein or args.dayhoff or args.hp) and not args.input_is_protein:
