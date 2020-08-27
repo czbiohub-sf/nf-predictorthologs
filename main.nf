@@ -743,7 +743,7 @@ if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_b
 /*
  * STEP 1 - FastQC
  */
-if (!params.input_is_protein) {
+if (!params.input_is_protein && !params.skip_fastqc) {
   process fastqc {
       tag "$name"
       label 'process_medium'
@@ -834,6 +834,7 @@ if (!params.skip_trimming && !params.input_is_protein){
   }
 } else if (!params.input_is_protein) {
   ch_reads_trimmed = ch_read_files_trimming
+  ch_fastp_results = Channel.empty()
 } else {
   ch_fastp_results = Channel.empty()
 }
@@ -904,6 +905,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
    */
   process translate {
     tag "${sample_sketch_id}"
+    label "process_high"
     label "process_long"
     publishDir "${params.outdir}/translate/${bloom_id}", mode: 'copy'
 
@@ -931,6 +933,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     summary_json = "${sample_sketch_id}__coding_summary.json"
     """
     sencha translate \\
+      --processes ${task.cpus} \\
       --molecule ${alphabet} \\
       --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
@@ -1598,7 +1601,7 @@ if (params.search_noncoding && params.infernal_db) {
 
         script:
         """
-        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        gunzip -c --verbose --stdout --force ${gz} > ${gz.baseName}
         """
     }
   }
