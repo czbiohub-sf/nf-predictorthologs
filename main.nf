@@ -866,8 +866,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
 
     input:
     file(peptides) from ch_proteome_translate_fasta
-    each molecule from peptide_molecule
-    each ksize from peptide_ksize
+    set val(molecule), val(ksize) from ch_translate_molecule_ksize
 
     output:
     set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
