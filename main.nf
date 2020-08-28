@@ -473,6 +473,7 @@ peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
 // Make cartesian product of molecule and ksize
 peptide_molecule
   .combine(peptide_ksize)
+  .dump ( tag: 'ch_translate_molecule_ksize' )
   .set { ch_translate_molecule_ksize }
 
 jaccard_threshold = params.translate_jaccard_threshold
