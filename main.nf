@@ -469,6 +469,12 @@ if (params.search_noncoding && params.rfam_clan_info){
 //////////////////////////////////////////////////////////////////
 peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
 peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
+
+// Make cartesian product of molecule and ksize
+peptide_molecule
+  .combine(peptide_ksize)
+  .set { ch_translate_molecule_ksize }
+
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
 tablesize = params.translate_tablesize
