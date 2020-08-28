@@ -18,19 +18,21 @@ NOTIFY_EVERY_BP = 1e7
 
 
 def get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein):
-    kmer = sequence[start : start + ksize]
+    kmer_in_seq = sequence[start : start + ksize]
     if moltype == "DNA":
         # Get reverse complement
         kmer_rc = screed.rc(kmer)
-        if kmer > kmer_rc:  # choose fwd or rc
-            kmer = kmer_rc
+        if kmer_in_seq > kmer_rc:  # choose fwd or rc
+            kmer_encoded = kmer_rc
+        else:
+            kmer_encoded = kmer_in_seq
     elif input_is_protein:
-        kmer = encode_peptide(kmer, moltype)
+        kmer_encoded = encode_peptide(kmer_in_seq, moltype)
     elif not input_is_protein:
         raise NotImplementedError(
             "Currently cannot translate DNA to protein sequence"
         )
-    return kmer
+    return kmer_encoded, kmer_in_seq
 
 
 def revise_ksize(ksize, moltype, input_is_protein):
@@ -61,13 +63,13 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein)
             if not all(x in AMINO_ACID_SINGLE_LETTERS for x in sequence):
                 continue
 
-        kmer = get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein)
+        kmer_encoded, kmer_in_seq = get_kmer_moltype(sequence, start, ksize, moltype, input_is_protein)
 
         # NOTE: we do not avoid non-ACGT characters, because those k-mers,
         # when hashed, shouldn't match anything that sourmash outputs.
-        hashval = hash_murmur(kmer)
+        hashval = hash_murmur(kmer_encoded)
         if hashval in hashvals:
-            yield kmer, hashval
+            yield kmer_encoded, kmer_in_seq, hashval
 
 
 def main():
@@ -178,8 +180,8 @@ def main():
         notify("read {} bp, wrote {} bp in matching sequences", n, m)
 
     if kmerout_fp and found_kmers:
-        for kmer, hashval, read_id in found_kmers:
-            kmerout_w.writerow([kmer, str(hashval), read_id])
+        for kmer_in_seq, kmer_encoded, hashval, read_id in found_kmers:
+            kmerout_w.writerow([kmer_in_seq, kmer_encoded, str(hashval), read_id])
         notify("read {} bp, found {} kmers matching hashvals", n, len(found_kmers))
 
 
@@ -205,14 +207,15 @@ def get_matching_hashes_in_file(
             watermark += NOTIFY_EVERY_BP
 
         # now do the hard work of finding the matching k-mers!
-        for kmer, hashval in get_kmers_for_hashvals(
+        for kmer_encoded, kmer_in_seq, hashval in get_kmers_for_hashvals(
             record.sequence, hashes, ksize, moltype, input_is_protein
         ):
-            found_kmers.append([kmer, hashval, record['name']])
+            found_kmers.append([kmer_in_seq, kmer_encoded, hashval, record['name']])
 
             # write out sequence
             if seqout_fp:
-                seqout_fp.write(">{}\n{}\n".format(record.name, record.sequence))
+                seqout_fp.write(">{}|hashval:{}|kmer:{}|kmer_encoded:{}\n{}\n".format(
+                    record.name, hashval, kmer_in_seq, kmer_encoded, record.sequence))
                 m += len(record.sequence)
             if first:
                 return m, n
