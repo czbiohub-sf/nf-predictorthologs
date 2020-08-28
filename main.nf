@@ -866,7 +866,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/sencha/", mode: 'copy'
 
     input:
-    file(peptides) from ch_proteome_translate_fasta
+    file(peptides) from ch_proteome_translate_fasta.collect()
     set val(molecule), val(ksize) from ch_translate_molecule_ksize
 
     output:
