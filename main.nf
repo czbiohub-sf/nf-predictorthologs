@@ -467,12 +467,12 @@ if (params.search_noncoding && params.rfam_clan_info){
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = Channel.from(params.translate_peptide_ksize?.toString().tokenize(','))
-peptide_molecule = Channel.from(params.translate_peptide_molecule?.toString().tokenize(','))
+ch_peptide_ksize = Channel.from(params.translate_peptide_ksize?.toString().tokenize(',')).view()
+ch_peptide_molecule = Channel.from(params.translate_peptide_molecule?.toString().tokenize(',')).view()
 
 // Make cartesian product of molecule and ksize
-peptide_molecule
-  .combine(peptide_ksize)
+ch_peptide_molecule
+  .combine(ch_peptide_ksize)
   .dump ( tag: 'ch_translate_molecule_ksize' )
   .set { ch_translate_molecule_ksize }
 
