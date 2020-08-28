@@ -467,8 +467,8 @@ if (params.search_noncoding && params.rfam_clan_info){
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
-peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
+peptide_ksize = Channel.from(params.translate_peptide_ksize?.toString().tokenize(','))
+peptide_molecule = Channel.from(params.translate_peptide_molecule?.toString().tokenize(','))
 
 // Make cartesian product of molecule and ksize
 peptide_molecule
