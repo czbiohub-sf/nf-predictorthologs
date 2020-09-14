@@ -101,8 +101,7 @@ if (params.genomes && params.genome && !params.genomes.containsKey(params.genome
 //   input:
 //   file fasta from ch_fasta
 //
-params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
-if (params.fasta) { ch_fasta = file(params.fasta, checkIfExists: true) }
+if (params.host_fasta) { ch_host_fasta = file(params.host_fasta, checkIfExists: true) }
 
 // Has the run name been specified by the user?
 //  this has the bonus effect of catching both -name and --name
@@ -217,7 +216,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+        .into { ch_read_files_fastqc; ch_read_files_trimming }
     } else {
       Channel
         .fromPath(params.csv)
@@ -225,7 +224,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map{ row -> tuple(row.sample_id, tuple(file(row.read1), file(row.read2)))}
         .ifEmpty { exit 1, "params.csv (${params.csv}) was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+        .into { ch_read_files_fastqc; ch_read_files_trimming }
     }
    } else if (params.readPaths){
     log.info "supplied readPaths, not looking at any supplied --reads"
@@ -235,14 +234,14 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_single_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+        .into { ch_read_files_fastqc; ch_read_files_trimming }
     } else {
       Channel
         .from(params.readPaths)
         .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true), file(row[1][1], checkIfExists: true) ] ] }
         .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
         .dump(tag: "reads_paired_end")
-        .into { ch_read_files_fastqc; ch_read_files_trimming; ch_read_files_translate }
+        .into { ch_read_files_fastqc; ch_read_files_trimming }
     }
   } else {
     Channel
@@ -507,6 +506,7 @@ if (params.bam) summary['bam']                                              = pa
 if (params.bam) summary['bai']                                              = params.bai
 if (params.bed) summary['bed']                                              = params.bed
 if (params.reads) summary['Reads']                                          = params.reads
+if (params.host_fasta) summary['Host fasta']                                = params.host_fasta
 if (params.csv) summary['CSV of input reads']                               = params.csv
 if (!params.input_is_protein) summary['sencha translate Ref']              = params.proteome_translate_fasta
 // Input is protein -- have protein sequences and hashes
@@ -724,6 +724,7 @@ if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_b
     .into { ch_read_files_fastqc; ch_read_files_trimming }
 }
 
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* --                                                                     -- */
@@ -834,7 +835,40 @@ if (!params.skip_trimming && !params.input_is_protein){
   ch_fastp_results = Channel.empty()
 }
 
+if (params.host_fasta){
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* --                                                                     -- */
+/* --              HUMAN-HOST REMOVAL                                     -- */
+/* --                                                                     -- */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ * STEP 1 - 
+ */
+process host_removal {
+    tag "$sample_id"
+    label 'process_large'
+    publishDir "${params.outdir}/host-subtracted-reads"
+
+    input:
+    file host_fasta from ch_host_fasta
+    set val(sample_id), file(reads) from ch_reads_trimmed_nonempty
+
+    output:
+    set val(sample_id), file("${sample_id}_no_host_*.fq.gz") into ch_reads_host_removed
+    script:
+    """
+    minimap2 -t ${task.cpus-1} -ax sr ${host_fasta} ${reads} | \
+      samtools view -@ ${task.cpus-1} -b -f 4 | \
+      samtools fastq -@ ${task.cpus-1} -1 ${sample_id}_no_host_1.fq.gz -2 ${sample_id}_no_host_2.fq.gz -0 /dev/null -s /dev/null -n -c 6 -
+    """
+}
+}else{
+  ch_reads_trimmed_nonempty
+  .set {ch_reads_host_removed}
+}
 
 if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
@@ -876,7 +910,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   // From Paolo - how to do translate on ALL combinations of bloom filters
    ch_sencha_bloom_filters
       .groupTuple(by: [0, 1, 2])
-      .combine(ch_reads_trimmed_nonempty)
+      .combine(ch_reads_host_removed)
       .dump( tag: 'ch_sencha_bloom_filters_grouptuple' )
       // [DUMP: ch_sencha_bloom_filters_grouptuple]
       //    [molecule-protein_ksize-12,
