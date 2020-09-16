@@ -4,7 +4,7 @@ name: Build Docker images
 on: [push, pull_request]
 
 jobs:
-  test:
+  docker:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -11,6 +11,8 @@ jobs:
       NXF_RUN: "nextflow run -resume"
     runs-on: ubuntu-latest
     strategy:
+      # Do ALL the tests even if one of them fails
+      fail-fast: false
       matrix:
         # Nextflow versions: check pipeline minimum and current latest
         nxf_ver: ['19.10.0', '']
@@ -23,11 +25,12 @@ jobs:
         'test_diff_hash_sourmash',
         'test_diff_hash_is_aligned',
         'test_download_refseq',
-        'test_existing_database',
+        'test_make_diamond_db',
         'test_fastq',
         'test_fastq_paired',
         'test_hash2kmer',
         'test_input_is_protein',
+        'test_noncoding',
         'test_sourmash_search',
         'test_sencha',
         'test_sencha_sambamba'
