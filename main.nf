@@ -539,7 +539,7 @@ searching_seqs = params.diff_hash_expression || params.protein_searcher == "diam
 
 do_sourmash = (params.sourmash_index || raw_search_reference) && !params.skip_sourmash
 do_sourmash_gather = do_sourmash && (params.sourmash_searcher == "gather")
-do_diamond_search = params.diamond_database || (raw_search_reference && params.taxonmap_gz && params.taxdmp_zip) && !params.skip_diamond && do_sourmash_gather
+do_diamond_search = params.diamond_database || (raw_search_reference && params.taxonmap_gz && params.taxdmp_zip) && !params.skip_diamond
 
 if (do_sourmash && !(params.hashes || params.diff_hash_expression)) {
   exit 1, "Error! Must provide either --hashes or --diff_hash_expression if provided sourmash index. Can skip with --skip_sourmash"
