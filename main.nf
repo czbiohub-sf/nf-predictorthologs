@@ -284,6 +284,13 @@ if (params.featurecounts_hashes) {
 
 
       if ( params.csv_has_is_aligned ) {
+        Channel
+          .fromPath ( params.csv, checkIfExists: true )
+          .splitCsv( header: true )
+          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta), row.is_aligned) }
+          .dump( tag: 'ch_group_to_id_fasta_is_aligned' )
+          .set { ch_group_to_id_fasta_is_aligned }
+
         // Provided a csv file mapping sample_id to protein fasta path
         Channel
           .fromPath ( params.csv, checkIfExists: true )
@@ -294,24 +301,24 @@ if (params.featurecounts_hashes) {
           }
           .set { ch_csv_is_aligned }
 
-        ch_csv_is_aligned.aligned
-          .dump( tag: 'ch_csv_is_aligned.aligned' )
-          .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true))}
-          .dump( tag: 'ch_sample_id_and_bam' )
-          .set { ch_sample_id_and_bam }
-
-        ch_csv_is_aligned.unaligned
-          .dump( tag: 'ch_csv_is_aligned.unaligned' )
-          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
-          .dump( tag: 'ch_group_to_id_fasta__unaligned' )
-          .set { ch_group_to_id_fasta }
+        // ch_csv_is_aligned.aligned
+        //   .dump( tag: 'ch_csv_is_aligned.aligned' )
+        //   .map{ row -> tuple(row.sample_id, file(row.bam, checkIfExists: true))}
+        //   .dump( tag: 'ch_sample_id_and_bam' )
+        //   .set { ch_sample_id_and_bam }
+        //
+        // ch_csv_is_aligned.unaligned
+        //   .dump( tag: 'ch_csv_is_aligned.unaligned' )
+        //   .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
+        //   .dump( tag: 'ch_group_to_id_fasta__unaligned' )
+        //   .set { ch_group_to_id_fasta }
       } else {
         Channel
           .fromPath ( params.csv, checkIfExists: true )
           .splitCsv( header: true )
-          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta)) }
-          .dump( tag: 'ch_group_to_id_fasta' )
-          .set { ch_group_to_id_fasta }
+          .map{ row -> tuple(row.group, row.sample_id, file(row.fasta), 'alignment_unknown') }
+          .dump( tag: 'ch_group_to_id_fasta_is_aligned' )
+          .set { ch_group_to_id_fasta_is_aligned }
 
           Channel
             .fromPath(params.csv, checkIfExists: true)
@@ -464,10 +471,10 @@ if (params.diff_hash_expression) {
     Channel
       .fromPath(params.csv)
       .splitCsv(header:true)
-      .map{ row -> tuple(row.group, row.sample_id, file(row.fasta, checkIfExists: true)) }
+      .map{ row -> tuple(row.group, row.sample_id, file(row.fasta, checkIfExists: true), 'alignment_unknown') }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
-      .dump( tag: 'ch_group_to_id_fasta' )
-      .set{ ch_group_to_id_fasta }
+      .dump( tag: 'ch_group_to_id_fasta_is_aligned' )
+      .set{ ch_group_to_id_fasta_is_aligned }
 
 
     // Create channel of fastas for each signature name
@@ -1584,6 +1591,16 @@ if (do_sourmash){
     // [ "empty_group_name", hashes.txt, [ sample1.fasta, sample2.fasta, ... ] ]
     .dump ( tag: 'ch_group_hashes_fastas__hashes' )
     .set { ch_group_hashes_fastas }
+} else {
+  // val(group), file("*__informative_hashes.csv")
+  ch_informative_hashes_for_hash2kmer
+    // tuple(row.group, row.sample_id, file(row.fasta), row.is_aligned)
+    .combine( ch_group_to_id_fasta_is_aligned, by: 0 )
+    // val(group), file("*__informative_hashes.csv"), row.sample_id, file(row.fasta), row.is_aligned
+    .groupTuple(by: [0, 1])
+    .dump( tag: 'ch_informative_hashes_for_hash2kmer__ch_group_to_id_fasta_is_aligned' )
+    .map { it -> [it[0], it[1]] }
+    .set{ ch_group_hashes_fastas }
 }
 
 if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
