@@ -1188,7 +1188,19 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     """
   }
 
-
+  if (do_diamond_search){
+    // val(group), file("*__informative_hashes.csv")
+    ch_informative_hashes_for_hash2kmer
+      // tuple(row.group, row.sample_id, file(row.fasta), row.is_aligned)
+      .combine( ch_group_to_id_fasta_is_aligned, by: 0 )
+      // val(group), file("*__informative_hashes.csv"), row.sample_id, file(row.fasta), row.is_aligned
+      .groupTuple(by: [0, 1])
+      .dump( tag: 'ch_informative_hashes_for_hash2kmer__ch_group_to_id_fasta_is_aligned' )
+      // it[0]: group name
+      // it[1]: hashes
+      .map { it -> [it[0], it[1]] }
+      .set{ ch_group_hashes_fastas }
+  }
 }
 
 
@@ -1592,15 +1604,7 @@ if (do_sourmash){
     .dump ( tag: 'ch_group_hashes_fastas__hashes' )
     .set { ch_group_hashes_fastas }
 } else {
-  // val(group), file("*__informative_hashes.csv")
-  ch_informative_hashes_for_hash2kmer
-    // tuple(row.group, row.sample_id, file(row.fasta), row.is_aligned)
-    .combine( ch_group_to_id_fasta_is_aligned, by: 0 )
-    // val(group), file("*__informative_hashes.csv"), row.sample_id, file(row.fasta), row.is_aligned
-    .groupTuple(by: [0, 1])
-    .dump( tag: 'ch_informative_hashes_for_hash2kmer__ch_group_to_id_fasta_is_aligned' )
-    .map { it -> [it[0], it[1]] }
-    .set{ ch_group_hashes_fastas }
+
 }
 
 if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
