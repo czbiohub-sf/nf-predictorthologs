@@ -1657,7 +1657,8 @@ if ( (params.diff_hash_expression || params.hashes) && do_diamond_search ) {
       """
     }
     ch_hash_seqs_from_hash2kmer
-      .filter { it -> it[3].size() > 0 }
+      .filter { it -> it[4].size() > 0 }
+      .dump ( tag: 'ch_hash_seqs_from_hash2kmer__for_diamond' )
       .set { ch_protein_seq_for_diamond }
    }
 
