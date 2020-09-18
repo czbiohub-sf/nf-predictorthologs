@@ -1189,6 +1189,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   }
 
   if (do_diamond_search){
+    println "do_diamond_search -- set ch_group_hashes_fastas"
     // val(group), file("*__informative_hashes.csv")
     ch_informative_hashes_for_hash2kmer
       // tuple(row.group, row.sample_id, file(row.fasta), row.is_aligned)
