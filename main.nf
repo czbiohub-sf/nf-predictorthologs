@@ -826,6 +826,7 @@ if (!params.skip_trimming && !params.input_is_protein){
   }
   // filter out empty fastq files
   ch_reads_trimmed
+      .dump(tag:'ch_reads_trimmed')
       // gzipped files are 20 bytes when empty
       .filter{ it[1].size() > 20 }
       .set { ch_reads_trimmed_nonempty }
