@@ -850,7 +850,7 @@ if (params.host_fasta){
  */
 process host_removal {
     tag "$sample_id"
-    label 'process_large'
+    label 'process_high'
     publishDir "${params.outdir}/host-subtracted-reads"
 
     input:
@@ -861,9 +861,9 @@ process host_removal {
     set val(sample_id), file("${sample_id}_no_host_*.fq.gz") into ch_reads_host_removed
     script:
     """
-    minimap2 -t ${task.cpus-1} -ax sr ${host_fasta} ${reads} | \
-      samtools view -@ ${task.cpus-1} -b -f 4 | \
-      samtools fastq -@ ${task.cpus-1} -1 ${sample_id}_no_host_1.fq.gz -2 ${sample_id}_no_host_2.fq.gz -0 /dev/null -s /dev/null -n -c 6 -
+    minimap2 -t ${task.cpus} -ax sr ${host_fasta} ${reads} | \
+      samtools view -@ ${task.cpus} -b -f 4 | \
+      samtools fastq -@ ${task.cpus} -1 ${sample_id}_no_host_1.fq.gz -2 ${sample_id}_no_host_2.fq.gz -0 /dev/null -s /dev/null -n -c 6 -
     """
 }
 }else{
