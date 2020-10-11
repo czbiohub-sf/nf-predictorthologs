@@ -29,7 +29,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Propagate molecule and k-mer size to sample id after translate
 - Add version printing for sencha, and sourmash in Dockerfile, update version of sencha to 1.0.2 in environment.yml
 
-
 ### `Dependencies`
 
 - Added 7z (`bioconda==p7zip=15.09`) to deal with compatibilities of bioconda's `unzip` the taxdmp.zip file from NCBI: ([#14](https://github.com/czbiohub/nf-predictorthologs/issues/14))
@@ -46,6 +45,5 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Addeed infernal=1.1.2 to dependencies
 - Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
 - Added sambamba=0.7.1 using bioconda channel
-
 
 ### `Deprecated`
