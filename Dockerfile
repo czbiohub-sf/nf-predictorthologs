@@ -18,3 +18,8 @@ COPY docker/sysctl.conf /etc/sysctl.conf
 ENV PATH /opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH
 
 RUN echo 'export "PATH=/opt/conda/envs/nf-core-predictorthologs-1.0dev/bin:$PATH"' >> ~/.bashrc
+RUN pip show sourmash
+RUN pip show sencha
+RUN sourmash info
+RUN sencha index --help
+RUN sencha translate --help
