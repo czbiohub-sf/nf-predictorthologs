@@ -36,16 +36,13 @@ jobs:
         'test_sencha_sambamba'
         ]
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out pipeline code
+        uses: actions/checkout@v2
       - name: Install Nextflow
         run: |
           export NXF_VER=${{ matrix.nxf_ver }}
           wget -qO- get.nextflow.io | bash
           sudo mv nextflow /usr/local/bin/
-    steps:
-      - name: Check out pipeline code
-        uses: actions/checkout@v2
-
       - name: Check if Dockerfile or Conda environment changed
         uses: technote-space/get-diff-action@v1
         with:
