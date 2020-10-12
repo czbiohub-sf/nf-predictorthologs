@@ -27,6 +27,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Fixed number of cpus, memory, time requirements for sambamba processes ([#76](https://github.com/czbiohub/nf-predictorthologs/pull/76))
 - Fixed noncoding search to use `cmscan` instead of `cmsearch` from INFERNAL ([#74](https://github.com/czbiohub/nf-predictorthologs/pull/74))
 - Propagate molecule and k-mer size to sample id after translate
+- Add version printing for sencha, and sourmash in Dockerfile, update version of sencha to 1.0.2 in environment.yml
 
 ### `Dependencies`
 
