@@ -1065,8 +1065,10 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
     matches = "${hash_id}__matches.txt"
+    // need --follow because all the files are symbolic links
     """
     rg \\
+      --follow \\
       --threads ${task.cpus} \\
       --files-with-matches ${hash_cleaned} \\
       . \\
