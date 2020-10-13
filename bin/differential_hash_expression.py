@@ -163,7 +163,7 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
     logger.info(f"\nSketch series head: {sketch_series.head()}")
 
     # Check if there is any overlap between the sketch series and metadata dataframe
-    overlapping_samples = group1.index.intersection(metadata.index)
+    overlapping_samples = sketch_series.index.intersection(metadata.index)
     if len(overlapping_samples) == 0:
         raise ValueError(
         f"Could not find any overlapping sample ids between the metadata and the sketch names!"
