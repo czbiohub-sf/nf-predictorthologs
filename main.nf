@@ -1096,7 +1096,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .combine( ch_sig_to_fasta_for_hash2kmer )
     .dump( tag: "ch_hash_to_sigs_with_hash__splittext__transpose__join" )
     // Drop the .sig file name
-    .map( it -> [it[1], it[3]] )
+    .map{ it -> [it[1], it[3]] }
     .dump( tag: "ch_hash_to_sigs_with_hash__splittext__transpose__join__map" )
     // Get all the fastas from the same hash
     .groupTuple()
