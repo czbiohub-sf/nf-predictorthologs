@@ -1101,7 +1101,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     // Get all the fastas from the same hash
     .groupTuple()
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple' )
-    .map( it -> [it[0], it[1].unique()]  )
+    .map{ it -> [it[0], it[1].unique()]  }
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple__unique' )
     .set { ch_hashes_with_fastas_for_hash2kmer }
 }
