@@ -367,6 +367,16 @@ if (params.diff_hash_expression) {
       .dump( tag: 'ch_group_to_fasta' )
       .set{ ch_group_to_fasta }
 
+    
+    // Match signature basename to sample id and fasta for hash2kmer
+    Channel
+      .fromPath(params.csv)
+      .splitCsv(header:true)
+      .map{ row -> tuple(file(row.sig).getBaseName(), file(row.fasta, checkIfExists: true)) }
+      .ifEmpty { exit 1, "params.csv (${params.csv}) 'fasta' column was empty" }
+      .dump( tag: 'ch_sig_to_fasta_for_hash2kmer' )
+      .set{ ch_sig_to_fasta_for_hash2kmer }
+
 
     // Create channel of signatures per group
     Channel
@@ -1059,7 +1069,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     file(sigs) from ch_all_signatures_flattened_for_finding_matches
 
     output:
-    file("*__matches.txt")
+    set val(hash), file("*__matches.txt") into ch_hash_to_sigs_with_hash
 
     script:
     hash_cleaned = hashCleaner(hash)
@@ -1075,6 +1085,25 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
       > ${matches}
     """
   }
+
+  ch_hash_to_sigs_with_hash
+    .map{ it -> [it[0], it[1].splitText()] }
+    .dump( tag: 'ch_hash_to_sigs_with_hash__splittext' )
+    .transpose()
+    // Remove ./ from beginning and \n from end of sing name
+    .map{ it -> [it[1].replaceAll("\\n+", "").replaceAll("\\./", ""), it[0]] }
+    .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose' )
+    .combine( ch_sig_to_fasta_for_hash2kmer )
+    .dump( tag: "ch_hash_to_sigs_with_hash__splittext__transpose__join" )
+    // Drop the .sig file name
+    .map( it -> [it[1], it[3]] )
+    .dump( tag: "ch_hash_to_sigs_with_hash__splittext__transpose__join__map" )
+    // Get all the fastas from the same hash
+    .groupTuple()
+    .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple' )
+    .map( it -> [it[0], it[1].unique()]  )
+    .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple__unique' )
+    .set { ch_hashes_with_fastas_for_hash2kmer }
 }
 
 
@@ -1137,11 +1166,6 @@ if (params.hashes) {
       // "a", "b", "c" = protein fasta files
 } else if (params.diff_hash_expression) {
 
-  ch_hash_to_group_for_hash2kmer
-    .join( ch_group_to_fasta )
-    .dump( tag: 'group_to_hashes_for_hash2kmer__combine__ch_group_to_fasta' )
-    .into{ ch_hashes_with_fastas_for_hash2kmer }
-
   ch_hash_to_group_for_hash2sig
     .map{ it -> it[0] }
     .into{ ch_hashes_for_hash2sig }
@@ -1155,52 +1179,50 @@ if (params.hashes) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /*
- * STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
- */
- do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
- if (do_hash2kmer) {
-  // No protein fasta provided for searching for orthologs, need to
-  // download refseq
-  process hash2kmer {
-    tag "${hash_cleaned}"
-    label "process_low"
+* STEP 4 - convert hashes to k-mers & sequences -- but only needed for diamond search
+*/
+do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
+if (do_hash2kmer) {
+process hash2kmer {
+  tag "${hash_cleaned}"
+  label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+  publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
-    input:
-    tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+  input:
+  tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
 
-    output:
-    file(kmers)
-    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
-    set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
+  output:
+  file(kmers)
+  set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
+  set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
-    script:
-    hash_cleaned = hashCleaner(hash)
-    hash_id = "hash-${hash_cleaned}"
-    kmers = "${hash_id}__kmer.txt"
-    sequences = "${hash_id}__sequences.fasta"
-    first_flag = params.do_featurecounts_orthology ? '' : '--first'
-    """
-    echo ${hash_cleaned} >> hash.txt
-    hash2kmer.py \\
-        --ksize ${sourmash_ksize} \\
-        --no-dna \\
-        --input-is-protein \\
-        --output-sequences ${sequences} \\
-        --output-kmers ${kmers} \\
-        --${sourmash_molecule} \\
-        ${first_flag} \\
-        hash.txt \\
-        ${peptide_fastas}
-    """
-  }
-  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+  script:
+  hash_cleaned = hashCleaner(hash)
+  hash_id = "hash-${hash_cleaned}"
+  kmers = "${hash_id}__kmer.txt"
+  sequences = "${hash_id}__sequences.fasta"
+  first_flag = params.do_featurecounts_orthology ? '' : '--first'
+  """
+  echo ${hash_cleaned} >> hash.txt
+  hash2kmer.py \\
+      --ksize ${sourmash_ksize} \\
+      --no-dna \\
+      --input-is-protein \\
+      --output-sequences ${sequences} \\
+      --output-kmers ${kmers} \\
+      --${sourmash_molecule} \\
+      ${first_flag} \\
+      hash.txt \\
+      ${peptide_fastas}
+  """
+}
+ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
 
-  ch_hash_to_group_for_joining_after_hash2kmer
-    .join(ch_seqs_from_hash2kmer)
-    .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-    .set{ ch_protein_seq_for_diamond }
+ch_hash_to_group_for_joining_after_hash2kmer
+  .join(ch_seqs_from_hash2kmer)
+  .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
+  .set{ ch_protein_seq_for_diamond }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
