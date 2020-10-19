@@ -77,7 +77,7 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein)
 def maybe_traverse_directory(seqfiles):
     for filename in seqfiles:
         if os.path.isfile(filename):
-            yield file
+            yield filename
         else:
             for (dirpath, dirnames, basename) in os.walk(filename):
                 if not basename.startswith('.'):
