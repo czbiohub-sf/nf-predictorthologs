@@ -12,6 +12,8 @@ regexes = {
     'samtools': ['v_samtools.txt', r"samtools (\S+)"],
     'htslib': ['v_samtools.txt', r"Using htslib (\S+)"],
     'Diamond': ['v_diamond.txt', r"diamond v(\S+)"],
+    'Sourmash': ['v_sourmash.txt', r"sourmash (\S+)"],
+    'sencha': ['v_sencha.txt', r"Version: (\S+)"],
     'MultiQC': ['v_multiqc.txt', r"multiqc, version (\S+)"],
 }
 results = OrderedDict()
@@ -23,6 +25,9 @@ results['samtools'] = '<span style="color:#999999;\">N/A</span>'
 results['htslib'] = '<span style="color:#999999;\">N/A</span>'
 results['DIAMOND'] = '<span style="color:#999999;\">N/A</span>'
 results['MultiQC'] = '<span style="color:#999999;\">N/A</span>'
+results['Sourmash'] = '<span style="color:#999999;">N/A</span>'
+results['sencha'] = '<span style="color:#999999;">N/A</span>'
+
 
 # Search each file using its regex
 for k, v in regexes.items():

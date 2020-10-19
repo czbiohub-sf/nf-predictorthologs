@@ -36,4 +36,4 @@ dependencies:
   - bioconda::subread=1.6.4
   - conda-forge::tqdm=4.45.0
   - pip:
-    - sencha==1.0.2
+    - sencha==1.0.3
