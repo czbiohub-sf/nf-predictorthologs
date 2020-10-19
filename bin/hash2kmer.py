@@ -4,15 +4,17 @@ Given a list of hash values and a collection of sequences, output
 all of the k-mers that match a hashval.
 NOTE: for now, only implemented for DNA & for seed=42.
 """
-import sys
 import argparse
-from sourmash._minhash import hash_murmur
-import screed
 import csv
+import os
+import sys
+
+import screed
+from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
+from sourmash._minhash import hash_murmur
 from sourmash.logging import notify, error
 from sourmash.cli.utils import add_construct_moltype_args, add_ksize_arg
 from sourmash.sourmash_args import calculate_moltype
-from sencha.sequence_encodings import encode_peptide, AMINO_ACID_SINGLE_LETTERS
 
 NOTIFY_EVERY_BP = 1e7
 
@@ -70,6 +72,16 @@ def get_kmers_for_hashvals(sequence, hashvals, ksize, moltype, input_is_protein)
         hashval = hash_murmur(kmer_encoded)
         if hashval in hashvals:
             yield kmer_encoded, kmer_in_seq, hashval
+
+
+def maybe_traverse_directory(seqfiles):
+    for filename in seqfiles:
+        if os.path.isfile(filename):
+            yield file
+        else:
+            for (dirpath, dirnames, basename) in os.walk(filename):
+                if not basename.startswith('.'):
+                    yield os.path.join(dirpath, basename)
 
 
 def main():
@@ -158,7 +170,7 @@ def main():
     p = 0  # number of k-mers found
     found_kmers = []
     watermark = NOTIFY_EVERY_BP
-    for filename in args.seqfiles:
+    for filename in maybe_traverse_directory(args.seqfiles):
         m, n = get_matching_hashes_in_file(
             filename,
             args.ksize,
