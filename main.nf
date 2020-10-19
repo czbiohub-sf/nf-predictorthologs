@@ -1214,7 +1214,7 @@ process hash2kmer {
       --${sourmash_molecule} \\
       ${first_flag} \\
       hash.txt \\
-      ${peptide_fastas} # hash2kmer can traverse directory and don't have to supply all filnames
+      ./ # hash2kmer can traverse directory and don't have to supply all filnames
   """
 }
 ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
