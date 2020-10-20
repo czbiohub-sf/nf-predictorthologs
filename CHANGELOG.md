@@ -28,7 +28,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Fixed number of cpus, memory, time requirements for sambamba processes ([#76](https://github.com/czbiohub/nf-predictorthologs/pull/76))
 - Fixed noncoding search to use `cmscan` instead of `cmsearch` from INFERNAL ([#74](https://github.com/czbiohub/nf-predictorthologs/pull/74))
 - Propagate molecule and k-mer size to sample id after translate
-- Add version printing for sencha, and sourmash in Dockerfile, update version of sencha to 1.0.2 in environment.yml
+- Add version printing for sencha, and sourmash in Dockerfile, update version of sencha
 
 ### `Dependencies`
 
@@ -46,5 +46,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Addeed infernal=1.1.2 to dependencies
 - Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
 - Added sambamba=0.7.1 using bioconda channel
+- Updated sencha=1.0.3 to fix the bug in memory errors possibly with the numpy array on unique filenames PR #96 on sencha
 
 ### `Deprecated`
