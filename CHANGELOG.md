@@ -46,5 +46,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Addeed infernal=1.1.2 to dependencies
 - Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
 - Added sambamba=0.7.1 using bioconda channel
+- Updated sourmash=1.0.3 to fix the bug in memory errors possibly with the numpy array on unique filenames
 
 ### `Deprecated`
