@@ -81,7 +81,7 @@ def maybe_traverse_directory(seqfiles):
         else:
             for (dirpath, dirnames, basename) in os.walk(filename):
                 if not basename.startswith('.'):
-                    yield os.path.join(dirpath, basename)
+                    yield  os.path.join(dirpath, basename)
 
 
 def main():
