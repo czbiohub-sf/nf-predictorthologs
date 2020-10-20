@@ -1099,7 +1099,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .map{ it -> tuple(it[1], it[3]) }
     .dump( tag: "ch_hash_to_sigs_with_hash__splittext__transpose__join__map" )
     // Get all the fastas from the same hash
-    .groupTuple(by: 0)
+    .groupTuple(by: 0, size: 100, remainder: true)
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple' )
     .map{ it -> tuple(it[0], it[1].unique())  }
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose__join__map__grouptuple__unique' )
