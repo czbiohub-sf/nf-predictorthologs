@@ -15,7 +15,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added option of using sourmash to search instead of DIAMOND. This stays in hash-land by searching hashes (provided by `--hashes` or found by `--differential_hash_expression`) directly into a sourmash sequence bloom tree index database
 - Added option for bam deduplication, if you wish to skip deduplication step add the `-skip_remove_duplicates_bam` flag
 - Added ability to search DIAMOND for hashes that were unassigned from sourmash ([#79](https://github.com/czbiohub/nf-predictorthologs/pull/79))
-- Add version printing for sencha, and sourmash, update versions in environment.yml
+- Add version printing for sencha, and sourmash, update versions in environment.yml ([#88](https://github.com/czbiohub/nf-predictorthologs/pull/88))
 
 ### `Fixed`
 
@@ -46,6 +46,6 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Addeed infernal=1.1.2 to dependencies
 - Update DIAMOND to version 0.9.35 to deal with new NCBI taxonomy formats
 - Added sambamba=0.7.1 using bioconda channel
-- Updated sencha=1.0.3 to fix the bug in memory errors possibly with the numpy array on unique filenames PR #96 on sencha
+- Updated sencha=1.0.3 to fix the bug in memory errors possibly with the numpy array on unique filenames ([PR #96 on sencha](https://github.com/czbiohub/leaftea/pull/96))
 
 ### `Deprecated`
