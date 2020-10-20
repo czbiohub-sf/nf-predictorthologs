@@ -1190,7 +1190,7 @@ process hash2kmer {
   publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
   input:
-  tuple val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+  set val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
 
   output:
   file(kmers)
@@ -1214,7 +1214,7 @@ process hash2kmer {
       --${sourmash_molecule} \\
       ${first_flag} \\
       hash.txt \\
-      ./ # hash2kmer can traverse directory and don't have to supply all filnames
+      ./ # hash2kmer can traverse directory and don't have to supply all filenames
   """
 }
 ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
