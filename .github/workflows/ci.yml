@@ -8,7 +8,7 @@ jobs:
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
-      NXF_RUN: "nextflow run -resume"
+      NXF_RUN: "nextflow run"
     runs-on: ubuntu-latest
     strategy:
       # Do ALL the tests even if one of them fails
