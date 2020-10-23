@@ -8,7 +8,7 @@ jobs:
     env:
       NXF_VER: ${{ matrix.nxf_ver }}
       NXF_ANSI_LOG: false
-      NXF_RUN: "nextflow run -resume"
+      NXF_RUN: "nextflow run"
     runs-on: ubuntu-latest
     strategy:
       # Do ALL the tests even if one of them fails
@@ -37,15 +37,31 @@ jobs:
         'test_sencha_sambamba'
         ]
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out pipeline code
+        uses: actions/checkout@v2
       - name: Install Nextflow
         run: |
           export NXF_VER=${{ matrix.nxf_ver }}
           wget -qO- get.nextflow.io | bash
           sudo mv nextflow /usr/local/bin/
+      - name: Check if Dockerfile or Conda environment changed
+        uses: technote-space/get-diff-action@v1
+        with:
+          PREFIX_FILTER: |
+            Dockerfile
+            environment.yml
+      - name: Build new docker image
+        if: env.GIT_DIFF
+        run: docker build --no-cache . -t nfcore/kmermaid:dev
       - name: Pull docker image
+        if: ${{ !env.GIT_DIFF }}
         run: |
-          docker pull czbiohub/predictorthologs:dev && docker tag czbiohub/predictorthologs:dev czbiohub/predictorthologs:dev
+          docker pull nfcore/kmermaid:dev
+          docker tag nfcore/kmermaid:dev nfcore/kmermaid:dev
+      - name: Install Nextflow
+        run: |
+          wget -qO- get.nextflow.io | bash
+          sudo mv nextflow /usr/local/bin/
       - name: Run pipeline with ${{ matrix.profile_flags }}
         run: |
           # TODO nf-core: You can customise CI pipeline run tests as required

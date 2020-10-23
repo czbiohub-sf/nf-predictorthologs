@@ -21,6 +21,7 @@ dependencies:
   - bioconda::infernal=1.1.2
   - conda-forge::jupyter=1.0.0
   - bioconda::multiqc=1.8
+  - bioconda::minimap2=2.17
   - bioconda::p7zip=15.09
   - conda-forge::pandas=1.0.5
   - thombashi::pathvalidate=2.2.0
@@ -35,4 +36,4 @@ dependencies:
   - bioconda::subread=1.6.4
   - conda-forge::tqdm=4.45.0
   - pip:
-    - git+https://github.com/czbiohub/sencha.git@master#egg=sencha
+    - sencha==1.0.3

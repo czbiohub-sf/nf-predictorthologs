@@ -624,6 +624,8 @@ process get_software_versions {
     fastp --version > v_fastp.txt
     diamond version > v_diamond.txt
     samtools --version > v_samtools.txt
+    sourmash -v &> v_sourmash.txt
+    pip show sencha &> v_sencha.txt
     scrape_software_versions.py &> software_versions_mqc.yaml
     """
 }
