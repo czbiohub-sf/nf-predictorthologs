@@ -941,7 +941,6 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     summary_json = "${sample_sketch_id}__coding_summary.json"
     """
     sencha translate \\
-      --processes ${task.cpus} \\
       --molecule ${alphabet} \\
       --peptide-ksize ${ksize} \\
       --jaccard-threshold ${jaccard_threshold} \\
