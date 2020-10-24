@@ -467,8 +467,15 @@ if (params.search_noncoding && params.rfam_clan_info){
 //////////////////////////////////////////////////////////////////
 /* -     Parse translate and diamond parameters         -- */
 //////////////////////////////////////////////////////////////////
-peptide_ksize = params.translate_peptide_ksize?.toString().tokenize(',')
-peptide_molecule = params.translate_peptide_molecule?.toString().tokenize(',')
+ch_peptide_ksize = Channel.from(params.translate_peptide_ksize?.toString().tokenize(',')).view()
+ch_peptide_molecule = Channel.from(params.translate_peptide_molecule?.toString().tokenize(',')).view()
+
+// Make cartesian product of molecule and ksize
+ch_peptide_molecule
+  .combine(ch_peptide_ksize)
+  .dump ( tag: 'ch_translate_molecule_ksize' )
+  .set { ch_translate_molecule_ksize }
+
 jaccard_threshold = params.translate_jaccard_threshold
 refseq_release = params.refseq_release
 tablesize = params.translate_tablesize
@@ -745,7 +752,7 @@ if (params.bam && !params.bed && !params.bai && !params.skip_remove_duplicates_b
 /*
  * STEP 1 - FastQC
  */
-if (!params.input_is_protein) {
+if (!params.input_is_protein && !params.skip_fastqc) {
   process fastqc {
       tag "$name"
       label 'process_medium'
@@ -836,6 +843,7 @@ if (!params.skip_trimming && !params.input_is_protein){
   }
 } else if (!params.input_is_protein) {
   ch_reads_trimmed = ch_read_files_trimming
+  ch_fastp_results = Channel.empty()
 } else {
   ch_fastp_results = Channel.empty()
 }
@@ -860,9 +868,8 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     publishDir "${params.outdir}/sencha/", mode: 'copy'
 
     input:
-    file(peptides) from ch_proteome_translate_fasta
-    each molecule from peptide_molecule
-    each ksize from peptide_ksize
+    file(peptides) from ch_proteome_translate_fasta.collect()
+    set val(molecule), val(ksize) from ch_translate_molecule_ksize
 
     output:
     set val(bloom_id), val(molecule),  val(ksize), file("${peptides.simpleName}__${bloom_id}.bloomfilter") into ch_sencha_bloom_filters
@@ -906,6 +913,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
    */
   process translate {
     tag "${sample_sketch_id}"
+    label "process_low"
     label "process_long"
     publishDir "${params.outdir}/translate/${bloom_id}", mode: 'copy'
 
@@ -1600,7 +1608,7 @@ if (params.search_noncoding && params.infernal_db) {
 
         script:
         """
-        gunzip -k --verbose --stdout --force ${gz} > ${gz.baseName}
+        gunzip -c --verbose --stdout --force ${gz} > ${gz.baseName}
         """
     }
   }
