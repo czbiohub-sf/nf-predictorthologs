@@ -62,7 +62,7 @@ def helpMessage() {
                                       Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.gz"
       --diamond_taxdmp_zip            Taxonomy dump file from NCBI
                                       Default is: "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip"
-
+      --skip_search                   Skip DIAMOND and sourmash search
 
     Other options:
       --outdir [file]                 The output directory where the results will be saved
@@ -1215,7 +1215,7 @@ if (params.hashes) {
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'diamond') {
+if (!params.skip_search && params.protein_searcher == 'diamond') {
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
@@ -1349,7 +1349,7 @@ if (params.protein_searcher == 'diamond') {
 /* --                                                                     -- */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-if (params.protein_searcher == 'sourmash'){
+if (!params.skip_search && params.protein_searcher == 'sourmash'){
 
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@ Initial release of nf-core/predictorthologs, created with the [nf-core](http://n
 - Added option for bam deduplication, if you wish to skip deduplication step add the `-skip_remove_duplicates_bam` flag
 - Added ability to search DIAMOND for hashes that were unassigned from sourmash ([#79](https://github.com/czbiohub/nf-predictorthologs/pull/79))
 - Add version printing for sencha, and sourmash, update versions in environment.yml ([#88](https://github.com/czbiohub/nf-predictorthologs/pull/88))
+- Add option to skip DIAMOND and sourmash search
 
 ### `Fixed`
 
