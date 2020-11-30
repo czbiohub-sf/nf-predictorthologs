@@ -167,8 +167,10 @@ def main(metadata_csv, ksize, molecule, group_col=GROUP, group1=None, sig_col=SI
     if len(overlapping_samples) == 0:
         raise ValueError(
         f"Could not find any overlapping sample ids between the metadata and the sketch names!"
-        f" \n--- 10 random sample ids from Metadata: ----\n{metadata.sample(10).index.values)}\n"
-        f"\n--- 10 random sample ids from sketches: ---\n{sketch_series.sample(10).index.values)}"
+        f" \n--- 10 random sample ids from Metadata: ----\n"
+        f"{'\n'.join(metadata.sample(10).index)}\n"
+        f"\n--- 10 random sample ids from sketches: ---\n"
+        f"{'\n'.join(sketch_series.sample(10).index)}"
     )
 
     # If group1 is provided, only do one hash enrichment
