@@ -1194,7 +1194,7 @@ if (do_hash2kmer) {
     tag "${hash_cleaned}"
     label "process_low"
 
-    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+    publishDir "${params.outdir}/hash2kmer/${group_cleaned}/${hash_id}", mode: 'copy'
 
     input:
     set val(hash), val(group), file(peptide_fastas) from ch_hash_to_group_to_fastas
@@ -1205,6 +1205,7 @@ if (do_hash2kmer) {
     set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
 
     script:
+    group_cleaned = groupCleaner(group)
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
     kmers = "${hash_id}__kmer.txt"
