@@ -1044,9 +1044,9 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
         ch_hash_to_group_for_hash2sig }
 
   ch_hash_to_group_for_finding_matches
-    .map{ it -> it[0] }
+    .map { it -> it[0] }
     .unique()
-    .into{ ch_informative_hashes_flattened }
+    .set { ch_informative_hashes_flattened }
 
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -1168,8 +1168,8 @@ if (params.hashes) {
 } else if (params.diff_hash_expression) {
 
   ch_hash_to_group_for_hash2sig
-    .map{ it -> it[0] }
-    .into{ ch_hashes_for_hash2sig }
+    .map { it -> it[0] }
+    .set { ch_hashes_for_hash2sig }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
