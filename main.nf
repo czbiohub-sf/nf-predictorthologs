@@ -1062,6 +1062,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
   process sigs_with_hash {
     tag "${hash_id}"
     label "process_low"
+    label "ignore_pipefail"
 
     publishDir "${params.outdir}/diff_hash/sigs_with_hash", mode: 'copy'
 
