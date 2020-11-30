@@ -1208,7 +1208,7 @@ if (do_hash2kmer) {
     group_cleaned = groupCleaner(group)
     hash_cleaned = hashCleaner(hash)
     hash_id = "hash-${hash_cleaned}"
-    kmers = "${hash_id}__kmer.txt"
+    kmers = "${hash_id}__kmer.csv"
     sequences = "${hash_id}__sequences.fasta"
     first_flag = params.do_featurecounts_orthology ? '' : '--first'
     """
