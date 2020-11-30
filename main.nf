@@ -1186,7 +1186,7 @@ do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_feature
 if (do_hash2kmer) {
 
   ch_hash_to_group_for_hash2kmer
-    .combine ( ch_hashes_with_fastas_for_hash2kmer )
+    .combine ( ch_hashes_with_fastas_for_hash2kmer, by: 0 )
     .dump ( tag: 'ch_hash_to_group_to_fastas' )
     .set { ch_hash_to_group_to_fastas }
 
