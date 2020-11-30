@@ -311,7 +311,7 @@ if (params.csv_has_is_aligned) {
       .dump( tag: 'ch_csv_is_aligned.unaligned' )
       .map{ row -> tuple(row.group, row.sample_id, row.sig, row.fasta) }
       .dump( tag: 'ch_unaligned_sig_fasta' )
-      .into { ch_unaligned_sig_fasta }
+      .set { ch_unaligned_sig_fasta }
 
   } else {
     exit 1, "Must provide --csv when doing filtering for aligned/unaligned hashes"
@@ -346,7 +346,7 @@ if (params.diff_hash_expression) {
       //      10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //      10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
       .dump( tag: "ch_all_signatures_flat_list_for_diff_hash" )
-      .into{ ch_all_signatures_flat_list_for_diff_hash }
+      .set { ch_all_signatures_flat_list_for_diff_hash }
 
     // Create channel of all signatures, completely flattened
     Channel
@@ -355,7 +355,7 @@ if (params.diff_hash_expression) {
       .map{ row -> file(row.sig, checkIfExists: true) }
       .ifEmpty { exit 1, "params.csv (${params.csv}) 'sig' column was empty" }
       .collect()
-      .into{ ch_all_signatures_flattened_for_finding_matches }
+      .set { ch_all_signatures_flattened_for_finding_matches }
 
     // Create channel of fastas per group
     Channel
@@ -414,7 +414,7 @@ if (params.diff_hash_expression) {
       //     MACA_21m_F_NPC_54__unaligned__CCCAGTTTCGTAGATC_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //     10X_P4_2__unaligned__ATCGAGTCACCAGTTA_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig,
       //     10X_P5_0__unaligned__TCCACACCACATTTCT_molecule-dayhoff_ksize-45_log2sketchsize-14_trackabundance-true.sig]]
-      .into { ch_groups_with_all_signatures_for_diff_hash }
+      .set { ch_groups_with_all_signatures_for_diff_hash }
     // exit 1, "testing"
   } else {
     exit 1, "--csv is required for differential hash expression!"
