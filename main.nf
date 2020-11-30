@@ -1184,46 +1184,52 @@ if (params.hashes) {
 */
 do_hash2kmer = params.diff_hash_expression || params.hashes || params.do_featurecounts_orthology
 if (do_hash2kmer) {
-process hash2kmer {
-  tag "${hash_cleaned}"
-  label "process_low"
 
-  publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
+  ch_hash_to_group_for_hash2kmer
+    .combine ( ch_hashes_with_fastas_for_hash2kmer )
+    .dump ( tag: 'ch_hash_to_group_to_fastas' )
+    .set { ch_hash_to_group_to_fastas }
 
-  input:
-  set val(hash), file(peptide_fastas) from ch_hashes_with_fastas_for_hash2kmer
+  process hash2kmer {
+    tag "${hash_cleaned}"
+    label "process_low"
 
-  output:
-  file(kmers)
-  set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
-  set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
+    publishDir "${params.outdir}/hash2kmer/${hash_id}", mode: 'copy'
 
-  script:
-  hash_cleaned = hashCleaner(hash)
-  hash_id = "hash-${hash_cleaned}"
-  kmers = "${hash_id}__kmer.txt"
-  sequences = "${hash_id}__sequences.fasta"
-  first_flag = params.do_featurecounts_orthology ? '' : '--first'
-  """
-  echo ${hash_cleaned} >> hash.txt
-  hash2kmer.py \\
-      --ksize ${sourmash_ksize} \\
-      --no-dna \\
-      --input-is-protein \\
-      --output-sequences ${sequences} \\
-      --output-kmers ${kmers} \\
-      --${sourmash_molecule} \\
-      ${first_flag} \\
-      hash.txt \\
-      ./ # hash2kmer can traverse directory and don't have to supply all filenames
-  """
-}
-ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+    input:
+    set val(hash), val(group), file(peptide_fastas) from ch_hash_to_group_to_fastas
 
-ch_hash_to_group_for_joining_after_hash2kmer
-  .join(ch_seqs_from_hash2kmer)
-  .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
-  .set{ ch_protein_seq_for_diamond }
+    output:
+    file(kmers)
+    set val(hash), file(sequences) into ch_seqs_from_hash2kmer, ch_seqs_from_hash2kmer_to_print, ch_seqs_from_hash2kmer_for_bam_of_hashes
+    set val(hash), val(hash_id), file(sequences) into ch_seqs_with_hashes_for_filter_unaligned_reads, ch_seqs_with_hashes_for_bam_of_hashes
+
+    script:
+    hash_cleaned = hashCleaner(hash)
+    hash_id = "hash-${hash_cleaned}"
+    kmers = "${hash_id}__kmer.txt"
+    sequences = "${hash_id}__sequences.fasta"
+    first_flag = params.do_featurecounts_orthology ? '' : '--first'
+    """
+    echo ${hash_cleaned} >> hash.txt
+    hash2kmer.py \\
+        --ksize ${sourmash_ksize} \\
+        --no-dna \\
+        --input-is-protein \\
+        --output-sequences ${sequences} \\
+        --output-kmers ${kmers} \\
+        --${sourmash_molecule} \\
+        ${first_flag} \\
+        hash.txt \\
+        ./ # hash2kmer can traverse directory and don't have to supply all filenames
+    """
+  }
+  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+
+  ch_hash_to_group_for_joining_after_hash2kmer
+    .join(ch_seqs_from_hash2kmer)
+    .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
+    .set{ ch_protein_seq_for_diamond }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
