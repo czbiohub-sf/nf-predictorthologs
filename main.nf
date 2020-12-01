@@ -1092,7 +1092,7 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     .map{ it -> [it[0], it[1].splitText()] }
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext' )
     .transpose()
-    // Remove ./ from beginning and \n from end of sing name
+    // Remove ./ from beginning and \n from end of signature filename name
     .map{ it -> [it[1].replaceAll("\\n+", "").replaceAll("\\./", ""), it[0]] }
     .dump( tag: 'ch_hash_to_sigs_with_hash__splittext__transpose' )
     .combine( ch_sig_to_fasta_for_hash2kmer )
@@ -1226,10 +1226,17 @@ if (do_hash2kmer) {
         ./ # hash2kmer can traverse directory and don't have to supply all filenames
     """
   }
-  ch_seqs_from_hash2kmer_to_print.dump(tag: 'ch_seqs_from_hash2kmer_to_print')
+  ch_seqs_from_hash2kmer_to_print.dump( tag: 'ch_seqs_from_hash2kmer_to_print' )
+
+  ch_seqs_from_hash2kmer
+    // it[0]: hash
+    // it[1]: fasta file
+    // Check for non-empty fasta files
+    .filter ( it -> it[1].size() > 0 )
+    .set { ch_seqs_from_hash2kmer_nonempty }
 
   ch_hash_to_group_for_joining_after_hash2kmer
-    .join(ch_seqs_from_hash2kmer)
+    .join( ch_seqs_from_hash2kmer_nonempty )
     .dump(tag: 'ch_hash_to_group_for_joining__ch_protein_seq_from_hash2kmer')
     .set{ ch_protein_seq_for_diamond }
 }
