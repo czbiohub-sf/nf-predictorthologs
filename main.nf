@@ -203,7 +203,8 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
       // add false for "hash" part
       .map { it -> tuple(false, 
                          file(it, checkIfExists: true).getBaseName(), 
-                         file(it, checkIfExists: true)))}
+                         file(it, checkIfExists: true))
+            }
       .dump ( tag: 'ch_protein_fastas__ch_protein_seq_for_diamond' )
       .set { ch_protein_seq_for_diamond }
   }
