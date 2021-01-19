@@ -205,6 +205,8 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
                          file(it, checkIfExists: true).getBaseName(), 
                          file(it, checkIfExists: true))
             }
+      // filter for non empty fasta files
+      .filter { it -> it[2].size() > 0 }
       .dump ( tag: 'ch_protein_fastas__ch_protein_seq_for_diamond' )
       .set { ch_protein_seq_for_diamond }
   }
