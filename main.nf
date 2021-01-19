@@ -200,8 +200,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // No hashes - just do a diamond blastp search for each peptide fasta
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
-      // add "hash" text for now=
+      // add false for "hash" part
       .map { it -> tuple(false, it[0], it[1])}
+      .dump ( tag: 'ch_protein_fastas__ch_protein_seq_for_diamond' )
       .set { ch_protein_seq_for_diamond }
   }
 
@@ -1299,7 +1300,7 @@ if (params.protein_searcher == 'diamond') {
    * STEP 8 - Search DIAMOND database for closest match to
    */
   process diamond_blastp {
-    tag "${sample_id}"
+    tag "${group}"
     label "process_low"
 
     publishDir "${params.outdir}/blastp/${subdir}", mode: 'copy'
