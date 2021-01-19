@@ -201,7 +201,9 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
       // add false for "hash" part
-      .map { it -> tuple(false, it[0], it[1])}
+      .map { it -> tuple(false, 
+                         file(it, checkIfExists: true).getBaseName(), 
+                         file(it, checkIfExists: true)))}
       .dump ( tag: 'ch_protein_fastas__ch_protein_seq_for_diamond' )
       .set { ch_protein_seq_for_diamond }
   }
