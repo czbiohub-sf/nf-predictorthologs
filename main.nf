@@ -414,6 +414,11 @@ if (params.diff_hash_expression) {
 ////////////////////////////////////////////////////
 /* --        Parse reference proteomes         -- */
 ////////////////////////////////////////////////////
+
+// --- Parse Translate parameters ---
+save_translate_csv = params.save_translate_csv
+save_translate_json = params.save_translate_json
+
 if (params.proteome_translate_fasta) {
   Channel.fromPath(params.proteome_translate_fasta, checkIfExists: true)
        .ifEmpty { exit 1, "Peptide fasta file not found: ${params.proteome_translate_fasta}" }
@@ -915,7 +920,13 @@ if (!params.input_is_protein && params.protein_searcher == 'diamond'){
     tag "${sample_sketch_id}"
     label "process_low"
     label "process_long"
-    publishDir "${params.outdir}/translate/${bloom_id}", mode: 'copy'
+    publishDir "${params.outdir}/translate/${bloom_id}", mode: 'copy',
+      saveAs: {
+          filename ->
+              if (save_translate_csv && filename.indexOf(".csv") > 0) "$filename"
+              else if (save_translate_json && filename.indexOf(".json") > 0) "$filename"
+              else "$filename"
+          }
 
     input:
     tuple \
