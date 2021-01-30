@@ -163,6 +163,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
         .map {row -> row.split()}
         .map { row -> [ row[3], row[0], row[1], row[2] ] } // get interval name, chrm, start and stop
         .combine(ch_bam_bai)
+        .dump ( tag: 'ch_bam_bai' )
         .set {ch_bed_bam_bai}
 } else if (params.bam && !params.skip_remove_duplicates_bam && !params.bai) {
     // deciding if sambamba steps are needed
