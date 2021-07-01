@@ -795,7 +795,7 @@ if (!params.input_is_protein && !params.skip_fastqc) {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths))){
+if (!params.skip_trimming && !(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths) ){
   process fastp {
       label 'process_low'
       tag "$name"
@@ -857,7 +857,7 @@ if (!params.skip_trimming && !(params.input_is_protein || params.protein_fastas 
 
 
 
-if (!(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths)) && params.protein_searcher == 'diamond'){
+if (!(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths) && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
