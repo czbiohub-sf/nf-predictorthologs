@@ -178,7 +178,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   if (params.protein_fastas){
     Channel.fromPath(params.protein_fastas)
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
-        .dump ( 'ch_protein_fastas' )
+        .dump ( tag: 'ch_protein_fastas' )
         .set { ch_protein_fastas }
   } else if (params.csv && params.input_is_protein) {
     // Provided a csv file mapping sample_id to protein fasta path
