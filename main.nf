@@ -179,6 +179,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   if (params.protein_fastas){
     Channel.fromPath(params.protein_fastas)
         .ifEmpty { exit 1, "params.protein_fastas was empty - no input files supplied" }
+        .dump ( tag: 'ch_protein_fastas' )
         .set { ch_protein_fastas }
   } else if (params.csv && params.input_is_protein) {
     // Provided a csv file mapping sample_id to protein fasta path
@@ -192,7 +193,7 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
   } else if (params.protein_fasta_paths){
     Channel
       .from(params.protein_fasta_paths)
-      .map { row -> [ row[0], [ file(row[1][0], checkIfExists: true)] ] }
+      .map { row -> file(row[1][0], checkIfExists: true) }
       .ifEmpty { exit 1, "params.protein_fasta_paths was empty - no input files supplied" }
       .dump(tag: "protein_fasta_paths")
       .set { ch_protein_fastas }
@@ -201,8 +202,14 @@ if (params.bam && params.bed && params.bai && !(params.reads || params.readPaths
     // No hashes - just do a diamond blastp search for each peptide fasta
     // Not extracting the sequences containing hashes of interest
     ch_protein_fastas
-      // add "hash" text for now=
-      .map { it -> tuple(false, it[0], it[1])}
+      // add false for "hash" part
+      .map { it -> tuple(false, 
+                         file(it, checkIfExists: true).getBaseName(), 
+                         file(it, checkIfExists: true))
+            }
+      // filter for non empty fasta files
+      .filter { it -> it[2].size() > 0 }
+      .dump ( tag: 'ch_protein_fastas__ch_protein_seq_for_diamond' )
       .set { ch_protein_seq_for_diamond }
   }
 
@@ -794,7 +801,7 @@ if (!params.input_is_protein && !params.skip_fastqc) {
  * STEP 2 - fastp for read trimming
  */
 
-if (!params.skip_trimming && !params.input_is_protein){
+if (!params.skip_trimming && !(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths) ){
   process fastp {
       label 'process_low'
       tag "$name"
@@ -856,7 +863,7 @@ if (!params.skip_trimming && !params.input_is_protein){
 
 
 
-if (!params.input_is_protein && params.protein_searcher == 'diamond'){
+if (!(params.input_is_protein || params.protein_fastas || params.protein_fasta_paths) && params.protein_searcher == 'diamond'){
   ///////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////
   /* --                                                                     -- */
@@ -1311,7 +1318,7 @@ if (params.protein_searcher == 'diamond') {
    * STEP 8 - Search DIAMOND database for closest match to
    */
   process diamond_blastp {
-    tag "${sample_id}"
+    tag "${group}"
     label "process_low"
 
     publishDir "${params.outdir}/blastp/${subdir}", mode: 'copy'
