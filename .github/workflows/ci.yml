@@ -44,11 +44,6 @@ jobs:
           export NXF_VER=${{ matrix.nxf_ver }}
           wget -qO- get.nextflow.io | bash
           sudo mv nextflow /usr/local/bin/
-      - name: Pull docker image
-        if: ${{ !env.GIT_DIFF }}
-        run: |
-          docker pull nfcore/kmermaid:dev
-          docker tag nfcore/kmermaid:dev nfcore/kmermaid:dev
       - name: Install Nextflow
         run: |
           wget -qO- get.nextflow.io | bash
